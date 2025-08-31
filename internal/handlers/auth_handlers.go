@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
@@ -151,6 +152,9 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "Invalid tenant ID format")
 		}
+		if tid == uuid.Nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid tenant ID")
+		}
 		tenantID = tid
 	} else {
 		// Use default dev tenant for consistency with login search
@@ -179,9 +183,9 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
 		Status:       "active",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
-	user.CreatedAt = user.CreatedAt // Will be set by Now()
-	user.UpdatedAt = user.UpdatedAt
 
 	if err := h.userRepo.Create(ctx, user); err != nil {
 		// Debug: Log the exact database error

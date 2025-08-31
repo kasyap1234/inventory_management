@@ -6,8 +6,15 @@ import (
 	"agromart2/internal/models"
 
 	"github.com/google/uuid"
-"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type Database interface {
+	Exec(ctx context.Context, sql string, args ...interface{}) error
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
 
 type RoleRepository interface {
 	Create(ctx context.Context, role *models.Role) error

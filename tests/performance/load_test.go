@@ -12,11 +12,10 @@ import (
 // LoadTestSuite provides enterprise-grade performance and load testing
 type LoadTestSuite struct {
 }
-
 // TestConcurrentUserSimulation simulates 100+ concurrent users
-func (suite *LoadTestSuite) TestConcurrentUserSimulation() {
-	t := testing.T()
+func (suite *LoadTestSuite) TestConcurrentUserSimulation(t *testing.T) {
 	ctx := context.Background()
+
 
 	const concurrentUsers = 100
 	const operationsPerUser = 10
@@ -79,22 +78,21 @@ func (suite *LoadTestSuite) TestConcurrentUserSimulation() {
 	t.Logf("Max response time: %v", maxResponseTime)
 
 	// SLA validation: < 200ms target response time
-	assert.True(&t, avgResponseTime < 200*time.Millisecond, "Average response time should be < 200ms for SLA compliance")
+	assert.True(t, avgResponseTime < 200*time.Millisecond, "Average response time should be < 200ms for SLA compliance")
 
 	// High success rate validation: > 95% success rate
 	successRate := float64(successCount) / float64(totalOperations)
-	assert.True(&t, successRate > 0.95, "Success rate should be > 95%%")
+	assert.True(t, successRate > 0.95, "Success rate should be > 95%%")
 
 	// Throughput validation
 	operationsPerSecond := float64(totalOperations) / duration.Seconds()
 	t.Logf("Throughput: %.2f operations/sec", operationsPerSecond)
 
-	assert.True(&t, operationsPerSecond > 100, "Should achieve > 100 operations/sec under load")
+	assert.True(t, operationsPerSecond > 100, "Should achieve > 100 operations/sec under load")
 }
 
 // TestMemoryUsageUnderLoad monitors memory usage patterns
-func (suite *LoadTestSuite) TestMemoryUsageUnderLoad() {
-	t := testing.T()
+func (suite *LoadTestSuite) TestMemoryUsageUnderLoad(t *testing.T) {
 
 	var memStats runtime.MemStats
 
@@ -149,15 +147,14 @@ func (suite *LoadTestSuite) TestMemoryUsageUnderLoad() {
 	// Enterprise memory efficiency assertions
 	// Memory should not grow excessively under sustained load
 	maxAcceptableMemoryGrowth := uint64(50 * 1024 * 1024) // 50MB acceptable growth
-	assert.True(&t, memoryIncrease < maxAcceptableMemoryGrowth, "Memory growth should be < 50MB under sustained load")
+	assert.True(t, memoryIncrease < maxAcceptableMemoryGrowth, "Memory growth should be < 50MB under sustained load")
 
 	// GC efficiency validation
-	assert.True(&t, gcIncrease < 50, "GC cycles should be < 50 under sustained operations")
+	assert.True(t, gcIncrease < 50, "GC cycles should be < 50 under sustained operations")
 }
 
 // TestSystemStabilityUnderLoad validates system stability
-func (suite *LoadTestSuite) TestSystemStabilityUnderLoad() {
-	t := testing.T()
+func (suite *LoadTestSuite) TestSystemStabilityUnderLoad(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup different load patterns
@@ -214,15 +211,13 @@ func (suite *LoadTestSuite) TestSystemStabilityUnderLoad() {
 }
 
 // TestResourceLeakDetection performs resource leak detection
-func (suite *LoadTestSuite) TestResourceLeakDetection() {
-	t := testing.T()
+func (suite *LoadTestSuite) TestResourceLeakDetection(t *testing.T) {
 
 	// Monitor goroutines
 	initialGoroutines := runtime.NumGoroutine()
 	t.Logf("Initial goroutines: %d", initialGoroutines)
 
 	// Simulate workload that might create goroutines
-	ctx := context.Background()
 	const iterations = 100
 
 	for i := 0; i < iterations; i++ {

@@ -221,8 +221,8 @@ func (h *InvoiceHandlers) UpdateInvoiceStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
 	}
 
-	if req.Status != "unpaid" && req.Status != "paid" && req.Status != "overdue" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be unpaid, paid, or overdue")
+	if req.Status != "unpaid" && req.Status != "paid" && req.Status != "overdue" && req.Status != "cancelled" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be unpaid, paid, overdue, or cancelled")
 	}
 
 	if err := h.invoiceService.UpdateInvoiceStatus(ctx, tenantID, invoiceID, req.Status); err != nil {

@@ -554,3 +554,101 @@ func (h *ProductHandlers) DeleteProductImage(c echo.Context) error {
 		"message": "Image deleted successfully",
 	})
 }
+// BulkUpdateProducts handles POST /products/bulk/update
+func (h *ProductHandlers) BulkUpdateProducts(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var req models.ProductBulkUpdate
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := h.validateBulkUpdateRequest(&req); err != nil {
+		return err
+	}
+
+	result, err := h.productService.BulkUpdateProducts(ctx, tenantID, &req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	statusCode := http.StatusOK
+	if result.Status == "partial" {
+		statusCode = http.StatusPartialContent
+	}
+
+	return c.JSON(statusCode, result)
+}
+
+// BulkCreateProducts handles POST /products/bulk/create
+func (h *ProductHandlers) BulkCreateProducts(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var req models.ProductBulkCreate
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := h.validateBulkCreateRequest(&req); err != nil {
+		return err
+	}
+
+	result, err := h.productService.BulkCreateProducts(ctx, tenantID, &req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	statusCode := http.StatusCreated
+	if result.Status == "partial" {
+		statusCode = http.StatusPartialContent
+	}
+
+	return c.JSON(statusCode, result)
+}
+
+// validateBulkUpdateRequest validates bulk update request
+func (h *ProductHandlers) validateBulkUpdateRequest(req *models.ProductBulkUpdate) error {
+	if req == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Request body is required")
+	}
+
+	if len(req.ProductIDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Product IDs are required")
+	}
+
+	if len(req.ProductIDs) > 1000 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Cannot update more than 1000 products at once")
+	}
+
+	// ProductIDs are already validated as uuid.UUID during binding
+	// No additional validation needed here
+
+	return nil
+}
+
+// validateBulkCreateRequest validates bulk create request
+func (h *ProductHandlers) validateBulkCreateRequest(req *models.ProductBulkCreate) error {
+	if req == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Request body is required")
+	}
+
+	if len(req.Products) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Products list is required")
+	}
+
+	if len(req.Products) > 500 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Cannot create more than 500 products at once")
+	}
+
+	return nil
+}

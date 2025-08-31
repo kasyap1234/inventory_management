@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"agromart2/internal/analytics"
@@ -144,6 +143,20 @@ func (s *invoiceService) CreateInvoice(ctx context.Context, invoice *models.Invo
 	invoice.CreatedAt = time.Now()
 	invoice.UpdatedAt = time.Now()
 
+	// Generate invoice number if not provided
+	if invoice.InvoiceNumber == "" {
+		invoiceNumber, err := s.invoiceRepo.GenerateInvoiceNumber(ctx, invoice.TenantID, invoice.IssuedDate)
+		if err != nil {
+			return common.SecureErrorMessage("generate invoice number", err)
+		}
+		invoice.InvoiceNumber = invoiceNumber
+	}
+
+	// Set due date if not provided
+	if invoice.DueDate.IsZero() {
+		invoice.DueDate = invoice.IssuedDate.AddDate(0, 0, 30) // 30 days from issued date
+	}
+
 	if err := s.invoiceRepo.Create(ctx, invoice); err != nil {
 		return common.SecureErrorMessage("create invoice", err)
 	}
@@ -175,10 +188,74 @@ func (s *invoiceService) DeleteInvoice(ctx context.Context, tenantID, invoiceID 
 	return s.invoiceRepo.Delete(ctx, tenantID, invoiceID)
 }
 
+// isValidStatusTransition validates invoice status transitions
+func (s *invoiceService) isValidStatusTransition(currentStatus, newStatus string) bool {
+	// Define valid status transitions
+	validTransitions := map[string][]string{
+		"unpaid":     {"paid", "overdue", "cancelled"},
+		"paid":       {}, // Cannot transition from paid
+		"overdue":    {"paid", "cancelled"},
+		"cancelled":  {}, // Cannot transition from cancelled
+	}
+
+	allowed, exists := validTransitions[currentStatus]
+	if !exists {
+		return false
+	}
+
+	// Check if newStatus is in the allowed list
+	for _, status := range allowed {
+		if status == newStatus {
+			return true
+		}
+	}
+
+	return false
+}
+
 // UpdateInvoiceStatus updates invoice status and triggers analytics updates
 func (s *invoiceService) UpdateInvoiceStatus(ctx context.Context, tenantID, invoiceID uuid.UUID, status string) error {
-	if err := s.invoiceRepo.UpdateInvoiceStatus(ctx, tenantID, invoiceID, status); err != nil {
-		return common.SecureErrorMessage("update invoice status", err)
+	// Validate status
+	validStatuses := map[string]bool{
+		"unpaid":   true,
+		"paid":     true,
+		"overdue":  true,
+		"cancelled": true,
+	}
+
+	if !validStatuses[status] {
+		return fmt.Errorf("invalid status: %s. Must be one of: unpaid, paid, overdue, cancelled", status)
+	}
+
+	// Get current invoice for status transition validation
+	invoice, err := s.invoiceRepo.GetByID(ctx, tenantID, invoiceID)
+	if err != nil {
+		return common.SecureErrorMessage("get invoice for status update", err)
+	}
+	if invoice == nil {
+		return fmt.Errorf("invoice not found")
+	}
+
+	// Validate status transitions
+	if !s.isValidStatusTransition(invoice.Status, status) {
+		return fmt.Errorf("invalid status transition from %s to %s", invoice.Status, status)
+	}
+
+	// If changing to paid, set paid_date
+	if status == "paid" {
+		now := time.Now()
+		invoice.Status = status
+		invoice.PaidDate = &now
+		invoice.UpdatedAt = now
+
+		if err := s.invoiceRepo.Update(ctx, invoice); err != nil {
+			return common.SecureErrorMessage("update invoice with paid date", err)
+		}
+	} else {
+		// For other statuses, just update status
+		if err := s.invoiceRepo.UpdateInvoiceStatus(ctx, tenantID, invoiceID, status); err != nil {
+			return common.SecureErrorMessage("update invoice status", err)
+		}
 	}
 
 	// Update analytics asynchronously
@@ -300,11 +377,22 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 	// Calculate total with overflow protection
 	totalAmount := taxableAmount + cgst + sgst + igst
 
+	// Generate invoice number
+	issuedDate := time.Now()
+	invoiceNumber, err := s.invoiceRepo.GenerateInvoiceNumber(ctx, tenantID, issuedDate)
+	if err != nil {
+		return common.SecureErrorMessage("generate invoice number", err)
+	}
+
+	// Calculate due date (30 days from issued date)
+	dueDate := issuedDate.AddDate(0, 0, 30)
+
 	// Create invoice with GST details
 	invoice := &models.Invoice{
 		ID:             uuid.New(),
 		TenantID:       tenantID,
 		OrderID:        orderID,
+		InvoiceNumber:  invoiceNumber,
 		HSNSAC:         nil, // TODO: Get from product HSN/SAC code
 		TaxableAmount:  &taxableAmount,
 		GSTRate:        &gstRate,
@@ -313,9 +401,10 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 		IGST:           &igst,
 		TotalAmount:    totalAmount,
 		Status:         "unpaid",
-		IssuedDate:     time.Now(),
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		IssuedDate:     issuedDate,
+		DueDate:        dueDate,
+		CreatedAt:      issuedDate,
+		UpdatedAt:      issuedDate,
 	}
 
 	return s.CreateInvoice(ctx, invoice)
@@ -333,7 +422,7 @@ func (s *invoiceService) MarkOverdueInvoices(ctx context.Context, tenantID uuid.
 	}
 
 	for _, invoice := range invoices {
-		if invoice.Status == "unpaid" && invoice.IssuedDate.Before(thirtyDaysAgo) {
+		if invoice.Status == "unpaid" && time.Now().After(invoice.DueDate) {
 			if err := s.UpdateInvoiceStatus(ctx, tenantID, invoice.ID, "overdue"); err != nil {
 				log.Printf("Failed to mark invoice %s as overdue: %v", invoice.ID, common.SecureErrorMessage("update overdue status", err))
 			}
@@ -368,6 +457,8 @@ func (s *invoiceService) CalculateInvoiceAnalytics(ctx context.Context, tenantID
 			analytics.PaidInvoices++
 		case "overdue":
 			analytics.OverdueInvoices++
+		case "cancelled":
+			// Cancelled invoices are not counted in active metrics
 		}
 
 		// Calculate GST collected with null checks

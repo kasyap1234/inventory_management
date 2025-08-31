@@ -7,7 +7,7 @@
 # export JWT_SECRET="..."
 # Then run this script
 
-BASE_URL="http://localhost:8081"
+BASE_URL="http://localhost:3000"
 API_VERSION="/v1"
 AUTH_HEADER=""
 
@@ -53,9 +53,9 @@ curl -s -X GET "$BASE_URL$API_VERSION/" | jq || curl -s -X GET "$BASE_URL$API_VE
 echo -e "\n4. TESTING AUTHENTICATION ENDPOINTS"
 echo "==================================="
 
-# Sign up a new user (using /api/auth/* endpoints - no JWT middleware)
+# Sign up a new user (using /v1/auth/* endpoints - no JWT middleware)
 echo -e "\nUser Signup:"
-SIGNUP_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/signup" \
+SIGNUP_RESPONSE=$(curl -s -X POST "$BASE_URL$API_VERSION/auth/signup" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -66,9 +66,9 @@ SIGNUP_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/signup" \
 
 echo "$SIGNUP_RESPONSE"
 
-# Login to get JWT token (using /api/auth/* endpoints - no JWT middleware)
+# Login to get JWT token (using /v1/auth/* endpoints - no JWT middleware)
 echo -e "\nUser Login:"
-LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL$API_VERSION/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",

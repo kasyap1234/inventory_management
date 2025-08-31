@@ -117,6 +117,9 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid tenant ID format")
 	}
+	if tenantID == uuid.Nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid tenant ID")
+	}
 
 	c.Logger().Infof("DEBUG: Requested tenant_id from body: %s", req.TenantID)
 	c.Logger().Infof("DEBUG: Parsed tenant_id UUID: %s", tenantID.String())

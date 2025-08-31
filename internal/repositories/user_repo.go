@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"agromart2/internal/models"
@@ -124,10 +125,17 @@ func (r *userRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset i
 
 func (r *userRepo) GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	query := `SELECT tenant_id FROM users WHERE id = $1`
-	var tenantID uuid.UUID
+	var tenantID sql.NullString
 	err := r.db.QueryRow(ctx, query, userID).Scan(&tenantID)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	return tenantID, nil
+	if !tenantID.Valid {
+		return uuid.Nil, fmt.Errorf("tenant_id is NULL for user %s", userID)
+	}
+	id, err := uuid.Parse(tenantID.String)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid tenant_id format for user %s: %w", userID, err)
+	}
+	return id, nil
 }

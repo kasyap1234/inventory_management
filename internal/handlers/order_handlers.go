@@ -210,6 +210,83 @@ func (h *OrderHandlers) GetOrderByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, order)
 }
 
+// UpdateOrder handles PUT /orders/:id
+func (h *OrderHandlers) UpdateOrder(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	id := c.Param("id")
+	orderID, err := common.ValidateUUID(id, "order_id")
+	if err != nil {
+		return common.SendClientError(c, err.Error())
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var req struct {
+		Quantity         *int     `json:"quantity"`
+		UnitPrice        *float64 `json:"unit_price"`
+		ExpectedDelivery *string  `json:"expected_delivery"`
+		Notes            *string  `json:"notes"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return common.SendClientError(c, "Invalid request format")
+	}
+
+	// Get existing order to update only changed fields
+	existingOrder, err := h.orderService.GetOrderByID(ctx, tenantID, orderID)
+	if err != nil {
+		return common.SendServerError(c, "Failed to retrieve order: " + err.Error())
+	}
+	if existingOrder == nil {
+		return common.SendNotFoundError(c, "order")
+	}
+
+	// Update only the fields provided
+	order := *existingOrder // Copy existing order
+	order.UpdatedAt = time.Now()
+
+	if req.Quantity != nil {
+		if err := common.ValidatePositiveInteger(*req.Quantity, "quantity", 10000); err != nil {
+			return common.SendValidationError(c, "quantity", err.Error())
+		}
+		order.Quantity = *req.Quantity
+	}
+
+	if req.UnitPrice != nil {
+		if err := common.ValidatePositiveFloat(*req.UnitPrice, "unit_price", 1000000.0); err != nil {
+			return common.SendValidationError(c, "unit_price", err.Error())
+		}
+		order.UnitPrice = *req.UnitPrice
+	}
+
+	if req.ExpectedDelivery != nil {
+		if *req.ExpectedDelivery != "" {
+			if err := common.ValidateDateFormat(*req.ExpectedDelivery, "expected_delivery"); err != nil {
+				return common.SendValidationError(c, "expected_delivery", err.Error())
+			}
+			deliveryDate, _ := time.Parse("2006-01-02", *req.ExpectedDelivery)
+			order.ExpectedDelivery = &deliveryDate
+		}
+	}
+
+	if req.Notes != nil {
+		order.Notes = req.Notes
+	}
+
+	if err := h.orderService.UpdateOrder(ctx, tenantID, &order); err != nil {
+		return common.SendServerError(c, "Failed to update order: " + err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Order updated successfully",
+		"order":   order,
+	})
+}
+
 // GetOrderAnalytics handles GET /orders/analytics
 func (h *OrderHandlers) GetOrderAnalytics(c echo.Context) error {
 	ctx := c.Request().Context()

@@ -323,11 +323,6 @@ func (suite *RBACIntegrationTestSuite) TestRoleHierarchyInheritance() {
 	ctx := context.Background()
 
 	// Create hierarchy: Manager role inherits from Employee role
-	employeeRole := &models.Role{
-		ID:       suite.testRole.ID,
-		TenantID: suite.tenantID,
-		Name:     "Employee",
-	}
 
 	// Manager role
 	managerRole := &models.Role{
