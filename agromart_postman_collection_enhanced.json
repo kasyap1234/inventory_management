@@ -1,0 +1,696 @@
+{
+  "info": {
+    "_postman_id": "7dbfb881-8590-47b3-8b2d-8b5520e4cf0e",
+    "name": "Agromart Multi-Tenant SaaS Inventory Platform API",
+    "description": {
+      "content": "Enterprise-grade inventory management platform for agricultural SaaS applications.\nSupports multi-tenant data isolation, real-time product tracking, order management,\ninvoicing with GST compliance, and comprehensive analytics.\n\n**Multi-Tenant Support:** All requests include X-Tenant-ID header.\n**Authentication:** Bearer token required.\n**Environments:** Setup baseUrl, tenantId, bearerToken variables.\n\nContact Support:\nName: API Support\nEmail: support@agromart.com",
+      "type": "text/plain"
+    },
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081/v1"
+    },
+    {
+      "key": "tenantId",
+      "value": ""
+    },
+    {
+      "key": "bearerToken",
+      "value": ""
+    },
+    {
+      "key": "healthUrl",
+      "value": "http://localhost:8081/health"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "id": "setup-tenancy",
+        "type": "text/javascript",
+        "exec": [
+          "// Pre-request script to ensure tenant ID is set",
+          "if (!pm.environment.get('tenantId')) {",
+          "    pm.environment.set('tenantId', '123e4567-e89b-12d3-a456-426614174000'); // Default tenant for demo",
+          "}",
+          "",
+          "// Example: Get authentication token if needed",
+          "// if (!pm.environment.get('bearerToken')) {",
+          "//     pm.sendRequest({",
+          "//         url: pm.variables.get('baseUrl') + '/auth/login',",
+          "//         method: 'POST',",
+          "//         header: {",
+          "//             'X-Tenant-ID': pm.environment.get('tenantId'),",
+          "//             'Content-Type': 'application/json'",
+          "//         },",
+          "//         body: {",
+          "//             mode: 'raw',",
+          "//             raw: JSON.stringify({",
+          "//                 email: 'admin@agromart.com',",
+          "//                 password: 'password123'",
+          "//             })",
+          "//         }",
+          "//     }, function (err, response) {",
+          "//         if (response.code === 200) {",
+          "//             var jsonData = response.json();",
+          "//             pm.environment.set('bearerToken', jsonData.token);",
+          "//         }",
+          "//     });",
+          "// }"
+        ]
+      }
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "type": "any",
+        "value": "{{bearerToken}}",
+        "key": "token"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "System",
+      "description": "System health and monitoring operations",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "name": "Health Check Endpoint",
+            "description": {
+              "content": "Check the health status of the API and its dependencies",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [],
+              "host": ["{{healthUrl}}"],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "description": "Product inventory management operations",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "name": "List products",
+            "description": {
+              "content": "Get a paginated list of products for the authenticated tenant",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["products"],
+              "host": ["{{baseUrl}}"],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Maximum number of items to return",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Number of items to skip",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Search Products",
+          "request": {
+            "name": "Search products",
+            "description": {
+              "content": "Search products by name, barcode, or category with optional filters",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["products", "search"],
+              "host": ["{{baseUrl}}"],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Search query (name, barcode, or category)",
+                    "type": "text/plain"
+                  },
+                  "key": "q",
+                  "value": "Fertilizer"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Filter by category ID",
+                    "type": "text/plain"
+                  },
+                  "key": "category_id",
+                  "value": "111e4567-e89b-12d3-a456-426614174001"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Maximum number of items to return",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Number of items to skip",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "name": "Get product by ID",
+            "description": {
+              "content": "Get detailed information about a specific product",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["products", ":productId"],
+              "host": ["{{baseUrl}}"],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "123e4567-e89b-12d3-a456-426614174000",
+                  "key": "productId",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) Product ID",
+                    "type": "text/plain"
+                  }
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "name": "Create a new product",
+            "description": {
+              "content": "Create a new product record for the authenticated tenant",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["products"],
+              "host": ["{{baseUrl}}"],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Premium Fertilizer\",\n  \"quantity\": 500,\n  \"unit_price\": 15.99,\n  \"category_id\": \"111e4567-e89b-12d3-a456-426614174001\",\n  \"batch_number\": \"BATCH001\",\n  \"expiry_date\": \"2025-12-31\",\n  \"barcode\": \"123456789012\",\n  \"unit_of_measure\": \"kg\",\n  \"description\": \"High-quality agricultural fertilizer\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "description": "Order lifecycle management operations",
+      "item": [
+        {
+          "name": "List Orders",
+          "request": {
+            "name": "List orders",
+            "description": {
+              "content": "Get a paginated list of orders for the authenticated tenant",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["orders"],
+              "host": ["{{baseUrl}}"],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Maximum number of items to return",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Number of items to skip",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "name": "Create a new order",
+            "description": {
+              "content": "Create a new purchase or sales order",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["orders"],
+              "host": ["{{baseUrl}}"],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_type\": \"purchase\",\n  \"product_id\": \"123e4567-e89b-12d3-a456-426614174000\",\n  \"warehouse_id\": \"456e7890-e89b-12d3-a456-426614174002\",\n  \"quantity\": 100,\n  \"unit_price\": 15.99,\n  \"expected_delivery\": \"2024-02-01\",\n  \"supplier_id\": \"789e0123-e89b-12d3-a456-426614174003\",\n  \"distributor_id\": \"012e3456-e89b-12d3-a456-426614174004\",\n  \"notes\": \"Urgent delivery required\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "description": "Invoice generation and management operations",
+      "item": [
+        {
+          "name": "List Invoices",
+          "request": {
+            "name": "List invoices",
+            "description": {
+              "content": "Get a paginated list of invoices for the authenticated tenant",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["invoices"],
+              "host": ["{{baseUrl}}"],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Maximum number of items to return",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Number of items to skip",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Get Unpaid Invoices",
+          "request": {
+            "name": "Get unpaid invoices",
+            "description": {
+              "content": "Get all unpaid invoices for the authenticated tenant",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["invoices", "unpaid"],
+              "host": ["{{baseUrl}}"],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Maximum number of items to return",
+                    "type": "text/plain"
+                  },
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Number of items to skip",
+                    "type": "text/plain"
+                  },
+                  "key": "offset",
+                  "value": "0"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Create Invoice",
+          "request": {
+            "name": "Create invoice",
+            "description": {
+              "content": "Create an invoice for a completed order",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["invoices"],
+              "host": ["{{baseUrl}}"],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"123e4567-e89b-12d3-a456-426614174000\",\n  \"gstin\": \"22AAAAA0000A1Z5\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "description": "Business analytics and reporting operations",
+      "item": [
+        {
+          "name": "Product Analytics",
+          "request": {
+            "name": "Product analytics",
+            "description": {
+              "content": "Get product category distribution analytics",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["products", "analytics"],
+              "host": ["{{baseUrl}}"],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        },
+        {
+          "name": "Order Analytics",
+          "request": {
+            "name": "Order analytics",
+            "description": {
+              "content": "Get order analytics and metrics for date range",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": ["orders", "analytics"],
+              "host": ["{{baseUrl}}"],
+              "query": [
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "Start date for analytics (default: 1 month ago)",
+                    "type": "text/plain"
+                  },
+                  "key": "start_date",
+                  "value": "2024-01-01"
+                },
+                {
+                  "disabled": false,
+                  "description": {
+                    "content": "End date for analytics (default: today)",
+                    "type": "text/plain"
+                  },
+                  "key": "end_date",
+                  "value": "2024-08-30"
+                }
+              ],
+              "variable": []
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}",
+                "description": "Tenant identifier for multi-tenant data isolation"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearerToken}}"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": null
+          }
+        }
+      ]
+    }
+  ]
+}

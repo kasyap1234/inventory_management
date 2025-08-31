@@ -1,0 +1,93 @@
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: "dev"
+        BUILD_TIME: "2024-01-01T00:00:00Z"
+    network_mode: host
+    environment:
+      - PORT=8081
+      - DATABASE_URL=postgresql://testuser:testpass@localhost:5440/testdb
+      - REDIS_URL=redis://localhost:6379
+      - JWT_SECRET=development_secret_key_not_for_production
+      - SUPABASE_URL=https://wmrkmicokzlfyuwtdbkf.supabase.co
+      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndtcmttaWNva3psZnl1d3RkYmtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NzM1MjgsImV4cCI6MjA3MjE0OTUyOH0.s5I4PJXATSwfd11lJBoOEweAIYcATF6WtODckfzjzmg
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:17.5-alpine
+    ports:
+      - "5440:5432"
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9003:9000"
+      - "9004:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  # PostgreSQL Admin (pgAdmin4) - Optional
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@agromart.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - postgres
+
+  # Redis Commander - Optional
+  redis_commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8082:8081"  # Changed port to avoid conflict
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    depends_on:
+      - redis
+      
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  
