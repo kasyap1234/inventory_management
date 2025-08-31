@@ -42,10 +42,586 @@ components:
       required:
         - message
 
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Validation failed"
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            email: "Invalid email format"
+            password: "Password must be at least 8 characters"
+
     UUID:
       type: string
       format: uuid
       example: "123e4567-e89b-12d3-a456-426614174000"
+
+    # Authentication schemas
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          example: "password123"
+      required:
+        - email
+        - password
+
+    SignupRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          example: "password123"
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Doe"
+        tenant_subdomain:
+          type: string
+          nullable: true
+          example: "mycompany"
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        grant_type:
+          type: string
+          enum: ["refresh_token"]
+          example: "refresh_token"
+      required:
+        - refresh_token
+        - grant_type
+
+    LogoutRequest:
+      type: object
+      properties:
+        token_type_hint:
+          type: string
+          enum: ["access_token", "refresh_token"]
+          example: "access_token"
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required:
+        - token
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+          example: 3600
+        user:
+          $ref: "#/components/schemas/User"
+
+    # User schemas
+    User:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Doe"
+        status:
+          type: string
+          enum: ["active", "inactive", "pending"]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - tenant_id
+        - email
+        - first_name
+        - last_name
+        - status
+        - created_at
+        - updated_at
+
+    UserCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          example: "password123"
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Doe"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+        - tenant_id
+
+    UserUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          nullable: true
+          example: "John"
+        last_name:
+          type: string
+          nullable: true
+          example: "Doe"
+        status:
+          type: string
+          nullable: true
+          enum: ["active", "inactive", "pending"]
+          example: "active"
+
+    # Tenant schemas
+    Tenant:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: "AgroFarm Solutions"
+        subdomain:
+          type: string
+          example: "agrofarm"
+        license:
+          type: string
+          example: "LIC123456789"
+        status:
+          type: string
+          enum: ["active", "inactive", "trial"]
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - name
+        - subdomain
+        - status
+        - created_at
+        - updated_at
+
+    TenantCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "AgroFarm Solutions"
+        subdomain:
+          type: string
+          example: "agrofarm"
+        license:
+          type: string
+          example: "LIC123456789"
+      required:
+        - name
+        - subdomain
+        - license
+
+    TenantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: "AgroFarm Solutions"
+        status:
+          type: string
+          nullable: true
+          enum: ["active", "inactive", "trial"]
+          example: "active"
+
+    # Category schemas
+    Category:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: "Fertilizers"
+        description:
+          type: string
+          nullable: true
+          example: "Agricultural fertilizers and chemicals"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - tenant_id
+        - name
+        - created_at
+        - updated_at
+
+    CategoryCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Fertilizers"
+        description:
+          type: string
+          nullable: true
+          example: "Agricultural fertilizers and chemicals"
+      required:
+        - name
+
+    CategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: "Fertilizers"
+        description:
+          type: string
+          nullable: true
+          example: "Agricultural fertilizers and chemicals"
+
+    # Warehouse schemas
+    Warehouse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: "Main Distribution Center"
+        address:
+          type: string
+          nullable: true
+          example: "123 Industrial Zone, City, State 12345"
+        capacity:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 10000
+        license_number:
+          type: string
+          nullable: true
+          example: "WH123456789"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - tenant_id
+        - name
+        - created_at
+        - updated_at
+
+    WarehouseCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Main Distribution Center"
+        address:
+          type: string
+          nullable: true
+          example: "123 Industrial Zone, City, State 12345"
+        capacity:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 10000
+        license_number:
+          type: string
+          nullable: true
+          example: "WH123456789"
+      required:
+        - name
+
+    WarehouseUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: "Main Distribution Center"
+        address:
+          type: string
+          nullable: true
+          example: "123 Industrial Zone, City, State 12345"
+        capacity:
+          type: integer
+          nullable: true
+          minimum: 0
+          example: 10000
+        license_number:
+          type: string
+          nullable: true
+          example: "WH123456789"
+
+    # Supplier schemas
+    Supplier:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: "AgroChem Industries Ltd"
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+          example: "contact@agrochemicals.com"
+        contact_phone:
+          type: string
+          nullable: true
+          example: "+1-555-0123"
+        address:
+          type: string
+          nullable: true
+          example: "456 Chemical Lane, Industrial City, IC 67890"
+        license_number:
+          type: string
+          nullable: true
+          example: "SUP987654321"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - tenant_id
+        - name
+        - created_at
+        - updated_at
+
+    SupplierCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "AgroChem Industries Ltd"
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+          example: "contact@agrochemicals.com"
+        contact_phone:
+          type: string
+          nullable: true
+          example: "+1-555-0123"
+        address:
+          type: string
+          nullable: true
+          example: "456 Chemical Lane, Industrial City, IC 67890"
+        license_number:
+          type: string
+          nullable: true
+          example: "SUP987654321"
+      required:
+        - name
+
+    SupplierUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: "AgroChem Industries Ltd"
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+          example: "contact@agrochemicals.com"
+        contact_phone:
+          type: string
+          nullable: true
+          example: "+1-555-0123"
+        address:
+          type: string
+          nullable: true
+          example: "456 Chemical Lane, Industrial City, IC 67890"
+        license_number:
+          type: string
+          nullable: true
+          example: "SUP987654321"
+
+    # Distributor schemas (similar to Supplier)
+    Distributor:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: "Regional Farm Supplies Inc"
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+          example: "orders@regionalfarms.com"
+        contact_phone:
+          type: string
+          nullable: true
+          example: "+1-555-0456"
+        address:
+          type: string
+          nullable: true
+          example: "789 Rural Route, Farming Valley, FV 13579"
+        license_number:
+          type: string
+          nullable: true
+          example: "DIST456789"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+      required:
+        - id
+        - tenant_id
+        - name
+        - created_at
+        - updated_at
+
+    DistributorCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Regional Farm Supplies Inc"
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+          example: "orders@regionalfarms.com"
+        contact_phone:
+          type: string
+          nullable: true
+          example: "+1-555-0456"
+        address:
+          type: string
+          nullable: true
+          example: "789 Rural Route, Farming Valley, FV 13579"
+        license_number:
+          type: string
+          nullable: true
+          example: "DIST456789"
+      required:
+        - name
+
+    DistributorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: "Regional Farm Supplies Inc"
+        contact_email:
+          type: string
+          format: email
+          nullable: true
+          example: "orders@regionalfarms.com"
+        contact_phone:
+          type: string
+          nullable: true
+          example: "+1-555-0456"
+        address:
+          type: string
+          nullable: true
+          example: "789 Rural Route, Farming Valley, FV 13579"
+        license_number:
+          type: string
+          nullable: true
+          example: "DIST456789"
 
     Product:
       type: object
