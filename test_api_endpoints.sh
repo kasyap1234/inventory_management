@@ -7,7 +7,7 @@
 # export JWT_SECRET="..."
 # Then run this script
 
-BASE_URL="http://localhost:3000"
+BASE_URL="http://localhost:8080"
 API_VERSION="/v1"
 AUTH_HEADER=""
 
@@ -37,10 +37,10 @@ echo -e "\n2. TESTING DOCUMENTATION ENDPOINTS"
 echo "=================================="
 
 echo -e "\nDocs guide:"
-curl -s -X GET "$BASE_URL/docs/guide" | jq || curl -s -X GET "$BASE_URL/docs/guide"
+curl -s -X GET "$BASE_URL$API_VERSION/docs/guide" | jq || curl -s -X GET "$BASE_URL$API_VERSION/docs/guide"
 
 echo -e "\nSwagger spec:"
-curl -s -X GET "$BASE_URL/docs/spec" | head -10  # Just first few lines
+curl -s -X GET "$BASE_URL$API_VERSION/docs/spec" | head -10  # Just first few lines
 
 # 3. Test API Root
 echo -e "\n3. TESTING API ROOT ENDPOINT"

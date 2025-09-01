@@ -13,6 +13,7 @@ type MinioService interface {
 	UploadImage(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64) error
 	GetPresignedURL(bucketName, objectName string, expiry time.Duration) (string, error)
 	DeleteImage(ctx context.Context, bucketName, objectName string) error
+	EnsureBucketExists(ctx context.Context, bucketName string) error
 }
 
 type minioClient struct {
@@ -47,4 +48,15 @@ func (m *minioClient) GetPresignedURL(bucketName, objectName string, expiry time
 
 func (m *minioClient) DeleteImage(ctx context.Context, bucketName, objectName string) error {
 	return m.client.RemoveObject(ctx, bucketName, objectName, minio.RemoveObjectOptions{})
+}
+
+func (m *minioClient) EnsureBucketExists(ctx context.Context, bucketName string) error {
+	found, err := m.client.BucketExists(ctx, bucketName)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return m.client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
+	}
+	return nil
 }

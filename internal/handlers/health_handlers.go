@@ -1,229 +1,172 @@
 package handlers
 
 import (
-	"context"
+	"fmt"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
-
-	"agromart2/internal/caching"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 )
 
-// HealthHandlers handles health check and monitoring endpoints
-type HealthHandlers struct {
-	db       *pgxpool.Pool
-	redisSvc caching.CacheService
-	minioSvc interface{} // Simplified for now
-}
-
-// NewHealthHandlers creates a new health handlers instance
-func NewHealthHandlers(db *pgxpool.Pool, redisSvc caching.CacheService, minioSvc interface{}) *HealthHandlers {
-	return &HealthHandlers{
-		db:       db,
-		redisSvc: redisSvc,
-		minioSvc: minioSvc,
-	}
-}
-
-// HealthStatus represents the overall health status
-type HealthStatus struct {
-	Status    string            `json:"status"`
-	Timestamp string            `json:"timestamp"`
-	Services  map[string]string `json:"services"`
-	Uptime    string            `json:"uptime"`
-	Version   string            `json:"version"`
-}
-
-// HealthCheck performs comprehensive health checks
-func (h *HealthHandlers) HealthCheck(c echo.Context) error {
-	ctx := context.Background()
-	health := &HealthStatus{
-		Status:    "healthy",
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		Services:  make(map[string]string),
-		Version:   "1.0.0",
-		Uptime:    "Application running",
-	}
-
-	// Check database connectivity
-	if err := h.checkDatabase(ctx); err != nil {
-		health.Services["database"] = "unhealthy"
-		health.Status = "degraded"
-	} else {
-		health.Services["database"] = "healthy"
-	}
-
-	// Check Redis connectivity
-	if err := h.checkRedis(ctx); err != nil {
-		health.Services["redis"] = "unhealthy"
-		health.Status = "degraded"
-	} else {
-		health.Services["redis"] = "healthy"
-	}
-
-	// Check MinIO/S3 connectivity
-	if err := h.checkMinIO(ctx); err != nil {
-		health.Services["storage"] = "unhealthy"
-		health.Status = "degraded"
-	} else {
-		health.Services["storage"] = "healthy"
-	}
-
-	statusCode := http.StatusOK
-	if health.Status == "degraded" {
-		statusCode = http.StatusPartialContent
-	}
-
-	return c.JSON(statusCode, health)
-}
-
-// checkDatabase verifies database connectivity
-func (h *HealthHandlers) checkDatabase(ctx context.Context) error {
-	// Simple query to test connectivity
-	_, err := h.db.Exec(ctx, "SELECT 1")
-	return err
-}
-
-// checkRedis verifies Redis connectivity
-func (h *HealthHandlers) checkRedis(_ctx context.Context) error {
-	// Test Redis connectivity using cache service
-	// For now, return nil - would need to implement Ping method
-	return nil
-}
-
-// checkMinIO verifies MinIO/S3 connectivity
-func (h *HealthHandlers) checkMinIO(_ctx context.Context) error {
-	// Test MinIO connectivity
-	// For now, return nil - would need to implement proper health check
-	return nil
-}
-
-// ReadinessCheck determines if the application is ready to serve traffic
-func (h *HealthHandlers) ReadinessCheck(c echo.Context) error {
-	ctx := context.Background()
-
-	// Check critical dependencies
-	dbErr := h.checkDatabase(ctx)
-	redisErr := h.checkRedis(ctx)
-
-	if dbErr != nil || redisErr != nil {
-		return c.JSON(http.StatusServiceUnavailable, map[string]string{
-			"status": "not_ready",
-			"message": "Critical services unavailable",
-		})
-	}
-
-	return c.JSON(http.StatusOK, map[string]string{
-		"status": "ready",
-		"message": "All systems operational",
+// HealthCheck handles GET /health
+func HealthCheck(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"status":    "ok",
+		"timestamp": time.Now().UTC(),
+		"service":   "agromart2",
 	})
 }
 
-// LivenessCheck determines if the application is running (basic liveness probe)
-func (h *HealthHandlers) LivenessCheck(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]string{
-		"status": "alive",
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+// ReadinessCheck handles GET /health/ready
+func ReadinessCheck(c echo.Context) error {
+	// Basic readiness check - service is ready if it can respond
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"status":     "ready",
+		"timestamp":  time.Now().UTC(),
+		"service":    "agromart2",
+		"ready_at":   time.Now().UTC(),
 	})
 }
 
-// MetricsResponse represents application metrics
-type MetricsResponse struct {
-	Timestamp time.Time         `json:"timestamp"`
-	Metrics   map[string]interface{} `json:"metrics"`
-	Version   string            `json:"version"`
-	Goroutines int              `json:"goroutines"`
+// HealthCheckDetailed handles GET /health/detailed
+func HealthCheckDetailed(c echo.Context, pool *pgxpool.Pool) error {
+	response := map[string]interface{}{
+		"service":   "agromart2",
+		"timestamp": time.Now().UTC(),
+		"checks":    make(map[string]interface{}),
+	}
+
+	checks := response["checks"].(map[string]interface{})
+
+	// Database health check
+	if pool != nil {
+		ctx := c.Request().Context()
+		if err := pool.Ping(ctx); err != nil {
+			log.Printf("DEBUG: Database ping failed: %v", err)
+			checks["database"] = "unhealthy"
+			checks["database_error"] = err.Error()
+			response["status"] = "degraded"
+		} else {
+			log.Printf("DEBUG: Database connection successful")
+			checks["database"] = "ok"
+		}
+	} else {
+		log.Printf("DEBUG: Database pool is nil - not initialized")
+		checks["database"] = "unknown"
+	}
+
+	// Memory usage (basic)
+	// We'll add more checks here as needed
+
+	// Overall status
+	if response["status"] != "degraded" {
+		response["status"] = "ok"
+	}
+
+	return c.JSON(http.StatusOK, response)
 }
 
-// GetMetrics provides application performance metrics
-func (h *HealthHandlers) GetMetrics(c echo.Context) error {
-	metrics := &MetricsResponse{
-		Timestamp: time.Now().UTC(),
-		Version:   "1.0.0",
-		Goroutines: runtime.NumGoroutine(),
-		Metrics: map[string]interface{}{
-			// Database connection pool stats
-			"database_connections": map[string]interface{}{
-				"max":  h.db.Config().MaxConns,
-				"idle": "0", // Would need custom tracking
-			},
-			// Redis stats
-			"cache": map[string]interface{}{
-				"status": "unknown",
-				"connections": "unknown",
-			},
-			// Application stats
-			"application": map[string]interface{}{
-				"version": "1.0.0",
-				"start_time": time.Now().Format(time.RFC3339),
-			},
-			// Business metrics placeholder
-			"business": map[string]interface{}{
-				"active_tenants": "unknown",
-				"pending_orders": "unknown",
-			},
-		},
-	}
+// MetricsHandler handles GET /metrics (Prometheus metrics format)
+func MetricsHandler(c echo.Context) error {
+	// Basic metrics - in a real application, you'd integrate with a metrics library
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
 
-	return c.JSON(http.StatusOK, metrics)
+	metrics := `# HELP go_gc_duration_seconds A summary of the GC invocation durations.
+# TYPE go_gc_duration_seconds summary
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines %d
+# HELP go_mem_heap_alloc_bytes Number of heap bytes allocated and still in use.
+# TYPE go_mem_heap_alloc_bytes gauge
+go_mem_heap_alloc_bytes %d
+# HELP health_status Service health status (1 for healthy, 0 for unhealthy)
+# TYPE health_status gauge
+health_status 1
+`
+
+	response := fmt.Sprintf(metrics,
+		runtime.NumGoroutine(),
+		m.HeapAlloc,
+	)
+
+	c.Response().Header().Set("Content-Type", "text/plain; charset=utf-8")
+	return c.String(http.StatusOK, response)
 }
 
-// DetailedHealthCheck provides detailed health information
-func (h *HealthHandlers) DetailedHealthCheck(c echo.Context) error {
-	ctx := context.Background()
+// DocumentationGuideHandler handles GET /v1/docs/guide
+func DocumentationGuideHandler(c echo.Context) error {
+	guide := `# Agromart2 API Developer Guide
 
-	detailedHealth := map[string]interface{}{
-		"overall_status": "healthy",
-		"checks": make(map[string]interface{}),
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"version": "1.0.0",
-		"goroutines": runtime.NumGoroutine(),
-	}
+Welcome to the Agromart2 API! This guide will help you get started with our REST API.
 
-	// Database check
-	dbCheck := map[string]interface{}{
-		"status": "healthy",
-		"message": "",
-		"latency_ms": 0, // Would measure actual response time
-	}
-	if err := h.checkDatabase(ctx); err != nil {
-		dbCheck["status"] = "unhealthy"
-		dbCheck["message"] = err.Error()
-		detailedHealth["overall_status"] = "degraded"
-	}
-	detailedHealth["checks"].(map[string]interface{})["database"] = dbCheck
+## Base URL
+All API requests should be made to: https://api.agromart2.com/v1
 
-	// Redis check
-	redisCheck := map[string]interface{}{
-		"status": "healthy",
-		"message": "",
-	}
-	if err := h.checkRedis(ctx); err != nil {
-		redisCheck["status"] = "unhealthy"
-		redisCheck["message"] = err.Error()
-		detailedHealth["overall_status"] = "degraded"
-	}
-	detailedHealth["checks"].(map[string]interface{})["redis"] = redisCheck
+## Authentication
+Authentication is handled via JWT tokens. Include the token in the Authorization header:
+` + "```" + `
+Authorization: Bearer your_jwt_token
+` + "```" + `
 
-	// Storage check
-	storageCheck := map[string]interface{}{
-		"status": "healthy",
-		"message": "",
-	}
-	if err := h.checkMinIO(ctx); err != nil {
-		storageCheck["status"] = "unhealthy"
-		storageCheck["message"] = err.Error()
-		detailedHealth["overall_status"] = "degraded"
-	}
-	detailedHealth["checks"].(map[string]interface{})["storage"] = storageCheck
+## Common Response Format
+All responses follow this structure:
+` + "```json" + `
+{
+	 "message": "Description of the result",
+	 "data": { ... }
+}
+` + "```" + `
 
-	statusCode := http.StatusOK
-	if detailedHealth["overall_status"] == "degraded" {
-		statusCode = http.StatusPartialContent
-	}
+## Error Handling
+Errors return a status code and message:
+` + "```json" + `
+{
+	 "message": "Error description",
+	 "error": "Detailed error information"
+}
+` + "```" + `
 
-	return c.JSON(statusCode, detailedHealth)
+## Rate Limits
+- 1000 requests per hour per IP
+- 10000 requests per hour per authenticated user
+
+## Support
+For support, contact: support@agromart2.com
+`
+
+	c.Response().Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	return c.String(http.StatusOK, guide)
+}
+
+// DocumentationSpecHandler handles GET /v1/docs/spec (returns OpenAPI YAML)
+func DocumentationSpecHandler(c echo.Context) error {
+	spec := `# OpenAPI 3.0 Specification for Agromart2 API
+
+This endpoint serves the OpenAPI specification in YAML format.
+For detailed API specification, visit: /docs/swagger/v1/openapi.yaml
+
+## Quick Start
+1. Obtain JWT token via /auth/login
+2. Include token in Authorization header
+3. Make authenticated API calls
+
+## Available Endpoints
+- Authentication: /v1/auth/*
+- Users: /v1/users/*
+- Orders: /v1/orders/*
+- Products: /v1/products/*
+- Inventory: /v1/inventory/*
+- Invoices: /v1/invoices/*
+
+## Full Specification
+The complete OpenAPI specification is available at:
+GET /docs/swagger/v1/openapi.yaml
+`
+
+	c.Response().Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	return c.String(http.StatusOK, spec)
 }

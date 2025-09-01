@@ -64,7 +64,7 @@ func TestValidateUUIDEnhanced(t *testing.T) {
 			name:     "Missing hyphen at position 8",
 			input:    "550e8400e29b-41d4-a716-446655440000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: hyphens must be at positions 9, 14, 19, and 24",
+			errorMsg: "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23",
 		},
 		{
 			name:     "Invalid character",
@@ -76,7 +76,7 @@ func TestValidateUUIDEnhanced(t *testing.T) {
 			name:     "All hyphens placed wrong",
 			input:    "550e8400e-29b-41d4-a716-446655440000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: hyphens must be at positions 9, 14, 19, and 24",
+			errorMsg: "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23",
 		},
 		{
 			name:     "Case insensitive UUID",

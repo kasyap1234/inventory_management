@@ -41,7 +41,7 @@ func (h *AuditLogsHandlers) ListAuditLogs(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -113,7 +113,7 @@ func (h *AuditLogsHandlers) GetAuditLog(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -138,7 +138,7 @@ func (h *AuditLogsHandlers) GetEntityHistory(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -182,7 +182,7 @@ func (h *AuditLogsHandlers) GetUserActivity(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -223,7 +223,7 @@ func (h *AuditLogsHandlers) GetAuditSummary(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -268,7 +268,7 @@ func (h *AuditLogsHandlers) GetTableNames(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -290,7 +290,7 @@ func (h *AuditLogsHandlers) GetActions(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -312,7 +312,7 @@ func (h *AuditLogsHandlers) SoftDeleteAuditLog(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -355,7 +355,7 @@ func (h *AuditLogsHandlers) CreateManualAuditLog(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

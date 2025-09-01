@@ -1,1776 +1,765 @@
-# Frontend Developer API Documentation
+# Frontend Developer Guide - Agromart2 Backend API
 
 ## Overview
 
-This document provides comprehensive API documentation for the Agromart2 Multi-Tenant SaaS Inventory Management Platform. It covers all REST endpoints, authentication mechanisms, data models, and integration patterns required for frontend application development.
+Agromart2 is a multi-tenant e-commerce platform designed for agricultural and rural businesses. The backend provides comprehensive APIs for product management, order processing, user management, and file handling with full multi-tenant support and role-based access control.
 
-## Table of Contents
+### Key Features
+- **Authentication & User Management**: JWT-based authentication with multi-tenant support
+- **Product Catalog Management**: Complete CRUD operations for products with category support
+- **Order Processing**: Full e-commerce workflow from order creation to invoice generation
+- **File Management**: Product image upload/download with MinIO integration
+- **Multi-Tenant Architecture**: Isolated data per tenant with shared platform resources
+- **Role-Based Access Control**: Granular permissions for different user types
+- **Business Operations**: Inventory, supplier, distributor, and warehouse management
 
-- [Authentication](#authentication)
-- [Users](#users)
-- [Products](#products)
-- [Inventory](#inventory)
-- [Orders](#orders)
-- [Invoices](#invoices)
-- [Categories](#categories)
-- [Warehouses](#warehouses)
-- [Suppliers & Distributors](#suppliers--distributors)
-- [Analytics](#analytics)
-- [Notifications](#notifications)
-- [System](#system)
-- [Error Handling](#error-handling)
-- [Multi-Tenancy](#multi-tenancy)
-- [Environment Setup](#environment-setup)
+## Getting Started
 
-## Base URLs
+### Base URL
+```
+http://localhost:8080
+```
 
-- **Production**: `https://api.agromart.com/v1`
-- **Staging**: `https://staging-api.agromart.com/v1`
-- **Development**: `http://localhost:8080/v1`
+### Content-Type
+All requests should use JSON content type:
+```
+Content-Type: application/json
+```
 
-## Authentication
+### Authentication
+Most endpoints require JWT authentication. Include the Bearer token in headers:
+```
+Authorization: Bearer <your-jwt-token>
+```
 
-The API uses JWT (JSON Web Tokens) for authentication. All authenticated endpoints require a valid Bearer token in the Authorization header.
+---
 
-### Login
+## Authentication APIs
 
-Logs in a user and returns JWT tokens.
+### User Registration
+Register a new user account.
 
-**Endpoint:** `POST /auth/login`
+**Endpoint**: `POST /v1/auth/signup`
+**Authentication**: None required
 
-**Request:**
+**Request Body**:
 ```json
 {
   "email": "user@example.com",
-  "password": "secure_password"
+  "password": "securepassword123",
+  "first_name": "John",
+  "last_name": "Doe"
 }
 ```
 
-**Response:**
+**Response** (201):
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user_id": "123e4567-e89b-12d3-a456-426614174000",
-  "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "user": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "id": "uuid-string",
     "email": "user@example.com",
     "first_name": "John",
     "last_name": "Doe",
-    "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-    "status": "active",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T10:30:00Z"
-  }
+    "tenant_id": "tenant-uuid",
+    "role": "user",
+    "created_at": "2025-01-01T10:00:00Z"
+  },
+  "access_token": "jwt-access-token",
+  "refresh_token": "jwt-refresh-token",
+  "expires_in": 3600
 }
 ```
 
-### Signup/Register
+### User Login
+Authenticate and get access tokens.
 
-Creates a new user account.
+**Endpoint**: `POST /v1/auth/login`
+**Authentication**: None required
 
-**Endpoint:** `POST /auth/signup`
-
-**Request:**
+**Request Body**:
 ```json
 {
-  "email": "newuser@example.com",
-  "password": "secure_password_123",
-  "first_name": "Jane",
-  "last_name": "Smith",
-  "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"  // Optional, defaults to development tenant
+  "email": "user@example.com",
+  "password": "securepassword123"
 }
 ```
 
-**Response:**
+**Response** (200):
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
+  "access_token": "jwt-access-token",
+  "refresh_token": "jwt-refresh-token",
   "expires_in": 3600,
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user_id": "456e7890-e89b-12d3-a456-426614174000",
-  "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "user": {
-    "id": "456e7890-e89b-12d3-a456-426614174000",
-    "email": "newuser@example.com",
-    "first_name": "Jane",
-    "last_name": "Smith",
-    "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-    "status": "active",
-    "created_at": "2024-01-15T11:00:00Z",
-    "updated_at": "2024-01-15T11:00:00Z"
+    "id": "uuid-string",
+    "email": "user@example.com",
+    "tenant_id": "tenant-uuid"
   }
 }
 ```
 
-### Refresh Token
+### User Logout
+Invalidate the current access token.
 
-Refreshes access token using refresh token.
+**Endpoint**: `POST /v1/auth/logout`
+**Authentication**: Required
 
-**Endpoint:** `POST /auth/refresh`
-
-**Request:**
-```json
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "grant_type": "refresh_token"
-}
-```
-
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-### Logout
-
-Revokes JWT tokens.
-
-**Endpoint:** `POST /auth/logout`
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Request:**
-```json
-{
-  "token_type_hint": "access_token"  // Optional: "access_token" or "refresh_token"
-}
-```
-
-**Response:**
+**Response** (200):
 ```json
 {
   "message": "Logged out successfully"
 }
 ```
 
-### Get Current User Profile
+---
 
-Gets the current authenticated user's profile.
+## User Management APIs
 
-**Endpoint:** `GET /auth/me`
+### Get User Profile
+Retrieve current user information.
 
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
+**Endpoint**: `GET /v1/me`
+**Authentication**: Required
 
-**Response:**
+**Response** (200):
 ```json
 {
-  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "id": "uuid-string",
   "email": "user@example.com",
   "first_name": "John",
   "last_name": "Doe",
-  "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-  "status": "active",
-  "created_at": "2024-01-15T10:30:00Z",
-  "updated_at": "2024-01-15T10:30:00Z"
+  "tenant_id": "tenant-uuid",
+  "role": "user",
+  "created_at": "2025-01-01T10:00:00Z",
+  "updated_at": "2025-01-01T10:00:00Z"
 }
 ```
 
-## Users
+### List Users
+Get paginated list of users.
 
-### User Data Model
+**Endpoint**: `GET /v1/users`
+**Authentication**: Required
 
+**Query Parameters**:
+- `limit` (optional): Records per page (default: 10)
+- `offset` (optional): Records to skip (default: 0)
+
+**Response** (200):
 ```json
 {
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "email": "string",
-  "first_name": "string",
-  "last_name": "string",
-  "status": "string",  // "active", "inactive"
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "users": [
+    {
+      "id": "uuid-string",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "user",
+      "created_at": "2025-01-01T10:00:00Z"
+    }
+  ],
+  "total": 25,
+  "limit": 10,
+  "offset": 0
 }
 ```
 
-## Products
+---
 
-### Product Data Model
+## Product Management APIs
 
+### List Products
+Get paginated list of products.
+
+**Endpoint**: `GET /v1/products`
+**Authentication**: Required
+
+**Query Parameters**:
+- `category_id` (optional): Filter by category
+- `search` (optional): Search term
+- `limit` (optional): Records per page (default: 10)
+- `offset` (optional): Records to skip (default: 0)
+
+**Response** (200):
 ```json
 {
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "category_id": "uuid",  // Optional
-  "name": "string",
-  "batch_number": "string",  // Optional
-  "expiry_date": "date",  // Optional
-  "quantity": "integer",
-  "unit_price": "number",
-  "barcode": "string",  // Optional
-  "unit_of_measure": "string",  // Optional
-  "description": "string",  // Optional
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "products": [
+    {
+      "id": "uuid-string",
+      "name": "Rice Seeds",
+      "description": "High-quality rice seeds",
+      "price": 25.50,
+      "category": {
+        "id": "uuid-string",
+        "name": "Seeds"
+      },
+      "tenant_id": "tenant-uuid",
+      "created_at": "2025-01-01T10:00:00Z"
+    }
+  ],
+  "total": 15,
+  "limit": 10,
+  "offset": 0
 }
 ```
 
 ### Create Product
+Create a new product.
 
-**Endpoint:** `POST /products`
-**Permission:** `products:create`
+**Endpoint**: `POST /v1/products`
+**Authentication**: Required
 
-**Headers:**
+**Request Body**:
+```json
+{
+  "name": "Wheat Seeds",
+  "description": "Premium wheat seeds",
+  "price": 35.50,
+  "category_id": "category-uuid"
+}
 ```
-Authorization: Bearer <access_token>
+
+**Response** (201):
+```json
+{
+  "id": "uuid-string",
+  "name": "Wheat Seeds",
+  "description": "Premium wheat seeds",
+  "price": 35.50,
+  "category": {
+    "id": "category-uuid",
+    "name": "Seeds"
+  },
+  "tenant_id": "tenant-uuid",
+  "created_at": "2025-01-01T10:00:00Z"
+}
 ```
 
-**Request:**
+### Get Product
+Retrieve a specific product by ID.
+
+**Endpoint**: `GET /v1/products/{id}`
+**Authentication**: Required
+
+**Response** (200): Same as single product from list
+
+### Update Product
+Update product information.
+
+**Endpoint**: `PUT /v1/products/{id}`
+**Authentication**: Required
+
+**Request Body**:
 ```json
 {
   "name": "Premium Wheat Seeds",
-  "category_id": "123e4567-e89b-12d3-a456-426614174001",  // Optional
-  "batch_number": "BATCH001",
-  "expiry_date": "2025-12-31",  // Optional
-  "quantity": 100,
-  "unit_price": 25.99,
-  "barcode": "123456789012",  // Optional
-  "unit_of_measure": "kg",  // Optional
-  "description": "High-quality wheat seeds for agriculture"  // Optional
+  "description": "Premium quality wheat seeds",
+  "price": 40.00
 }
 ```
 
-**Response:**
-```json
-{
-  "message": "Product created successfully",
-  "product": {
-    "id": "456e7890-e89b-12d3-a456-426614174000",
-    "tenant_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-    "name": "Premium Wheat Seeds",
-    "category_id": "123e4567-e89b-12d3-a456-426614174001",
-    "batch_number": "BATCH001",
-    "expiry_date": "2025-12-31T00:00:00Z",
-    "quantity": 100,
-    "unit_price": 25.99,
-    "barcode": "123456789012",
-    "unit_of_measure": "kg",
-    "description": "High-quality wheat seeds for agriculture",
-    "created_at": "2024-01-15T12:00:00Z",
-    "updated_at": "2024-01-15T12:00:00Z"
-  }
-}
-```
-
-### List Products
-
-**Endpoint:** `GET /products`
-**Permission:** `products:list`
-
-**Query Parameters:**
-- `limit`: Maximum number of products to return (default: 10, max: 100)
-- `offset`: Number of products to skip (default: 0)
-
-### Get Product by ID
-
-**Endpoint:** `GET /products/{id}`
-**Permission:** `products:read`
-
-### Update Product
-
-**Endpoint:** `PUT /products/{id}`
-**Permission:** `products:update`
-
-**Request:**
-```json
-{
-  "name": "Premium Wheat Seeds - Updated",
-  "quantity": 120,
-  "unit_price": 26.99,
-  "description": "High-quality wheat seeds with improved germination"
-}
-```
+**Response** (200): Updated product object
 
 ### Delete Product
+Remove a product.
 
-**Endpoint:** `DELETE /products/{id}`
-## Categories
+**Endpoint**: `DELETE /v1/products/{id}`
+**Authentication**: Required
 
-### Category Data Model
-
+**Response** (200):
 ```json
 {
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "name": "string",
-  "description": "string",  // Optional
-  "parent_id": "uuid",  // Optional - for hierarchical categories
-  "level": "integer",  // Hierarchy level
-  "status": "string",  // "active", "inactive"
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "message": "Product deleted successfully"
 }
 ```
 
-### List Categories
+---
 
-**Endpoint:** `GET /categories`
-**Permission:** `categories:list`
-
-**Query Parameters:**
-- `parent_id`: Filter by parent category (for hierarchical listing)
-- `level`: Filter by hierarchy level
-- `limit`: Results limit
-- `offset`: Results offset
-
-### Create Category
-
-**Endpoint:** `POST /categories`
-**Permission:** `categories:create`
-
-**Request:**
-```json
-{
-  "name": "Fertilizers",
-  "description": "Agricultural fertilizers and nutrients",
-  "parent_id": "123e4567-e89b-12d3-a456-426614174000"  // Optional
-}
-```
-
-### Get Category by ID
-
-**Endpoint:** `GET /categories/{id}`
-**Permission:** `categories:read`
-
-### Update Category
-
-**Endpoint:** `PUT /categories/{id}`
-**Permission:** `categories:update`
-
-### Delete Category
-
-**Endpoint:** `DELETE /categories/{id}`
-**Permission:** `categories:delete`
-
-### Get Category Hierarchy
-
-**Endpoint:** `GET /categories/hierarchy`
-**Permission:** `categories:list`
-
-Returns complete hierarchical tree structure of categories.
-**Permission:** `products:delete`
-
-### Search Products
-
-**Endpoint:** `GET /products/search`
-**Permission:** `products:list`
-
-**Query Parameters:**
-- `q`: Search query (searches name, description, barcode)
-- `category_id`: Filter by category UUID
-- `limit`: Results limit
-- `offset`: Results offset
-
-### Product Analytics
-
-**Endpoint:** `GET /products/analytics`
-**Permission:** `products:read`
-
-**Response:**
-```json
-{
-  "analytics": {
-    "Seeds": 15,
-    "Fertilizers": 8,
-    "Pesticides": 5,
-    "Uncategorized": 3
-  },
-  "description": "Category distribution of products"
-}
-```
+## Product Images APIs
 
 ### Upload Product Image
+Upload an image for a product.
 
-**Endpoint:** `POST /products/{id}/images`
-**Permission:** `products:update`
+**Endpoint**: `POST /v1/products/{id}/images`
+**Authentication**: Required
 
-**Content-Type:** `multipart/form-data`
+**Content-Type**: `multipart/form-data`
 
-**Form Data:**
-- `image`: Image file (JPEG, PNG, GIF, WebP, max 5MB)
-- `alt_text`: Alternative text for the image (optional)
+**Form Fields**:
+- `image`: Image file (PNG, JPG, JPEG)
 
-### Get Product Images
-
-**Endpoint:** `GET /products/{id}/images`
-**Permission:** `products:read`
-
-### Get Product Image URL
-
-**Endpoint:** `GET /products/{id}/images/{imageId}/url`
-**Permission:** `products:read`
-
-**Query Parameters:**
-- `expiry_minutes`: URL expiry time (default: 1440 minutes = 24 hours)
-
-### Delete Product Image
-
-**Endpoint:** `DELETE /products/{id}/images/{imageId}`
-**Permission:** `products:update`
-
-## Inventory
-
-### Inventory Data Model
-
+**Response** (201):
 ```json
 {
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "warehouse_id": "uuid",
-  "product_id": "uuid",
-  "quantity": "integer",
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "id": "image-uuid",
+  "product_id": "product-uuid",
+  "filename": "seed-image.jpg",
+  "content_type": "image/jpeg",
+  "size": 2048000,
+  "uploaded_at": "2025-01-01T10:00:00Z"
 }
 ```
 
-### List Inventory
+### List Product Images
+Get all images for a product.
 
-**Endpoint:** `GET /inventory`
-**Permission:** `inventories:list`
+**Endpoint**: `GET /v1/products/{id}/images`
+**Authentication**: Required
 
-**Query Parameters:**
-- `limit`: Results limit (default: 10, max: 100)
-- `offset`: Results offset (default: 0)
-
-### Create/Update Inventory
-
-**Endpoint:** `POST /inventory`
-**Permission:** `inventories:create`
-
-**Request:**
+**Response** (200):
 ```json
 {
-  "warehouse_id": "123e4567-e89b-12d3-a456-426614174002",
-  "product_id": "456e7890-e89b-12d3-a456-426614174001",
-  "quantity": 100
+  "images": [
+    {
+      "id": "image-uuid",
+      "filename": "seed-image.jpg",
+      "content_type": "image/jpeg",
+      "size": 2048000,
+      "uploaded_at": "2025-01-01T10:00:00Z"
+    }
+  ]
 }
 ```
 
-### Get Inventory by ID
+### Get Image Download URL
+Get presigned URL for image download.
 
-**Endpoint:** `GET /inventory/{id}`
-**Permission:** `inventories:read`
+**Endpoint**: `GET /v1/products/{id}/images/{imageId}/url`
+**Authentication**: Required
 
-### Update Inventory
-
-**Endpoint:** `PUT /inventory/{id}`
-**Permission:** `inventories:update`
-
-### Delete Inventory
-
-**Endpoint:** `DELETE /inventory/{id}`
-**Permission:** `inventories:delete`
-
-### Adjust Stock
-
-**Endpoint:** `POST /inventory/adjust`
-**Permission:** `inventories:update`
-
-**Request:**
+**Response** (200):
 ```json
 {
-  "warehouse_id": "123e4567-e89b-12d3-a456-426614174002",
-  "product_id": "456e7890-e89b-12d3-a456-426614174001",
-  "quantity_change": 50  // Positive for increase, negative for decrease
+  "url": "https://minio.example.com/product-images/product-uuid/image-uuid.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256...",
+  "expires_in": 86400
 }
 ```
 
-### Check Stock Availability
+---
 
-**Endpoint:** `POST /inventory/availability`
-**Permission:** `inventories:read`
-
-**Request:**
-```json
-{
-  "warehouse_id": "123e4567-e89b-12d3-a456-426614174002",
-  "product_id": "456e7890-e89b-12d3-a456-426614174001",
-  "quantity": 20
-}
-```
-
-**Response:**
-```json
-{
-  "available": true,
-  "requested": 20,
-  "available_quantity": 150
-}
-```
-
-### Transfer Stock
-
-**Endpoint:** `POST /inventory/transfer`
-**Permission:** `inventories:update`
-
-**Request:**
-```json
-{
-  "product_id": "456e7890-e89b-12d3-a456-426614174001",
-  "from_warehouse_id": "123e4567-e89b-12d3-a456-426614174002",
-  "to_warehouse_id": "789e0123-e89b-12d3-a456-426614174003",
-  "quantity": 25
-}
-```
-
-### Search Inventory
-
-**Endpoint:** `GET /inventory/search`
-**Permission:** `inventories:list`
-
-Supports advanced filters for warehouse, product, quantity ranges, etc.
-
-## Orders
-
-### Order Data Model
-
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "order_type": "string",  // "purchase" or "sales"
-  "supplier_id": "uuid",  // For purchase orders
-  "distributor_id": "uuid",  // For sales orders
-  "product_id": "uuid",
-  "warehouse_id": "uuid",
-  "quantity": "integer",
-  "unit_price": "number",
-  "total_amount": "number",
-  "status": "string",  // "pending", "approved", "processing", "shipped", "delivered", "cancelled"
-  "order_date": "datetime",
-  "expected_delivery": "date",  // Optional
-  "actual_delivery": "datetime",  // Optional
-  "notes": "string",  // Optional
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
+## Order Processing APIs
 
 ### Create Order
+Create a new order.
 
-**Endpoint:** `POST /orders`
+**Endpoint**: `POST /v1/orders`
+**Authentication**: Required
 
-**Request:**
+**Request Body** (single item):
 ```json
 {
-  "order_type": "purchase",
-  "supplier_id": "123e4567-e89b-12d3-a456-426614174004",
-  "product_id": "456e7890-e89b-12d3-a456-426614174001",
-  "warehouse_id": "789e0123-e89b-12d3-a456-426614174002",
-  "quantity": 50,
-  "unit_price": 25.99,
-  "expected_delivery": "2024-02-01",
-  "notes": "Urgent delivery required"
+  "product_id": "product-uuid",
+  "quantity": 5,
+  "delivery_address": "123 Farm Road, Rural District"
+}
+```
+
+**Request Body** (bulk items):
+```json
+{
+  "orders": [
+    {
+      "product_id": "product-uuid-1",
+      "quantity": 5,
+      "delivery_address": "123 Farm Road"
+    },
+    {
+      "product_id": "product-uuid-2",
+      "quantity": 10,
+      "delivery_address": "123 Farm Road"
+    }
+  ]
+}
+```
+
+**Response** (201):
+```json
+{
+  "id": "order-uuid",
+  "product_id": "product-uuid",
+  "quantity": 5,
+  "total_amount": 67.50,
+  "status": "pending",
+  "delivery_address": "123 Farm Road",
+  "created_at": "2025-01-01T10:00:00Z"
 }
 ```
 
 ### List Orders
+Get paginated orders (purchase orders).
 
-**Endpoint:** `GET /orders`
+**Endpoint**: `GET /v1/orders`
+**Authentication**: Required
 
-**Query Parameters:**
-- `limit`: Results limit
-- `offset`: Results offset
+**Query Parameters**:
+- `limit`, `offset`: Pagination parameters
 
-### Get Order by ID
-
-**Endpoint:** `GET /orders/{id}`
-
-### Order Analytics
-
-**Endpoint:** `GET /orders/analytics`
-
-**Query Parameters:**
-- `start_date`: Analytics start date (default: 30 days ago)
-- `end_date`: Analytics end date (default: today)
-
-### Search Orders
-
-**Endpoint:** `GET /orders/search`
-
-**Query Parameters:**
-- `status`: Filter by order status
-- `limit`: Results limit
-- `offset`: Results offset
-
-### Approve Order
-
-**Endpoint:** `POST /orders/{id}/approve`
-
-### Process Order
-
-**Endpoint:** `POST /orders/{id}/process`
-
-### Ship Order
-
-**Endpoint:** `POST /orders/{id}/ship`
-
-**Request:**
+**Response** (200):
 ```json
 {
-  "expected_delivery": "2024-02-05"  // Optional
+  "orders": [
+    {
+      "id": "order-uuid",
+      "product": {
+        "id": "product-uuid",
+        "name": "Rice Seeds"
+      },
+      "quantity": 5,
+      "total_amount": 67.50,
+      "status": "pending",
+      "created_at": "2025-01-01T10:00:00Z"
+    }
+  ],
+  "total": 10,
+  "limit": 10,
+  "offset": 0
 }
 ```
 
-### Deliver Order
+---
 
-**Endpoint:** `POST /orders/{id}/deliver`
-
-### Cancel Order
-
-**Endpoint:** `POST /orders/{id}/cancel`
-
-### Get Order History
-
-**Endpoint:** `GET /orders/{id}/history`
-
-## Invoices
-
-### Invoice Data Model
-
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "order_id": "uuid",
-  "gstin": "string",  // GSTIN number
-  "gst_rate": "number",  // GST rate (e.g., 18.0)
-  "taxable_amount": "number",  // Amount before tax
-  "cgst": "number",  // Central GST
-  "sgst": "number",  // State GST
-  "igst": "number",  // Inter-state GST (optional)
-  "total_amount": "number",  // Total amount including tax
-  "status": "string",  // "unpaid", "paid", "overdue"
-  "issued_date": "datetime",
-  "paid_date": "datetime",  // Optional
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
-### Create Invoice
-
-**Endpoint:** `POST /invoices`
-
-**Request:**
-```json
-{
-  "order_id": "123e4567-e89b-12d3-a456-426614174005",
-  "gstin": "22AAAAA0000A1Z5"  // Optional
-}
-```
+## Invoice Management APIs
 
 ### List Invoices
+Get paginated invoices.
 
-**Endpoint:** `GET /invoices`
+**Endpoint**: `GET /v1/invoices`
+**Authentication**: Required
 
-### Get Invoice by ID
-
-**Endpoint:** `GET /invoices/{id}`
-
-### Update Invoice Status
-
-**Endpoint:** `PUT /invoices/{id}/status`
-
-**Request:**
+**Response** (200):
 ```json
 {
-  "status": "paid"  // "unpaid", "paid", "overdue"
+  "invoices": [
+    {
+      "id": "invoice-uuid",
+      "order_id": "order-uuid",
+      "total_amount": 67.50,
+      "status": "unpaid",
+      "issued_date": "2025-01-01T10:00:00Z",
+      "created_at": "2025-01-01T10:00:00Z"
+    }
+  ],
+  "total": 5,
+  "limit": 10,
+  "offset": 0
 }
 ```
 
-### Get Unpaid Invoices
+### Get Invoice
+Retrieve specific invoice.
 
-**Endpoint:** `GET /invoices/unpaid`
+**Endpoint**: `GET /v1/invoices/{id}`
+**Authentication**: Required
+
+### Update Invoice Status
+Update invoice payment status.
+
+**Endpoint**: `PUT /v1/invoices/{id}`
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "status": "paid"
+}
+```
 
 ### Generate Invoice PDF
+Generate invoice PDF and get download URL.
 
-Generates a professional PDF invoice for the specified invoice ID and stores it in cloud storage for download. The PDF includes complete invoice details with GST calculations, itemized billing, and company information.
+**Endpoint**: `POST /v1/invoices/{id}/generate-pdf`
+**Authentication**: Required
 
-**Endpoint:** `POST /v1/invoices/{id}/generate-pdf`
-
-**Authentication:** Required
-```
-Authorization: Bearer <access_token>
-```
-
-**Path Parameters:**
-- `id` (string, required): UUID of the invoice to generate PDF for
-
-**Request Body:** None required
-
-**Response:**
+**Response** (200):
 ```json
 {
   "message": "PDF generated and uploaded successfully",
-  "pdf_url": "https://storage.agromart.com/invoices/tenant123-invoice456.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&...",
-  "expires_in": "24 hours"
+  "pdf_url": "https://minio.example.com/invoices/download-url",
+  "expires_in": 86400
 }
 ```
 
-**Success Response (200):**
-- `message`: Confirmation message
-- `pdf_url`: Presigned URL for PDF download (valid for 24 hours)
-- `expires_in`: URL expiration time
+---
 
-**Error Responses:**
+## Business Management APIs
 
-**400 Bad Request:**
+### Categories
+- `GET /v1/categories` - List all categories
+- `POST /v1/categories` - Create new category
+- `GET /v1/categories/{id}` - Get specific category
+- `PUT /v1/categories/{id}` - Update category
+- `DELETE /v1/categories/{id}` - Delete category
+
+### Warehouses
+- `GET /v1/warehouses` - List warehouses
+- `POST /v1/warehouses` - Create warehouse
+- `GET /v1/warehouses/{id}` - Get warehouse details
+
+### Suppliers and Distributors
+- `GET /v1/suppliers` - List suppliers ( RBAC permissions may be required)
+- `GET /v1/distributors` - List distributors ( RBAC permissions may be required)
+
+---
+
+## System Health APIs
+
+### Health Check
+Check system health (no authentication).
+
+**Endpoint**: `GET /health`
+
+**Response**:
 ```json
 {
-  "message": "Invalid invoice ID"
-}
-```
-*Cause:* Invalid UUID format in request path
-
-**401 Unauthorized:**
-```json
-{
-  "message": "Tenant not found"
-}
-```
-*Cause:* Missing or invalid JWT token, unable to extract tenant context
-
-**404 Not Found:**
-```json
-{
-  "message": "Invoice not found"
-}
-```
-*Cause:* Invoice with specified ID doesn't exist or belongs to different tenant
-
-**404 Not Found:**
-```json
-{
-  "message": "Order not found for this invoice"
-}
-```
-*Cause:* Associated order record not found
-
-**500 Internal Server Error:**
-```json
-{
-  "message": "Failed to generate PDF: <specific_error>"
-}
-```
-*Cause:* PDF generation failed due to template or data issues
-
-**500 Internal Server Error:**
-```json
-{
-  "message": "Failed to upload PDF to storage"
-}
-```
-*Cause:* MinIO storage upload failure
-
-**500 Internal Server Error:**
-```json
-{
-  "message": "Failed to generate download URL"
-}
-```
-*Cause:* Presigned URL generation failure
-
-**PDF Content Structure:**
-
-The generated PDF includes the following sections:
-
-1. **Company Header**
-   - Company name: "AGROMART INVOICE"
-   - Professional layout with company branding
-
-2. **Invoice Details**
-   - Invoice number (UUID)
-   - Invoice date
-   - Order ID reference
-   - GSTIN (if provided)
-
-3. **Billing Information**
-   - Bill-to: Customer details (configurable)
-   - Company contact information
-
-4. **Item Table**
-   - Description (product name + optional additional details)
-   - Quantity ordered
-   - Unit price
-   - Line total amount
-
-5. **GST Calculations**
-   - Subtotal (pre-tax amount)
-   - CGST (9% of taxable amount)
-   - SGST (9% of taxable amount)
-   - IGST (if applicable for inter-state transactions)
-   - Total amount including all taxes
-
-6. **Terms & Conditions**
-   - Payment terms (30 days)
-   - Late payment charges
-   - Goods return policy
-   - Computer generated document notice
-
-7. **Footer**
-   - Thank you message
-   - Support contact information
-
-**Integration Examples:**
-
-**JavaScript/TypeScript:**
-```javascript
-// Generate PDF for invoice
-async function generateInvoicePDF(invoiceId) {
-  const response = await fetch(`/v1/invoices/${invoiceId}/generate-pdf`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${getAuthToken()}`,
-      'Content-Type': 'application/json'
-    }
-  });
-
-  if (response.ok) {
-    const result = await response.json();
-    console.log('PDF generated:', result.pdf_url);
-
-    // Automatically download the PDF
-    window.open(result.pdf_url, '_blank');
-
-    return result;
-  } else {
-    const error = await response.json();
-    throw new Error(error.message);
-  }
-}
-
-// Usage
-generateInvoicePDF('123e4567-e89b-12d3-a456-426614174000')
-  .then(result => {
-    // Handle success - PDF available at result.pdf_url
-  })
-  .catch(error => {
-    // Handle error
-    console.error('PDF generation failed:', error.message);
-  });
-```
-
-**React Integration:**
-```javascript
-import React, { useState } from 'react';
-
-function InvoicePDFButton({ invoiceId }) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState(null);
-
-  const handleGeneratePDF = async () => {
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/v1/invoices/${invoiceId}/generate-pdf`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message);
-      }
-
-      const data = await response.json();
-
-      // Open PDF in new tab
-      window.open(data.pdf_url, '_blank');
-
-      // Show success message
-      alert('Invoice PDF generated successfully!');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  return (
-    <div>
-      <button
-        onClick={handleGeneratePDF}
-        disabled={isGenerating}
-        className="pdf-generate-btn"
-      >
-        {isGenerating ? 'Generating PDF...' : 'Generate PDF'}
-      </button>
-      {error && <p className="error-message">Error: {error}</p>}
-    </div>
-  );
-}
-
-export default InvoicePDFButton;
-```
-
-**Python Integration:**
-```python
-import requests
-
-def generate_invoice_pdf(invoice_id, auth_token):
-    """
-    Generate PDF for invoice and return download URL
-
-    Args:
-        invoice_id (str): UUID of the invoice
-        auth_token (str): JWT authentication token
-
-    Returns:
-        dict: Response containing pdf_url and metadata
-    """
-    url = f"https://api.agromart.com/v1/invoices/{invoice_id}/generate-pdf"
-    headers = {
-        'Authorization': f'Bearer {auth_token}',
-        'Content-Type': 'application/json'
-    }
-
-    response = requests.post(url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        # Parse error response
-        error_data = response.json()
-        raise Exception(f"PDF generation failed: {error_data.get('message')}")
-
-# Usage example
-try:
-    result = generate_invoice_pdf(
-        invoice_id="123e4567-e89b-12d3-a456-426614174000",
-        auth_token="your_jwt_token_here"
-    )
-    print(f"PDF generated successfully: {result['pdf_url']}")
-    print(f"Expires in: {result['expires_in']}")
-except Exception as e:
-    print(f"Error: {e}")
-```
-
-**Testing the Endpoint:**
-```javascript
-// Test endpoint functionality
-async function testPDFGeneration() {
-  // Assume you have valid token and invoice ID
-  const invoiceId = '123e4567-e89b-12d3-a456-426614174000';
-  const authToken = 'your_jwt_token_here';
-
-  try {
-    const response = await fetch(`/v1/invoices/${invoiceId}/generate-pdf`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ PDF Generation Successful');
-      console.log('PDF URL:', data.pdf_url);
-      console.log('Expires In:', data.expires_in);
-
-      // Test if URL is accessible
-      const downloadResponse = await fetch(data.pdf_url);
-      if (downloadResponse.ok) {
-        console.log('✅ PDF Download URL is valid');
-      } else {
-        console.log('❌ PDF Download URL failed');
-      }
-    } else {
-      console.log('❌ PDF Generation Failed');
-      const errorData = await response.json();
-      console.log('Error:', errorData.message);
-    }
-  } catch (error) {
-    console.log('❌ Network or other error:', error.message);
-  }
-}
-
-// Test with invalid invoice ID
-async function testInvalidInvoice() {
-  const invalidId = 'invalid-uuid';
-  // ... similar to above
-}
-
-// Test with unauthorized access
-async function testUnauthorized() {
-  const invoiceId = '123e4567-e89b-12d3-a456-426614174000';
-  const invalidToken = 'invalid_token';
-
-  // ... similar structure
+  "service": "agromart2",
+  "status": "ok",
+  "timestamp": "2025-01-01T10:00:00Z"
 }
 ```
 
-**Security Considerations:**
+### Readiness Check
+Check service readiness.
 
-1. **Authentication Required**: All PDF generation requests require valid JWT authentication
-2. **Tenant Isolation**: Users can only access PDFs for invoices within their own tenant
-3. **URL Expiration**: Generated download URLs expire after 24 hours for security
-4. **Access Control**: Endpoint respects role-based permissions for invoice access
-5. **Audit Logging**: All PDF generation requests are logged for compliance
+**Endpoint**: `GET /health/ready`
 
-**Rate Limiting:**
+### Detailed Health
+Get detailed health with dependencies.
 
-The PDF generation endpoint is subject to standard API rate limiting:
-- 1000 requests per hour per user
-- PDF generation uses additional computational resources
-- Consider implementing client-side caching of generated PDFs
+**Endpoint**: `GET /health/detailed`
 
-**Best Practices:**
+### Metrics
+Get application metrics.
 
-1. **Caching**: Cache generated PDFs on the client side to avoid repeated generations
-2. **Error Handling**: Implement robust error handling for all failure scenarios
-3. **User Feedback**: Provide clear loading states and success/error messages
-4. **URL Management**: Track and refresh expired download URLs appropriately
-5. **Performance**: Generate PDFs asynchronously for large invoice sets if needed
+**Endpoint**: `GET /metrics`
+
+---
+
+## Documentation APIs
+
+### API Guide
+Get general API usage guide.
+
+**Endpoint**: `GET /v1/docs/guide`
+
+### API Specification
+Get API endpoint specifications.
+
+**Endpoint**: `GET /v1/docs/spec`
+
+---
 
 ## Error Handling
 
-### Common Error Response Format
+### Common HTTP Status Codes
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request (invalid input)
+- `401` - Unauthorized (missing/invalid token)
+- `403` - Forbidden (insufficient permissions)
+- `404` - Not Found
+- `500` - Internal Server Error
 
+### Error Response Format
 ```json
 {
-  "message": "Error description"
+  "message": "Error description",
+  "error": "detailed_error_message"
 }
 ```
 
-### HTTP Status Codes
-
-- **200**: Success
-- **201**: Created
-- **400**: Bad Request (validation errors)
-- **401**: Unauthorized (missing/invalid token)
-- **403**: Forbidden (insufficient permissions)
-- **404**: Not Found
-- **409**: Conflict (duplicate data)
-- **422**: Unprocessable Entity (validation failed)
-- **500**: Internal Server Error
-- **503**: Service Unavailable (dependencies down)
-### Search Categories
-
-**Endpoint:** `GET /categories/search`
-**Permission:** `categories:list`
-
-**Query Parameters:**
-- `name`: Search by category name
-- `limit`: Results limit
-- `offset`: Results offset
-
-### Update Category
-
-**Endpoint:** `PUT /categories/{id}`
-**Permission:** `categories:update`
-
-### Delete Category
-
-**Endpoint:** `DELETE /categories/{id}`
-**Permission:** `categories:delete`
-
-## Warehouses
-
-### Warehouse Data Model
-
+### Common Validation Errors
 ```json
 {
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "name": "string",
-  "location": "string",
-  "capacity": "integer",  // Optional
-  "status": "string",  // "active", "inactive"
-  "manager_id": "uuid",  // Optional
-  "created_at": "datetime",
-  "updated_at": "datetime"
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "email",
+      "message": "Email is required"
+    }
+  ]
 }
 ```
 
-### List Warehouses
+---
 
-**Endpoint:** `GET /warehouses`
-**Permission:** `warehouses:list`
+## Integration Examples
 
-### Create Warehouse
-
-**Endpoint:** `POST /warehouses`
-**Permission:** `warehouses:create`
-
-### Get Warehouse by ID
-
-**Endpoint:** `GET /warehouses/{id}`
-**Permission:** `warehouses:read`
-
-### Update Warehouse
-
-**Endpoint:** `PUT /warehouses/{id}`
-**Permission:** `warehouses:update`
-
-### Delete Warehouse
-
-**Endpoint:** `DELETE /warehouses/{id}`
-**Permission:** `warehouses:delete`
-
-## Suppliers & Distributors
-
-### Supplier Data Model
-
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "name": "string",
-  "contact_person": "string",
-  "email": "string",
-  "phone": "string",
-  "address": "string",
-  "gstin": "string",  // Optional
-  "payment_terms": "string",  // Optional
-  "status": "string",  // "active", "inactive"
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
-### Distributor Data Model
-
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "name": "string",
-  "contact_person": "string",
-  "email": "string",
-  "phone": "string",
-  "region": "string",  // Covered region
-  "discount_rate": "number",  // Optional
-  "status": "string",  // "active", "inactive"
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
-### Supplier Endpoints
-
-- `GET /suppliers` - List suppliers
-- `POST /suppliers` - Create supplier
-- `GET /suppliers/{id}` - Get supplier by ID
-- `PUT /suppliers/{id}` - Update supplier
-- `DELETE /suppliers/{id}` - Delete supplier
-
-### Distributor Endpoints
-
-- `GET /distributors` - List distributors
-- `POST /distributors` - Create distributor
-- `GET /distributors/{id}` - Get distributor by ID
-- `PUT /distributors/{id}` - Update distributor
-- `DELETE /distributors/{id}` - Delete distributor
-
-## Analytics
-
-### System Analytics
-
-**Endpoint:** `GET /analytics/system`
-
-Provides overview statistics:
-```json
-{
-  "total_products": 154,
-  "total_orders": 89,
-  "total_revenue": 25890.50,
-  "active_inventory_value": 18752.30,
-  "low_stock_products": 7,
-  "pending_orders": 12
-}
-```
-
-### Dashboard Analytics
-
-**Endpoint:** `GET /analytics/dashboard`
-
-Provides dashboard metrics for frontend display.
-
-### Revenue Reports
-
-**Endpoint:** `GET /analytics/revenue`
-
-**Query Parameters:**
-- `start_date`: Report start date
-- `end_date`: Report end date
-- `group_by`: "daily", "weekly", "monthly"
-
-### Inventory Reports
-
-**Endpoint:** `GET /analytics/inventory`
-
-Provides detailed inventory analytics including low stock alerts and turnover ratios.
-
-## Notifications
-
-### Notification Data Model
-
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "user_id": "uuid",
-  "type": "string",  // "info", "warning", "error"
-  "title": "string",
-  "message": "string",
-  "read": "boolean",
-  "created_at": "datetime"
-}
-```
-
-### List Notifications
-
-**Endpoint:** `GET /notifications`
-
-**Query Parameters:**
-- `limit`: Results limit
-- `offset`: Results offset
-- `unread_only`: Filter for unread notifications only
-
-### Mark as Read
-
-**Endpoint:** `PUT /notifications/{id}/read`
-
-### Mark All as Read
-
-**Endpoint:** `PUT /notifications/read-all`
-
-### Create Notification
-
-**Endpoint:** `POST /notifications`
-
-Used for sending notifications to users.
-
-## System
-
-### Health Check
-
-**Endpoint:** `GET /health`
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "services": {
-    "database": "healthy",
-    "redis": "healthy",
-    "storage": "healthy"
-  }
-}
-```
-
-### Version Information
-
-**Endpoint:** `GET /version`
-
-Provides API version and build information.
-
-## Multi-Tenancy
-
-### Tenant Context
-
-All API endpoints automatically filter data by the authenticated user's tenant ID. The tenant ID is extracted from the JWT token and used for:
-
-- **Data Isolation**: Each tenant sees only their own data
-- **Resource Limits**: API responses respect tenant-specific limits
-- **Audit Logging**: All operations are logged per tenant
-
-### Example Tenant Context Flow
-
-1. User authenticates with `/auth/login`
-2. JWT token includes both user ID and tenant ID
-3. All subsequent API calls include the token
-4. System automatically filters responses by tenant ID
-5. Audit logs capture tenant-specific operations
-
-### Multi-Tenant Data Models
-
-All entity models include a `tenant_id` field for proper data isolation:
-
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",  // Ensures data belongs to specific tenant
-  "name": "string",
-  // ... other fields
-}
-```
-
-## Environment Setup
-
-### Development Environment
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd agromart2
-   ```
-
-2. **Copy environment configuration:**
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Update environment variables:**
-   ```bash
-   # Database Configuration
-   DATABASE_URL=postgresql://user:password@localhost:5432/agromart_dev
-
-   # Redis Configuration
-   REDIS_URL=redis://localhost:6379
-
-   # JWT Configuration
-   JWT_SECRET=your-development-jwt-secret
-
-   # Server Configuration
-   PORT=8080
-   ```
-
-4. **Start dependencies:**
-   ```bash
-   # Using Docker Compose
-   docker-compose up -d postgres redis minio
-
-   # Or start locally if preferred
-   ```
-
-5. **Run the application:**
-   ```bash
-   go run cmd/main.go
-   ```
-
-6. **Access Swagger documentation:**
-   - OpenAPI spec: `http://localhost:8080/swagger/index.html`
-   - Frontend documentation: `docs/frontend-developer-api.md`
-
-### Integration Patterns
-
-#### Authentication Flow Pattern
-
+### 1. User Registration Flow
 ```javascript
-// Frontend integration example
-async function login(email, password) {
-  const response = await fetch('/v1/auth/login', {
+// Register new user
+const registerUser = async (userData) => {
+  const response = await fetch('/v1/auth/signup', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email, password })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData)
   });
 
-  if (response.ok) {
-    const data = await response.json();
-    // Store tokens securely (localStorage, secure cookie, etc.)
+  const data = await response.json();
+  // Store tokens for future requests
+  if (data.access_token) {
     localStorage.setItem('accessToken', data.access_token);
     localStorage.setItem('refreshToken', data.refresh_token);
-    // Set user context
-    setUser(data.user);
-    return data;
-  } else {
-    throw new Error('Login failed');
   }
-}
+
+  return data;
+};
 ```
 
-#### Token Refresh Pattern
-
+### 2. Authenticated API Call
 ```javascript
-async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
-  }
+// Make authenticated request
+const makeAuthRequest = async (url, options = {}) => {
+  const token = localStorage.getItem('accessToken');
 
-  const response = await fetch('/v1/auth/refresh', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token'
-    })
-  });
-
-  if (response.ok) {
-    const data = await response.json();
-    localStorage.setItem('accessToken', data.access_token);
-    localStorage.setItem('refreshToken', data.refresh_token);
-    return data;
-  } else {
-    // Handle refresh failure - redirect to login
-    logout();
-    throw new Error('Token refresh failed');
-  }
-}
-```
-
-#### API Request Wrapper Pattern
-
-```javascript
-async function apiRequest(url, options = {}) {
-  const accessToken = localStorage.getItem('accessToken');
-
-  const defaultOptions = {
+  const response = await fetch(url, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
+      'Authorization': `Bearer ${token}`,
+      ...options.headers
     }
-  };
-
-  const mergedOptions = { ...defaultOptions, ...options };
-
-  // Merge headers properly
-  if (options.headers) {
-    mergedOptions.headers = { ...defaultOptions.headers, ...options.headers };
-  }
-
-  let response = await fetch(url, mergedOptions);
-
-  if (response.status === 401) {
-    // Try to refresh token automatically
-    try {
-      await refreshAccessToken();
-      const newToken = localStorage.getItem('accessToken');
-      mergedOptions.headers.Authorization = `Bearer ${newToken}`;
-      response = await fetch(url, mergedOptions);
-    } catch (refreshError) {
-      // Refresh failed, redirect to login
-      logout();
-      throw new Error('Authentication required');
-    }
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'API request failed');
-  }
+  });
 
   return response.json();
-}
+};
+
+// Usage
+const products = await makeAuthRequest('/v1/products');
 ```
 
-#### Error Handling Pattern
-
+### 3. File Upload Integration
 ```javascript
-async function handleApiError(error) {
-  // Handle specific error types
-  if (error.message.includes('401') || error.message.includes('Authentication')) {
-    // Redirect to login
-    redirectToLogin();
-  } else if (error.message.includes('403')) {
-    // Show permission error
-    showError('You do not have permission to perform this action');
-  } else if (error.message.includes('422') || error.message.includes('400')) {
-    // Show validation errors
-    showValidationErrors(error.details || []);
-  } else if (error.message.includes('500')) {
-    // Show generic error
-    showError('A server error occurred. Please try again later.');
-  } else {
-    // Show generic error
-    showError('An unexpected error occurred');
-  }
-}
-```
+// Upload product image
+const uploadProductImage = async (productId, imageFile) => {
+  const token = localStorage.getItem('accessToken');
+  const formData = new FormData();
+  formData.append('image', imageFile);
 
-### SDK Pattern Example
+  const response = await fetch(`/v1/products/${productId}/images`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
 
-Create a client SDK for easier integration:
-
-```javascript
-// agromart-sdk.js
-class AgromartAPI {
-  constructor(baseURL = '/v1') {
-    this.baseURL = baseURL;
-    this.refreshPromise = null;
-  }
-
-  async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    const response = await apiRequest(url, options);
-    return response;
-  }
-
-  // Authentication methods
-  async login(email, password) {
-    return this.request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password })
-    });
-  }
-
-  async logout() {
-    return this.request('/auth/logout', {
-      method: 'POST'
-    });
-  }
-
-  // Product methods
-  async getProducts(limit = 10, offset = 0) {
-    return this.request(`/products?limit=${limit}&offset=${offset}`);
-  }
-
-  async createProduct(productData) {
-    return this.request('/products', {
-      method: 'POST',
-      body: JSON.stringify(productData)
-    });
-  }
-
-  // Order methods
-  async getOrders(limit = 10, offset = 0) {
-    return this.request(`/orders?limit=${limit}&offset=${offset}`);
-  }
-
-  async createOrder(orderData) {
-    return this.request('/orders', {
-      method: 'POST',
-      body: JSON.stringify(orderData)
-    });
-  }
-
-// Invoice methods
-  async getInvoices(limit = 10, offset = 0) {
-    return this.request(`/invoices?limit=${limit}&offset=${offset}`);
-  }
-
-  async getUnpaidInvoices() {
-    return this.request('/invoices/unpaid');
-  }
-}
-
-// Export for use
-export default AgromartAPI;
-```
-
-### React Integration Example
-
-```javascript
-// App.js
-import React from 'react';
-import { AgromartProvider, useAgromart } from './hooks/useAgromart';
-
-function App() {
-  return (
-    <AgromartProvider apiBaseUrl="http://localhost:8080/v1">
-      <Dashboard />
-    </AgromartProvider>
-  );
-}
-
-// Dashboard.js
-import React, { useEffect, useState } from 'react';
-import { useAgromart } from './hooks/useAgromart';
-
-function Dashboard() {
-  const { api, user, logout } = useAgromart();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const data = await api.getProducts(20);
-        setProducts(data.products);
-      } catch (error) {
-        console.error('Failed to fetch products:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) {
-      fetchProducts();
-    }
-  }, [api, user]);
-
-  if (!user) return <Login />;
-
-  return (
-    <div>
-      <nav>
-        <h1>Agromart Dashboard</h1>
-        <button onClick={logout}>Logout</button>
-      </nav>
-
-      <div className="dashboard-content">
-        <h2>Products ({products.length})</h2>
-        {loading ? (
-          <p>Loading...</p>
-        ) : (
-          <div className="product-list">
-            {products.map(product => (
-              <div key={product.id} className="product-card">
-                <h3>{product.name}</h3>
-                <p>Quantity: {product.quantity}</p>
-                <p>Price: ${product.unit_price}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default Dashboard;
-```
-
-### Testing Integration
-
-#### Authentication Testing
-```javascript
-// Login test
-const testLogin = async () => {
-  try {
-    const response = await fetch('/v1/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: 'test@example.com',
-        password: 'test_password'
-      })
-    });
-    const data = await response.json();
-    console.log('Login successful:', data);
-    return data.access_token;
-  } catch (error) {
-    console.error('Login failed:', error);
-  }
+  return response.json();
 };
 ```
 
-#### API Testing Script
+### 4. Order Creation
 ```javascript
-// test-api-integration.js
-async function testAPIEndpoints() {
-  const token = await testLogin();
+const createOrder = async (orderData) => {
+  return await makeAuthRequest('/v1/orders', {
+    method: 'POST',
+    body: JSON.stringify(orderData)
+  });
+};
 
-  if (!token) {
-    console.error('Failed to authenticate');
-    return;
-  }
+// Usage
+const order = await createOrder({
+  product_id: 'product-uuid',
+  quantity: 5,
+  delivery_address: '123 Farm Road'
+});
+```
 
-  const headers = {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
+---
+
+## Frontend Integration Best Practices
+
+### 1. Authentication Management
+- Store JWT tokens securely (localStorage/secure storage)
+- Implement token refresh logic
+- Handle token expiration gracefully
+- Redirect to login when tokens are invalid
+
+### 2. Error Handling
+- Create centralized error handling
+- Handle network errors and timeouts
+- Parse and display API errors appropriately
+- Implement retry logic for failed requests
+
+### 3. Loading States
+- Show loading indicators during API calls
+- Handle pagination loading states
+- Implement skeleton screens for better UX
+
+### 4. Data Caching
+- Cache user profile data
+- Implement smart cache invalidation
+- Store offline data where appropriate
+
+### 5. File Upload Handling
+- Validate file types and sizes
+- Show upload progress
+- Handle failed uploads gracefully
+- Display uploaded images properly
+
+### 6. Multi-Tenant Awareness
+- Include tenant context in UI components
+- Handle tenant-specific data isolation
+- Implement tenant switching (if applicable)
+
+### 7. API State Management
+- Use a global state manager (Redux, Zustand, etc.)
+- Centralize API calls in services
+- Handle loading, error, and success states
+
+---
+
+## Common Data Models
+
+### User
+```typescript
+interface User {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  tenant_id: string;
+  role: 'admin' | 'user' | 'manager';
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### Product
+```typescript
+interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  category: {
+    id: string;
+    name: string;
   };
-
-  // Test product endpoints
-  console.log('Testing Product Endpoints:');
-
-  // Get products
-  try {
-    const productsResponse = await fetch('/v1/products?limit=5', { headers });
-    const productsData = await productsResponse.json();
-    console.log('Products listing:', productsData);
-  } catch (error) {
-    console.error('Failed to fetch products:', error);
-  }
-
-  // Test order endpoints
-  console.log('Testing Order Endpoints:');
-
-  // Get orders
-  try {
-    const ordersResponse = await fetch('/v1/orders?limit=5', { headers });
-    const ordersData = await ordersResponse.json();
-    console.log('Orders listing:', ordersData);
-  } catch (error) {
-    console.error('Failed to fetch orders:', error);
-  }
-
-  // Test invoice endpoints
-  console.log('Testing Invoice Endpoints:');
-
-  // Get unpaid invoices
-  try {
-    const invoicesResponse = await fetch('/v1/invoices/unpaid', { headers });
-    const invoicesData = await invoicesResponse.json();
-    console.log('Unpaid invoices:', invoicesData);
-  } catch (error) {
-    console.error('Failed to fetch invoices:', error);
-  }
+  tenant_id: string;
+  created_at: string;
 }
-
-// Run the tests
-testAPIEndpoints();
 ```
 
-## Common Issues and Solutions
-
-### Authentication Issues
-
-1. **Expired Token**
-   - **Symptom**: 401 responses on valid requests
-   - **Solution**: Implement automatic token refresh
-
-2. **Invalid Tenant Context**
-   - **Symptom**: 404 responses or empty data sets
-   - **Solution**: Verify JWT token contains correct tenant_id
-
-### Rate Limiting
-
-The API implements rate limiting to prevent abuse:
-- Standard requests: 1000 per hour per user
-- Authentication endpoints: 100 per hour per IP
-
-### Performance Optimization
-
-1. **Pagination**: Always use limit and offset for large datasets
-2. **Filtering**: Use search endpoints to reduce data transfer
-3. **Caching**: Implement client-side caching for static data
-4. **Image Optimization**: Use presigned URLs for images instead of direct data
-
-### CORS Configuration
-
-For frontend development, ensure CORS is configured:
-
-```javascript
-// Example CORS configuration for development
-const corsOptions = {
-  origin: [
-    'http://localhost:3000',    // React dev server
-    'http://localhost:4000',    // Vue dev server
-    'http://localhost:8080'     // Angular dev server
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
+### Order
+```typescript
+interface Order {
+  id: string;
+  product: Product;
+  quantity: number;
+  total_amount: number;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  delivery_address: string;
+  created_at: string;
+}
 ```
 
-## Change Log
-
-### Version 1.0.0
-- Initial release with core inventory management features
-- Multi-tenant architecture
-- JWT authentication
-- Complete CRUD operations for all entities
-- Analytics and reporting endpoints
-- Image upload and management
-- PDF generation for invoices
+### Invoice
+```typescript
+interface Invoice {
+  id: string;
+  order_id: string;
+  total_amount: number;
+  status: 'unpaid' | 'paid' | 'overdue';
+  gstin?: string;
+  issued_date: string;
+}

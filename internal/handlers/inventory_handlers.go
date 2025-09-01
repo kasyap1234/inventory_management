@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
@@ -58,7 +59,7 @@ func (h *InventoryHandlers) ListInventories(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -106,7 +107,7 @@ func (h *InventoryHandlers) CreateInventory(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -148,7 +149,7 @@ func (h *InventoryHandlers) GetInventory(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -202,7 +203,7 @@ func (h *InventoryHandlers) UpdateInventory(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -258,7 +259,7 @@ func (h *InventoryHandlers) DeleteInventory(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -303,7 +304,7 @@ func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -346,7 +347,7 @@ func (h *InventoryHandlers) CheckAvailability(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -399,7 +400,7 @@ func (h *InventoryHandlers) TransferStock(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -431,7 +432,7 @@ func (h *InventoryHandlers) SearchInventories(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

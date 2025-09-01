@@ -3,6 +3,7 @@ package handlers
 import (
 	"log"
 	"net/http"
+	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
@@ -65,7 +66,7 @@ func (h *WarehouseHandlers) ListWarehouses(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -117,7 +118,7 @@ func (h *WarehouseHandlers) CreateWarehouse(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -160,7 +161,7 @@ func (h *WarehouseHandlers) GetWarehouse(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	log.Printf("DEBUG: ListWarehouses tenant ID: %s, ok: %v", tenantID.String(), ok)
 	if !ok {
 		log.Printf("DEBUG: ListWarehouses - tenant not found in context")
@@ -212,7 +213,7 @@ func (h *WarehouseHandlers) UpdateWarehouse(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -267,7 +268,7 @@ func (h *WarehouseHandlers) DeleteWarehouse(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

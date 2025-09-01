@@ -7,20 +7,14 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/random"
 
-	"github.com/google/uuid"
-
 	"agromart2/internal/analytics"
 	"agromart2/internal/caching"
-	"agromart2/internal/common"
 	"agromart2/internal/handlers"
-	"agromart2/internal/jobs"
 	"agromart2/internal/middleware"
 	"agromart2/internal/repositories"
 	"agromart2/internal/services"
@@ -89,24 +83,21 @@ func main() {
 	}
 
 	// Create repositories
-	userRepo := repositories.NewUserRepository(pool)
-	tenantRepo := repositories.NewTenantRepository(pool)
-	roleRepo := repositories.NewRoleRepository(pool)
-	userRoleRepo := repositories.NewUserRoleRepository(pool)
-	rolePermissionRepo := repositories.NewRolePermissionRepository(pool)
-	permissionRepo := repositories.NewPermissionRepository(pool)
-	categoryRepo := repositories.NewCategoryRepository(pool)
-	productRepo := repositories.NewProductRepository(pool)
+	userRepo := repositories.NewUserRepo(pool)
+	tenantRepo := repositories.NewTenantRepo(pool)
+	roleRepo := repositories.NewRoleRepo(pool)
+	userRoleRepo := repositories.NewUserRoleRepo(pool)
+	rolePermissionRepo := repositories.NewRolePermissionRepo(pool)
+	permissionRepo := repositories.NewPermissionRepo(pool)
+	categoryRepo := repositories.NewCategoryRepo(pool)
+	productRepo := repositories.NewProductRepo(pool)
 	warehouseRepo := repositories.NewWarehouseRepository(pool)
 	supplierRepo := repositories.NewSupplierRepository(pool)
 	distributorRepo := repositories.NewDistributorRepository(pool)
-	inventoryRepo := repositories.NewInventoryRepository(pool)
-	orderRepo := repositories.NewOrderRepository(pool)
-	invoiceRepo := repositories.NewInvoiceRepository(pool)
-	auditLogRepo := repositories.NewAuditLogsRepository(pool)
-	tokenRepo := repositories.NewTokenRepository(pool)
-	productImageRepo := repositories.NewProductImageRepository(pool)
-	subscriptionRepo := repositories.NewSubscriptionRepository(pool)
+	inventoryRepo := repositories.NewInventoryRepo(pool)
+	orderRepo := repositories.NewOrderRepo(pool)
+	invoiceRepo := repositories.NewInvoiceRepo(pool)
+	productImageRepo := repositories.NewProductImageRepo(pool)
 
 	// Create cache service
 	cacheSvc := caching.NewRedisCacheService(redisAddr, redisPassword, redisDB)
@@ -114,7 +105,14 @@ func main() {
 	// Create services
 	// Create analytics service
 	analyticsSvc := analytics.NewAnalyticsService(orderRepo, invoiceRepo, inventoryRepo, productRepo, cacheSvc)
+
 	rbacService := services.NewRBACService(userRoleRepo, rolePermissionRepo, permissionRepo)
+
+	// RBAC middleware
+	rbacMiddleware := middleware.NewRBACMiddleware(rbacService)
+
+	// Create auth service
+	authService := services.NewAuthService(cacheSvc, jwtSecret, 3600, 86400) // 1 hour access, 24 hour refresh
 
 	// Create product service
 	productSvc := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, minioSvc, cacheSvc)
@@ -122,56 +120,25 @@ func main() {
 	// Create product handlers
 	productHandlers := handlers.NewProductHandlers(productSvc, rbacMiddleware)
 
+	// Create tenant service
+	tenantService := services.NewTenantService(tenantRepo)
+
 	// Create order service
 	// orderSvc := services.NewOrderService(orderRepo, inventoryRepo, inventoryService) // moved after inventoryService
 
 	// Create invoice service
 	// invoiceSvc := services.NewInvoiceService(invoiceRepo, orderRepo, analyticsSvc, pool) // moved after inventoryService
 
-	// JWT middleware configuration (placeholder - will be fixed)
-	jwtConfig := echojwt.Config{
-		SigningKey: []byte(jwtSecret),
-		ErrorHandler: func(c echo.Context, err error) error {
-			return echo.NewHTTPError(401, "Invalid token")
-		},
-	}
-
-	jwtSaltedConfig := echojwt.Config{
-		SigningKey: []byte(jwtSecret),
-		NewClaimsFunc: func(c echo.Context) jwt.Claims {
-			return new(middleware.JWTCustomClaims)
-		},
-		ParsePayloadFunc: func(c echo.Context, dst jwt.Claims) error {
-			claims, err := middleware.ParseJWTPayload(c, dst.(*middleware.JWTCustomClaims))
-			if err != nil {
-				return err
-			}
-
-			// Add user and tenant IDs to context
-			ctx := context.WithValue(c.Request().Context(), common.UserIDKey, claims.UserID)
-			ctx = context.WithValue(ctx, common.TenantIDKey, claims.TenantID)
-			c.SetRequest(c.Request().WithContext(ctx))
-
-			return nil
-		},
-		ErrorHandler: func(c echo.Context, err error) error {
-			return echo.NewHTTPError(401, "Invalid token")
-		},
-	}
-
-	// RBAC middleware
-	rbacMiddleware := middleware.NewRBACMiddleware(rbacService)
-
 	// Create handlers
 	authHandlers := handlers.NewAuthHandlers(
+		authService,
 		userRepo,
-		tenantRepo,
 		roleRepo,
 		userRoleRepo,
 		rbacMiddleware,
 	)
 	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware)
-	tenantHandlers := handlers.NewTenantHandlers(tenantRepo, rbacMiddleware)
+	tenantHandlers := handlers.NewTenantHandlers(tenantService, rbacMiddleware)
 	categoryHandlers := handlers.NewCategoryHandlers(categoryRepo, rbacMiddleware)
 	warehouseHandlers := handlers.NewWarehouseHandlers(
 		services.NewWarehouseService(warehouseRepo),
@@ -217,9 +184,19 @@ func main() {
 		return handlers.HealthCheckDetailed(c, pool)
 	})
 
+	// Metrics endpoint (no auth required)
+	e.GET("/metrics", handlers.MetricsHandler)
+
+	// Documentation static files (no auth required)
+	e.Static("/docs", "docs")
+
 	// API routes
 	v1 := e.Group("/v1")
 	v1.Use(versionMiddleware.VersionHeader("v1"))
+
+	// Documentation routes (no auth required)
+	v1.GET("/docs/guide", handlers.DocumentationGuideHandler)
+	v1.GET("/docs/spec", handlers.DocumentationSpecHandler)
 
 	// Authentication routes (no JWT required for signup/login)
 	auth := v1.Group("/auth")
@@ -227,9 +204,13 @@ func main() {
 	auth.POST("/login", authHandlers.Login)
 	auth.POST("/refresh", authHandlers.Refresh)
 
+
 	// Protected routes (require JWT and RBAC)
 	protected := v1.Group("")
-	protected.Use(echojwt.WithConfig(jwtConfig))
+	protected.Use(middleware.JWTMiddleware(userRepo, jwtSecret))
+
+	// Protected auth routes
+	protected.POST("/auth/logout", authHandlers.Logout)
 
 	// User routes
 	protected.GET("/me", authHandlers.Me)
@@ -262,6 +243,12 @@ func main() {
 	protected.GET("/products/search", productHandlers.SearchProducts)
 	protected.POST("/products/bulk/update", productHandlers.BulkUpdateProducts)
 	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts)
+
+	// Product image routes
+	protected.POST("/products/:id/images", productHandlers.UploadProductImage)
+	protected.GET("/products/:id/images", productHandlers.GetProductImages)
+	protected.GET("/products/:id/images/:imageId/url", productHandlers.GetProductImageURL)
+	protected.DELETE("/products/:id/images/:imageId", productHandlers.DeleteProductImage)
 
 	protected.GET("/warehouses", warehouseHandlers.ListWarehouses)
 	protected.POST("/warehouses", warehouseHandlers.CreateWarehouse)

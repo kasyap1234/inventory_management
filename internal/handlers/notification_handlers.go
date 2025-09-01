@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"agromart2/internal/middleware"
+	"agromart2/internal/common"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
 	"github.com/labstack/echo/v4"
@@ -26,7 +26,7 @@ func NewNotificationHandlers(notificationSvc services.NotificationService) *Noti
 func (h *NotificationHandlers) SendNotification(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -69,7 +69,7 @@ func (h *NotificationHandlers) SendNotification(c echo.Context) error {
 func (h *NotificationHandlers) CreateWebhookSubscription(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -107,7 +107,7 @@ func (h *NotificationHandlers) CreateWebhookSubscription(c echo.Context) error {
 func (h *NotificationHandlers) ListWebhookSubscriptions(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -126,7 +126,7 @@ func (h *NotificationHandlers) ListWebhookSubscriptions(c echo.Context) error {
 func (h *NotificationHandlers) DeleteWebhookSubscription(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -149,7 +149,7 @@ func (h *NotificationHandlers) DeleteWebhookSubscription(c echo.Context) error {
 func (h *NotificationHandlers) CreateTemplate(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -187,7 +187,7 @@ func (h *NotificationHandlers) CreateTemplate(c echo.Context) error {
 func (h *NotificationHandlers) ListTemplates(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -208,7 +208,7 @@ func (h *NotificationHandlers) ListTemplates(c echo.Context) error {
 func (h *NotificationHandlers) DeleteTemplate(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -231,7 +231,7 @@ func (h *NotificationHandlers) DeleteTemplate(c echo.Context) error {
 func (h *NotificationHandlers) UpdateNotificationConfig(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -267,7 +267,7 @@ func (h *NotificationHandlers) UpdateNotificationConfig(c echo.Context) error {
 func (h *NotificationHandlers) UpdateAlertConfig(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -302,7 +302,7 @@ func (h *NotificationHandlers) UpdateAlertConfig(c echo.Context) error {
 func (h *NotificationHandlers) TriggerAlerts(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -320,7 +320,7 @@ func (h *NotificationHandlers) TriggerAlerts(c echo.Context) error {
 func (h *NotificationHandlers) RenderTemplate(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

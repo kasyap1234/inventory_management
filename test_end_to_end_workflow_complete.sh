@@ -58,7 +58,7 @@ echo "2. AUTHENTICATION & AUTHORIZATION"
 echo "================================"
 
 # Login and get JWT
-LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/$API_VERSION/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",

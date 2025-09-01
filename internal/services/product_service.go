@@ -231,6 +231,12 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	// Set default bucket for product images
 	bucketName := "product-images"
 
+	// Ensure bucket exists
+	err = s.minioService.EnsureBucketExists(ctx, bucketName)
+	if err != nil {
+		return fmt.Errorf("failed to ensure bucket exists: %w", err)
+	}
+
 	// Upload original image to MinIO
 	err = s.minioService.UploadImage(ctx, bucketName, objectKey, reader, size)
 	if err != nil {

@@ -34,7 +34,7 @@ func (m *AuditMiddleware) AuditRequest(sensitivityLevel string) echo.MiddlewareF
 			err := next(c)
 
 			ctx := c.Request().Context()
-			tenantID, ok := GetTenantIDFromContext(ctx)
+			tenantID, ok := common.GetTenantIDFromContext(ctx)
 			if !ok {
 				// Skip auditing if no tenant context
 				return err
@@ -357,7 +357,7 @@ func (m *AuditMiddleware) AuditDecorator(operation string, getEntity func() (int
 		// For now, use background context
 		ctx := context.Background()
 
-		tenantID, ok := GetTenantIDFromContext(ctx)
+		tenantID, ok := common.GetTenantIDFromContext(ctx)
 		if !ok {
 			// Can't audit without tenant context
 			entity, err := getEntity()

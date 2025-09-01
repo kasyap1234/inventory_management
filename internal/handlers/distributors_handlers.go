@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
@@ -58,7 +59,7 @@ func (h *DistributorHandlers) ListDistributors(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -108,7 +109,7 @@ func (h *DistributorHandlers) CreateDistributor(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -152,7 +153,7 @@ func (h *DistributorHandlers) GetDistributor(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -203,7 +204,7 @@ func (h *DistributorHandlers) UpdateDistributor(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -261,7 +262,7 @@ func (h *DistributorHandlers) DeleteDistributor(c echo.Context) error {
 	}
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

@@ -142,9 +142,3 @@ func JWTMiddleware(userRepo repositories.UserRepository, jwtSecret string) echo.
 				}
 			}
 		}
-		
-		// GetTenantIDFromContext extracts tenant ID from request context
-		func GetTenantIDFromContext(ctx context.Context) (uuid.UUID, bool) {
-			tenantID, ok := ctx.Value(common.TenantIDKey).(uuid.UUID)
-			return tenantID, ok
-		}

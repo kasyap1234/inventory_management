@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/services"
 
@@ -39,7 +40,7 @@ func (h *SubscriptionHandlers) CreateSubscription(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Extract tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -76,7 +77,7 @@ func (h *SubscriptionHandlers) CreateSubscription(c echo.Context) error {
 func (h *SubscriptionHandlers) ListSubscriptions(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -117,7 +118,7 @@ func (h *SubscriptionHandlers) GetSubscriptionByID(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -139,7 +140,7 @@ func (h *SubscriptionHandlers) CancelSubscription(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -163,7 +164,7 @@ func (h *SubscriptionHandlers) PauseSubscription(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -187,7 +188,7 @@ func (h *SubscriptionHandlers) ResumeSubscription(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -211,7 +212,7 @@ func (h *SubscriptionHandlers) UpdateSubscriptionPlan(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -247,7 +248,7 @@ func (h *SubscriptionHandlers) ValidateBilling(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

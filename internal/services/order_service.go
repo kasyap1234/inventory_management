@@ -90,18 +90,19 @@ func (s *orderService) CreateOrder(ctx context.Context, tenantID uuid.UUID, orde
 			fmt.Errorf("supplier/distributor relationship validation failed"))
 	}
 
-	// Business validation: Check if sufficient inventory exists
-	inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
-	if err != nil {
-		return common.SecureErrorMessage("check inventory availability", err)
+	// Business validation: Check inventory based on order type
+	if order.OrderType == "sales" {
+		// For sales orders, check if sufficient inventory exists
+		inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
+		if err != nil {
+			return common.SecureErrorMessage("check inventory availability", err)
+		}
+		if inventory == nil || inventory.Quantity < order.Quantity {
+			return common.SecureErrorMessage("inventory validation",
+				fmt.Errorf("insufficient inventory available for sales order"))
+		}
 	}
-	if inventory == nil {
-		return common.SecureErrorMessage("inventory lookup", fmt.Errorf("inventory not found"))
-	}
-	if inventory.Quantity < order.Quantity {
-		return common.SecureErrorMessage("inventory validation",
-			fmt.Errorf("insufficient inventory available for order"))
-	}
+	// For purchase orders, no inventory check is needed as they add inventory to stock
 
 	// Save the order
 	if err := s.orderRepo.Create(ctx, order); err != nil {
@@ -148,14 +149,14 @@ func (s *orderService) UpdateOrder(ctx context.Context, tenantID uuid.UUID, orde
 			return common.SecureErrorMessage("validate updated order business rules", err)
 		}
 
-		// Check inventory if quantity is increasing
-		if order.Quantity > existingOrder.Quantity {
+		// Check inventory if quantity is increasing for sales orders
+		if existingOrder.OrderType == "sales" && order.Quantity > existingOrder.Quantity {
 			additionalQuantity := order.Quantity - existingOrder.Quantity
 			inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
 			if err != nil {
 				return common.SecureErrorMessage("check updated inventory", err)
 			}
-			if inventory.Quantity < additionalQuantity {
+			if inventory == nil || inventory.Quantity < additionalQuantity {
 				return common.SecureErrorMessage("inventory validation",
 					fmt.Errorf("insufficient additional inventory"))
 			}

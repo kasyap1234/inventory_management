@@ -121,7 +121,7 @@ func (h *InvoiceHandlers) CreateInvoice(c echo.Context) error {
 	sgst := totalAmount * 0.09 // 9% SGST
 	totalGST := cgst + sgst
 	invoice.CGST = &cgst
-	invoice.SGST = &sgst
+	invoice.SGST = nil
 	invoice.TotalAmount = totalAmount + totalGST
 
 	// Determine IGST for inter-state transactions (simplified logic)
@@ -171,6 +171,11 @@ func (h *InvoiceHandlers) GetInvoices(c echo.Context) error {
 	})
 }
 
+// ListInvoices handles GET /invoices (alias for GetInvoices)
+func (h *InvoiceHandlers) ListInvoices(c echo.Context) error {
+	return h.GetInvoices(c)
+}
+
 // GetInvoiceByID handles GET /invoices/:id
 func (h *InvoiceHandlers) GetInvoiceByID(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -196,6 +201,11 @@ func (h *InvoiceHandlers) GetInvoiceByID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, invoice)
+}
+
+// GetInvoice handles GET /invoices/:id (alias for GetInvoiceByID)
+func (h *InvoiceHandlers) GetInvoice(c echo.Context) error {
+	return h.GetInvoiceByID(c)
 }
 
 // UpdateInvoiceStatus handles PUT /invoices/:id/status
@@ -231,6 +241,100 @@ func (h *InvoiceHandlers) UpdateInvoiceStatus(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Invoice status updated successfully",
+	})
+}
+
+// UpdateInvoice handles PUT /invoices/:id
+func (h *InvoiceHandlers) UpdateInvoice(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+
+	invoiceID, err := uuid.Parse(id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid invoice ID")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return common.SendUnauthorizedError(c)
+	}
+
+	var req struct {
+		Status string  `json:"status"`
+		GSTIN  *string `json:"gstin"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	// Update status if provided
+	if req.Status != "" {
+		if req.Status != "unpaid" && req.Status != "paid" && req.Status != "overdue" && req.Status != "cancelled" {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid status. Must be unpaid, paid, overdue, or cancelled")
+		}
+		if err := h.invoiceService.UpdateInvoiceStatus(ctx, tenantID, invoiceID, req.Status); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+	}
+
+	// Get the current invoice to update GSTIN
+	invoice, err := h.invoiceService.GetInvoiceByID(ctx, tenantID, invoiceID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if invoice == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Invoice not found")
+	}
+
+	if req.GSTIN != nil {
+		invoice.GSTIN = req.GSTIN
+		invoice.UpdatedAt = time.Now()
+		if err := h.invoiceService.UpdateInvoice(ctx, invoice); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Invoice updated successfully",
+	})
+}
+
+// DeleteInvoice handles DELETE /invoices/:id
+func (h *InvoiceHandlers) DeleteInvoice(c echo.Context) error {
+	ctx := c.Request().Context()
+	id := c.Param("id")
+
+	invoiceID, err := uuid.Parse(id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid invoice ID")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return common.SendUnauthorizedError(c)
+	}
+
+	// Check if invoice exists and can be deleted
+	invoice, err := h.invoiceService.GetInvoiceByID(ctx, tenantID, invoiceID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if invoice == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Invoice not found")
+	}
+
+	// Only allow deletion of unpaid invoices
+	if invoice.Status != "unpaid" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Cannot delete invoice with status: "+invoice.Status)
+	}
+
+	if err := h.invoiceService.DeleteInvoice(ctx, tenantID, invoiceID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Invoice deleted successfully",
 	})
 }
 
@@ -270,177 +374,177 @@ func (h *InvoiceHandlers) GetUnpaidInvoices(c echo.Context) error {
 	})
 }
 
- // generateInvoicePDF creates a professional PDF invoice
- func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *models.Invoice, order *models.Order, tenantID uuid.UUID) ([]byte, error) {
- 	// Get product details for the order
- 	product, err := h.productService.GetByID(ctx, tenantID, order.ProductID)
- 	if err != nil {
- 		return nil, fmt.Errorf("failed to get product details: %w", err)
- 	}
+// generateInvoicePDF creates a professional PDF invoice
+func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *models.Invoice, order *models.Order, tenantID uuid.UUID) ([]byte, error) {
+	// Get product details for the order
+	product, err := h.productService.GetByID(ctx, tenantID, order.ProductID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product details: %w", err)
+	}
 
- 	// Create new PDF
- 	pdf := gofpdf.New("P", "mm", "A4", "")
- 	pdf.AddPage()
+	// Create new PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
 
- 	// Set margins
- 	marginX := 20.0
- 	marginY := 20.0
- 	pdf.SetMargins(marginX, marginY, marginX)
- 	pdf.SetAutoPageBreak(true, marginY)
+	// Set margins
+	marginX := 20.0
+	marginY := 20.0
+	pdf.SetMargins(marginX, marginY, marginX)
+	pdf.SetAutoPageBreak(true, marginY)
 
- 	// Set fonts
- 	pdf.SetFont("Arial", "B", 16)
- 	pdf.SetTextColor(33, 37, 41) // Dark gray
+	// Set fonts
+	pdf.SetFont("Arial", "B", 16)
+	pdf.SetTextColor(33, 37, 41) // Dark gray
 
- 	// Company header
- 	pdf.SetXY(marginX, marginY)
- 	pdf.Cell(0, 10, "AGROMART INVOICE")
- 	pdf.Ln(15)
+	// Company header
+	pdf.SetXY(marginX, marginY)
+	pdf.Cell(0, 10, "AGROMART INVOICE")
+	pdf.Ln(15)
 
- 	// Invoice details
- 	pdf.SetFont("Arial", "B", 12)
- 	pdf.Cell(0, 8, fmt.Sprintf("Invoice Number: %s", invoice.ID.String()))
- 	pdf.Ln(8)
- 	pdf.Cell(0, 8, fmt.Sprintf("Invoice Date: %s", invoice.IssuedDate.Format("02-Jan-2006")))
- 	pdf.Ln(8)
- 	pdf.Cell(0, 8, fmt.Sprintf("Order ID: %s", order.ID.String()))
- 	pdf.Ln(8)
+	// Invoice details
+	pdf.SetFont("Arial", "B", 12)
+	pdf.Cell(0, 8, fmt.Sprintf("Invoice Number: %s", invoice.ID.String()))
+	pdf.Ln(8)
+	pdf.Cell(0, 8, fmt.Sprintf("Invoice Date: %s", invoice.IssuedDate.Format("02-Jan-2006")))
+	pdf.Ln(8)
+	pdf.Cell(0, 8, fmt.Sprintf("Order ID: %s", order.ID.String()))
+	pdf.Ln(8)
 
- 	// GSTIN if provided
- 	if invoice.GSTIN != nil && *invoice.GSTIN != "" {
- 		pdf.Cell(0, 8, fmt.Sprintf("GSTIN: %s", *invoice.GSTIN))
- 		pdf.Ln(8)
- 	}
+	// GSTIN if provided
+	if invoice.GSTIN != nil && *invoice.GSTIN != "" {
+		pdf.Cell(0, 8, fmt.Sprintf("GSTIN: %s", *invoice.GSTIN))
+		pdf.Ln(8)
+	}
 
- 	pdf.Ln(5)
+	pdf.Ln(5)
 
- 	// Billing Information section
- 	pdf.SetFont("Arial", "B", 11)
- 	pdf.Cell(0, 8, "BILL TO:")
- 	pdf.Ln(6)
+	// Billing Information section
+	pdf.SetFont("Arial", "B", 11)
+	pdf.Cell(0, 8, "BILL TO:")
+	pdf.Ln(6)
 
- 	pdf.SetFont("Arial", "", 10)
- 	pdf.Cell(0, 6, "Agromart Customer")
- 	pdf.Ln(6)
- 	pdf.Cell(0, 6, "Address: To be configured")
- 	pdf.Ln(6)
- 	pdf.Cell(0, 6, "Contact: support@agromart.com")
- 	pdf.Ln(10)
+	pdf.SetFont("Arial", "", 10)
+	pdf.Cell(0, 6, "Agromart Customer")
+	pdf.Ln(6)
+	pdf.Cell(0, 6, "Address: To be configured")
+	pdf.Ln(6)
+	pdf.Cell(0, 6, "Contact: support@agromart.com")
+	pdf.Ln(10)
 
- 	// Items table header
- 	pdf.SetFont("Arial", "B", 10)
- 	pdf.SetFillColor(240, 240, 240) // Light gray background
+	// Items table header
+	pdf.SetFont("Arial", "B", 10)
+	pdf.SetFillColor(240, 240, 240) // Light gray background
 
- 	// Table headers
- 	headers := []string{"Description", "Qty", "Rate", "Amount"}
- 	colWidths := []float64{80, 20, 30, 40}
+	// Table headers
+	headers := []string{"Description", "Qty", "Rate", "Amount"}
+	colWidths := []float64{80, 20, 30, 40}
 
- 	for i, header := range headers {
- 		pdf.CellFormat(colWidths[i], 8, header, "1", 0, "C", true, 0, "")
- 	}
- 	pdf.Ln(8)
+	for i, header := range headers {
+		pdf.CellFormat(colWidths[i], 8, header, "1", 0, "C", true, 0, "")
+	}
+	pdf.Ln(8)
 
- 	// Item row
- 	pdf.SetFont("Arial", "", 10)
- 	pdf.SetFillColor(255, 255, 255) // White background
+	// Item row
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetFillColor(255, 255, 255) // White background
 
- 	description := product.Name
- 	if product.Description != nil && *product.Description != "" {
- 		description += "\n" + *product.Description
- 	}
+	description := product.Name
+	if product.Description != nil && *product.Description != "" {
+		description += "\n" + *product.Description
+	}
 
- 	pdf.CellFormat(colWidths[0], 8, description, "1", 0, "L", false, 0, "")
- 	pdf.CellFormat(colWidths[1], 8, fmt.Sprintf("%d", order.Quantity), "1", 0, "C", false, 0, "")
- 	pdf.CellFormat(colWidths[2], 8, fmt.Sprintf("%.2f", order.UnitPrice), "1", 0, "R", false, 0, "")
- 	pdf.CellFormat(colWidths[3], 8, fmt.Sprintf("%.2f", float64(order.Quantity)*order.UnitPrice), "1", 0, "R", false, 0, "")
- 	pdf.Ln(8)
+	pdf.CellFormat(colWidths[0], 8, description, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(colWidths[1], 8, fmt.Sprintf("%d", order.Quantity), "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colWidths[2], 8, fmt.Sprintf("%.2f", order.UnitPrice), "1", 0, "R", false, 0, "")
+	pdf.CellFormat(colWidths[3], 8, fmt.Sprintf("%.2f", float64(order.Quantity)*order.UnitPrice), "1", 0, "R", false, 0, "")
+	pdf.Ln(8)
 
- 	// Empty rows for future multiple items
- 	for i := 0; i < 3; i++ {
- 		for j, width := range colWidths {
- 			border := "1"
- 			if j == len(colWidths)-1 {
- 				border = "1" // Last column
- 			}
- 			pdf.CellFormat(width, 8, "", border, 0, "C", false, 0, "")
- 		}
- 		pdf.Ln(8)
- 	}
+	// Empty rows for future multiple items
+	for i := 0; i < 3; i++ {
+		for j, width := range colWidths {
+			border := "1"
+			if j == len(colWidths)-1 {
+				border = "1" // Last column
+			}
+			pdf.CellFormat(width, 8, "", border, 0, "C", false, 0, "")
+		}
+		pdf.Ln(8)
+	}
 
- 	pdf.Ln(5)
+	pdf.Ln(5)
 
- 	// GST and totals section
- 	pdf.SetFont("Arial", "B", 10)
+	// GST and totals section
+	pdf.SetFont("Arial", "B", 10)
 
- 	// Subtotal
- 	subtotal := float64(order.Quantity) * order.UnitPrice
- 	pdf.CellFormat(130, 6, "Subtotal:", "", 0, "R", false, 0, "")
- 	pdf.CellFormat(40, 6, fmt.Sprintf("%.2f", subtotal), "", 0, "R", false, 0, "")
- 	pdf.Ln(6)
+	// Subtotal
+	subtotal := float64(order.Quantity) * order.UnitPrice
+	pdf.CellFormat(130, 6, "Subtotal:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(40, 6, fmt.Sprintf("%.2f", subtotal), "", 0, "R", false, 0, "")
+	pdf.Ln(6)
 
- 	// GST breakdown
- 	if invoice.CGST != nil && *invoice.CGST > 0 {
- 		pdf.SetFont("Arial", "", 9)
- 		pdf.CellFormat(130, 5, "CGST (9%):", "", 0, "R", false, 0, "")
- 		pdf.CellFormat(40, 5, fmt.Sprintf("%.2f", *invoice.CGST), "", 0, "R", false, 0, "")
- 		pdf.Ln(5)
- 	}
+	// GST breakdown
+	if invoice.CGST != nil && *invoice.CGST > 0 {
+		pdf.SetFont("Arial", "", 9)
+		pdf.CellFormat(130, 5, "CGST (9%):", "", 0, "R", false, 0, "")
+		pdf.CellFormat(40, 5, fmt.Sprintf("%.2f", *invoice.CGST), "", 0, "R", false, 0, "")
+		pdf.Ln(5)
+	}
 
- 	if invoice.SGST != nil && *invoice.SGST > 0 {
- 		pdf.CellFormat(130, 5, "SGST (9%):", "", 0, "R", false, 0, "")
- 		pdf.CellFormat(40, 5, fmt.Sprintf("%.2f", *invoice.SGST), "", 0, "R", false, 0, "")
- 		pdf.Ln(5)
- 	}
+	if invoice.SGST != nil && *invoice.SGST > 0 {
+		pdf.CellFormat(130, 5, "SGST (9%):", "", 0, "R", false, 0, "")
+		pdf.CellFormat(40, 5, fmt.Sprintf("%.2f", *invoice.SGST), "", 0, "R", false, 0, "")
+		pdf.Ln(5)
+	}
 
- 	if invoice.IGST != nil && *invoice.IGST > 0 {
- 		pdf.CellFormat(130, 5, "IGST (18%):", "", 0, "R", false, 0, "")
- 		pdf.CellFormat(40, 5, fmt.Sprintf("%.2f", *invoice.IGST), "", 0, "R", false, 0, "")
- 		pdf.Ln(5)
- 	}
+	if invoice.IGST != nil && *invoice.IGST > 0 {
+		pdf.CellFormat(130, 5, "IGST (18%):", "", 0, "R", false, 0, "")
+		pdf.CellFormat(40, 5, fmt.Sprintf("%.2f", *invoice.IGST), "", 0, "R", false, 0, "")
+		pdf.Ln(5)
+	}
 
- 	// Total
- 	pdf.SetFont("Arial", "B", 11)
- 	pdf.SetTextColor(220, 20, 60) // Red color for total
- 	pdf.CellFormat(130, 8, "TOTAL:", "", 0, "R", false, 0, "")
- 	pdf.CellFormat(40, 8, fmt.Sprintf("%.2f", invoice.TotalAmount), "", 0, "R", false, 0, "")
- 	pdf.Ln(10)
+	// Total
+	pdf.SetFont("Arial", "B", 11)
+	pdf.SetTextColor(220, 20, 60) // Red color for total
+	pdf.CellFormat(130, 8, "TOTAL:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(40, 8, fmt.Sprintf("%.2f", invoice.TotalAmount), "", 0, "R", false, 0, "")
+	pdf.Ln(10)
 
- 	// Terms and conditions
- 	pdf.SetTextColor(33, 37, 41) // Reset to dark
- 	pdf.SetFont("Arial", "B", 9)
- 	pdf.Cell(0, 6, "Terms & Conditions:")
- 	pdf.Ln(6)
+	// Terms and conditions
+	pdf.SetTextColor(33, 37, 41) // Reset to dark
+	pdf.SetFont("Arial", "B", 9)
+	pdf.Cell(0, 6, "Terms & Conditions:")
+	pdf.Ln(6)
 
- 	pdf.SetFont("Arial", "", 8)
- 	terms := []string{
- 		"1. Payment is due within 30 days of invoice date",
- 		"2. Late payments may incur additional charges",
- 		"3. Goods once sold will not be taken back",
- 		"4. This is a computer generated invoice",
- 	}
+	pdf.SetFont("Arial", "", 8)
+	terms := []string{
+		"1. Payment is due within 30 days of invoice date",
+		"2. Late payments may incur additional charges",
+		"3. Goods once sold will not be taken back",
+		"4. This is a computer generated invoice",
+	}
 
- 	for _, term := range terms {
- 		pdf.Cell(0, 5, term)
- 		pdf.Ln(5)
- 	}
+	for _, term := range terms {
+		pdf.Cell(0, 5, term)
+		pdf.Ln(5)
+	}
 
- 	// Footer
- 	pdf.Ln(10)
- 	pdf.SetFont("Arial", "I", 8)
- 	pdf.SetTextColor(128, 128, 128) // Gray
- 	pdf.Cell(0, 5, "Thank you for your business!")
- 	pdf.Ln(5)
- 	pdf.Cell(0, 5, "For any queries, contact: support@agromart.com | +91-XXXXXXXXXX")
+	// Footer
+	pdf.Ln(10)
+	pdf.SetFont("Arial", "I", 8)
+	pdf.SetTextColor(128, 128, 128) // Gray
+	pdf.Cell(0, 5, "Thank you for your business!")
+	pdf.Ln(5)
+	pdf.Cell(0, 5, "For any queries, contact: support@agromart.com | +91-XXXXXXXXXX")
 
- 	// Get PDF bytes
- 	var buf bytes.Buffer
- 	err = pdf.Output(&buf)
- 	if err != nil {
- 		return nil, fmt.Errorf("failed to generate PDF: %w", err)
- 	}
+	// Get PDF bytes
+	var buf bytes.Buffer
+	err = pdf.Output(&buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate PDF: %w", err)
+	}
 
- 	return buf.Bytes(), nil
- }
+	return buf.Bytes(), nil
+}
 
 // GenerateInvoicePDF handles POST /invoices/:id/generate-pdf
 // Generates and stores PDF invoice using MinIO

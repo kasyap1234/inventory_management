@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"agromart2/internal/common"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,7 +43,7 @@ func (h *OrderHandlers) validateUUID(idStr string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// CreateOrder handles POST /orders
+// CreateOrder handles POST /orders (supports single item and bulk array formats)
 func (h *OrderHandlers) CreateOrder(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -52,6 +53,43 @@ func (h *OrderHandlers) CreateOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
+	// First, check if payload is bulk by binding to a flexible structure
+	var payload map[string]interface{}
+	if err := c.Bind(&payload); err != nil {
+		return common.SendClientError(c, "Invalid request format")
+	}
+
+	// Check if this is a bulk request (has "orders" array)
+	if _, exists := payload["orders"]; exists {
+		// Handle bulk creation
+		var bulkReq models.OrderBulkCreate
+		if err := c.Bind(&bulkReq); err != nil {
+			return common.SendClientError(c, "Invalid bulk request format")
+		}
+
+		if len(bulkReq.Orders) == 0 {
+			return common.SendValidationError(c, "orders", "At least one order required")
+		}
+
+		// Process each order using single creation method
+		createdOrders := []*models.Order{}
+		for i, order := range bulkReq.Orders {
+			// Set tenant ID
+			order.TenantID = tenantID
+
+			if err := h.orderService.CreateOrder(ctx, tenantID, bulkReq.Orders[i]); err != nil {
+				return common.SendServerError(c, fmt.Sprintf("Failed to create order at index %d: %s", i, err.Error()))
+			}
+			createdOrders = append(createdOrders, bulkReq.Orders[i])
+		}
+
+		return c.JSON(http.StatusCreated, map[string]interface{}{
+			"message": fmt.Sprintf("Successfully created %d orders", len(createdOrders)),
+			"orders":  createdOrders,
+		})
+	}
+
+	// Handle single order creation
 	var req struct {
 		OrderType        string  `json:"order_type"`
 		ProductID        string  `json:"product_id"`
@@ -208,6 +246,10 @@ func (h *OrderHandlers) GetOrderByID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, order)
+}
+// GetOrder handles GET /orders/:id (alias for GetOrderByID)
+func (h *OrderHandlers) GetOrder(c echo.Context) error {
+	return h.GetOrderByID(c)
 }
 
 // UpdateOrder handles PUT /orders/:id
@@ -565,4 +607,27 @@ func (h *OrderHandlers) GetOrderHistory(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, history)
+}
+// DeleteOrder handles DELETE /orders/:id
+func (h *OrderHandlers) DeleteOrder(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	id := c.Param("id")
+	orderID, err := common.ValidateUUID(id, "order_id")
+	if err != nil {
+		return common.SendClientError(c, err.Error())
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	if err := h.orderService.DeleteOrder(ctx, tenantID, orderID); err != nil {
+		return common.SendServerError(c, "Failed to delete order: " + err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Order deleted successfully",
+	})
 }

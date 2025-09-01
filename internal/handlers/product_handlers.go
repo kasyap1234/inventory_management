@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
@@ -77,7 +78,7 @@ func (h *ProductHandlers) validateUUID(idStr string) (uuid.UUID, error) {
 	// Check for proper format (8-4-4-4-12) - hyphens at positions 8, 13, 18, 23
 	if idStr[8] != '-' || idStr[13] != '-' || idStr[18] != '-' || idStr[23] != '-' {
 		log.Printf("PRODUCT_HANDLER_UUID_VALIDATION: Invalid hyphen placement: positions 8,13,18,23 should be hyphens")
-		return uuid.Nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format: hyphens must be at positions 9, 14, 19, and 24")
+		return uuid.Nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23")
 	}
 
 	// Fallback validation using standard UUID parser to catch any remaining format issues
@@ -96,7 +97,7 @@ func (h *ProductHandlers) CreateProduct(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Extract tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -161,7 +162,7 @@ func (h *ProductHandlers) CreateProduct(c echo.Context) error {
 func (h *ProductHandlers) ListProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -202,7 +203,7 @@ func (h *ProductHandlers) GetProductByID(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -213,6 +214,13 @@ func (h *ProductHandlers) GetProductByID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, product)
+
+
+}
+
+// GetProduct handles GET /products/:id (alias for GetProductByID)
+func (h *ProductHandlers) GetProduct(c echo.Context) error {
+	return h.GetProductByID(c)
 }
 
 // UpdateProduct handles PUT /products/:id
@@ -224,7 +232,7 @@ func (h *ProductHandlers) UpdateProduct(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -297,7 +305,7 @@ func (h *ProductHandlers) DeleteProduct(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -315,7 +323,7 @@ func (h *ProductHandlers) DeleteProduct(c echo.Context) error {
 func (h *ProductHandlers) SearchProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -364,7 +372,7 @@ func (h *ProductHandlers) SearchProducts(c echo.Context) error {
 func (h *ProductHandlers) GetProductAnalytics(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -389,7 +397,7 @@ func (h *ProductHandlers) UploadProductImage(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -481,7 +489,7 @@ func (h *ProductHandlers) GetProductImages(c echo.Context) error {
 
 	log.Printf("DEBUG: UUID validation successful: %s", productID.String())
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -507,7 +515,7 @@ func (h *ProductHandlers) GetProductImageURL(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -540,7 +548,7 @@ func (h *ProductHandlers) DeleteProductImage(c echo.Context) error {
 		return err
 	}
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -558,7 +566,7 @@ func (h *ProductHandlers) DeleteProductImage(c echo.Context) error {
 func (h *ProductHandlers) BulkUpdateProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -589,7 +597,7 @@ func (h *ProductHandlers) BulkUpdateProducts(c echo.Context) error {
 func (h *ProductHandlers) BulkCreateProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

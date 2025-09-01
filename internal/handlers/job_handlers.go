@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"agromart2/internal/analytics"
+	"agromart2/internal/common"
 	"agromart2/internal/jobs"
-	"agromart2/internal/middleware"
 	"agromart2/internal/repositories"
 
 	"github.com/labstack/echo/v4"
@@ -51,7 +51,7 @@ func (h *JobHandlers) ExportInvoices(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Get tenant ID from context
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -95,7 +95,7 @@ func (h *JobHandlers) ExportInvoices(c echo.Context) error {
 func (h *JobHandlers) ExportOrders(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -132,7 +132,7 @@ func (h *JobHandlers) ExportOrders(c echo.Context) error {
 func (h *JobHandlers) ImportData(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -163,7 +163,7 @@ func (h *JobHandlers) ImportData(c echo.Context) error {
 func (h *JobHandlers) GetInventoryAlerts(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -192,7 +192,7 @@ func (h *JobHandlers) GetInventoryAlerts(c echo.Context) error {
 func (h *JobHandlers) TriggerAnalyticsRefresh(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
@@ -210,7 +210,7 @@ func (h *JobHandlers) TriggerAnalyticsRefresh(c echo.Context) error {
 func (h *JobHandlers) GetAnalyticsData(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	tenantID, ok := middleware.GetTenantIDFromContext(ctx)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}

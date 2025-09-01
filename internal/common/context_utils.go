@@ -84,7 +84,7 @@ func ValidateUUID(idStr string, fieldName string) (uuid.UUID, error) {
 	expectedHyphens := []int{8, 13, 18, 23}
 	for _, pos := range expectedHyphens {
 		if pos >= len(idStr) || idStr[pos] != '-' {
-			return uuid.Nil, fmt.Errorf("%s has invalid UUID format: hyphens must be at positions 9, 14, 19, and 24", fieldName)
+			return uuid.Nil, fmt.Errorf("%s has invalid UUID format: hyphens must be at positions 8, 13, 18, and 23", fieldName)
 		}
 	}
 
