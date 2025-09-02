@@ -1,0 +1,21 @@
+# Tally Integration Configuration
+[tally]
+api_key = "your_tally_api_key_here"
+api_secret = "your_tally_api_secret_here"
+api_endpoint = "https://api.tallysolutions.com"
+database_url = "postgresql://tallyuser:tallypass@localhost/tallydb?sslmode=disable"
+
+# Background Queuing Configuration
+[queuing]
+redis_addr = "localhost:6379"
+redis_password = ""
+redis_db = 0
+concurrency = 10
+queues = ["critical", "default", "low"]
+queue_priorities = { critical = 6, default = 3, low = 1 }
+
+# Export/Import Settings
+[export_import]
+timeout_seconds = 300
+max_retry_attempts = 3
+retry_delay_seconds = 5

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
@@ -14,7 +15,9 @@ import (
 
 	"agromart2/internal/analytics"
 	"agromart2/internal/caching"
+	"agromart2/internal/config"
 	"agromart2/internal/handlers"
+	"agromart2/internal/jobs"
 	"agromart2/internal/middleware"
 	"agromart2/internal/repositories"
 	"agromart2/internal/services"
@@ -23,6 +26,12 @@ import (
 const version = "1.0.0"
 
 func main() {
+	// Load Tally configuration
+	tallyConfig, err := config.LoadTallyConfig("config/tally.toml")
+	if err != nil {
+		log.Fatalf("Failed to load tally config: %v", err)
+	}
+
 	// Database connection
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
@@ -44,18 +53,9 @@ func main() {
 	}
 
 	// Redis configuration
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379" // Default Redis address
-	}
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	redisDBStr := os.Getenv("REDIS_DB")
-	redisDB := 0 // Default DB
-	if redisDBStr != "" {
-		if db, err := strconv.Atoi(redisDBStr); err == nil {
-			redisDB = db
-		}
-	}
+	redisAddr := tallyConfig.Queuing.RedisAddr
+	redisPassword := tallyConfig.Queuing.RedisPassword
+	redisDB := tallyConfig.Queuing.RedisDB
 
 	// MinIO configuration
 	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
@@ -163,6 +163,36 @@ func main() {
 	)
 	orderHandlers := handlers.NewOrderHandlers(orderSvc)
 	invoiceHandlers := handlers.NewInvoiceHandlers(invoiceSvc, orderSvc, productSvc, minioSvc)
+
+	// Create Asynq client
+	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       redisDB,
+	})
+	defer asynqClient.Close()
+
+	// Create tally services and handlers
+	tallyExporter := jobs.NewTallyExporter(invoiceRepo, orderRepo, productRepo)
+	tallyImporter := jobs.NewTallyImporter(orderRepo, invoiceRepo)
+	tallyHandlers := handlers.NewTallyHandlers(tallyExporter, tallyImporter, asynqClient)
+
+	// Create Asynq server
+	asynqSrv := asynq.NewServer(asynq.RedisClientOpt{
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       redisDB,
+	}, asynq.Config{
+		// Set concurrency level from config
+		Concurrency: tallyConfig.Queuing.Concurrency,
+		// Queues: if the task is not defined in this map, it would use the "default" queue
+		Queues: tallyConfig.Queuing.QueuePriorities,
+	})
+
+	// Create Asynq mux and register handlers
+	mux := asynq.NewServeMux()
+	mux.HandleFunc(jobs.TypeTallyExport, tallyExporter.TallyExportHandler)
+	mux.HandleFunc(jobs.TypeTallyImport, tallyImporter.TallyImportHandler)
 
 	// Create Echo instance
 	e := echo.New()
@@ -274,6 +304,14 @@ func main() {
 	protected.PUT("/inventory/:id", inventoryHandlers.UpdateInventory)
 	protected.DELETE("/inventory/:id", inventoryHandlers.DeleteInventory)
 	protected.GET("/inventory/search", inventoryHandlers.SearchInventories)
+	// Start Asynq server in a goroutine
+	go func() {
+		if err := asynqSrv.Start(mux); err != nil {
+			log.Fatalf("Could not start Asynq server: %v", err)
+		}
+		log.Println("Asynq server started")
+	}()
+	defer asynqSrv.Shutdown()
 
 	protected.GET("/orders", orderHandlers.GetOrders)
 	protected.POST("/orders", orderHandlers.CreateOrder)
@@ -289,6 +327,10 @@ func main() {
 	protected.GET("/invoices/unpaid", invoiceHandlers.GetUnpaidInvoices)
 	protected.POST("/invoices/:id/generate-pdf", invoiceHandlers.GenerateInvoicePDF)
 	protected.DELETE("/invoices/:id", invoiceHandlers.DeleteInvoice)
+
+	// Tally routes
+	protected.POST("/api/tally/export", tallyHandlers.ExportTallyData)
+	protected.POST("/api/tally/import", tallyHandlers.ImportTallyData)
 
 	// Start server
 	portStr := os.Getenv("PORT")
