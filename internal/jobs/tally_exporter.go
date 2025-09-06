@@ -5,11 +5,12 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
-	
+
 	"strconv"
 	"strings"
 	"time"
 
+	"agromart2/internal/config"
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
@@ -20,6 +21,9 @@ type TallyExporter struct {
 	invoiceRepo repositories.InvoiceRepository
 	orderRepo   repositories.OrderRepository
 	productRepo repositories.ProductRepository
+	config      *config.TallyConfig
+	mode        string
+	apiClient   interface{} // *internal.TallyAPIClient - using interface{} to avoid import cycle
 }
 
 type ExportRequest struct {
@@ -35,15 +39,96 @@ type ExportResult struct {
 	RecordsExported int
 }
 
-func NewTallyExporter(invoiceRepo repositories.InvoiceRepository, orderRepo repositories.OrderRepository, productRepo repositories.ProductRepository) *TallyExporter {
+// Setter for API client to avoid circular imports
+func (e *TallyExporter) SetAPIClient(client interface{}) {
+	e.apiClient = client
+}
+
+func NewTallyExporter(invoiceRepo repositories.InvoiceRepository, orderRepo repositories.OrderRepository, productRepo repositories.ProductRepository, cfg *config.TallyConfig) *TallyExporter {
 	return &TallyExporter{
 		invoiceRepo: invoiceRepo,
 		orderRepo:   orderRepo,
 		productRepo: productRepo,
+		config:      cfg,
+		mode:        cfg.ExportImport.Mode,
 	}
 }
 
+func (e *TallyExporter) isRestMode() bool {
+	return e.mode == "rest"
+}
+
 func (e *TallyExporter) ExportInvoicesForTenant(ctx context.Context, req ExportRequest) (*ExportResult, error) {
+	fmt.Printf("Starting invoice export in %s mode\n", e.mode)
+
+	if e.isRestMode() {
+		return e.exportInvoicesViaAPI(ctx, req)
+	}
+
+	return e.exportInvoicesViaCSV(ctx, req)
+}
+
+func (e *TallyExporter) exportInvoicesViaAPI(ctx context.Context, req ExportRequest) (*ExportResult, error) {
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start date: %w", err)
+	}
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end date: %w", err)
+	}
+
+	// Get invoices
+	invoices, err := e.invoiceRepo.GetInvoicesByTenantAndDateRange(ctx, req.TenantID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get invoices: %w", err)
+	}
+
+	if len(invoices) == 0 {
+		return &ExportResult{
+			FileName:        "empty_export_api.txt",
+			FileContent:     "No invoices found for the given period",
+			RecordsExported: 0,
+		}, nil
+	}
+
+	// Export each invoice via REST API
+	exported := 0
+	for _, invoice := range invoices {
+		if e.apiClient != nil {
+			// Call the API client export method using reflection to avoid circular imports
+			if err := e.callExportInvoiceMethod(ctx, invoice); err != nil {
+				log.Printf("Failed to export invoice %s: %v", invoice.ID, err)
+				continue
+			}
+		}
+		exported++
+	}
+
+	fileName := fmt.Sprintf("tally_api_export_%s_%s_%s.txt", req.TenantID.String(), req.StartDate, req.EndDate)
+
+	return &ExportResult{
+		FileName:        fileName,
+		FileContent:     fmt.Sprintf("Successfully exported %d out of %d invoices via REST API", exported, len(invoices)),
+		RecordsExported: exported,
+	}, nil
+}
+
+// Helper method to call API client export invoice using interface{}
+func (e *TallyExporter) callExportInvoiceMethod(ctx context.Context, invoice *models.Invoice) error {
+	if client, ok := e.apiClient.(apiCaller); ok {
+		return client.ExportInvoice(ctx, invoice, invoice.TotalAmount)
+	}
+	return fmt.Errorf("API client not properly configured")
+}
+
+// API caller interface to avoid reflection
+type apiCaller interface {
+	ExportInvoice(ctx context.Context, invoice *models.Invoice, totalAmount float64) error
+}
+
+func (e *TallyExporter) exportInvoicesViaCSV(ctx context.Context, req ExportRequest) (*ExportResult, error) {
 	// Parse dates
 	startDate, err := time.Parse("2006-01-02", req.StartDate)
 	if err != nil {
@@ -138,6 +223,75 @@ func (e *TallyExporter) generateGSTComplianceCSV(invoices []*models.Invoice) (st
 }
 
 func (e *TallyExporter) ExportOrdersForTenant(ctx context.Context, req ExportRequest) (*ExportResult, error) {
+	fmt.Printf("Starting order export in %s mode\n", e.mode)
+
+	if e.isRestMode() {
+		return e.exportOrdersViaAPI(ctx, req)
+	}
+
+	return e.exportOrdersViaCSV(ctx, req)
+}
+
+func (e *TallyExporter) exportOrdersViaAPI(ctx context.Context, req ExportRequest) (*ExportResult, error) {
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start date: %w", err)
+	}
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end date: %w", err)
+	}
+
+	// Get orders
+	orders, err := e.orderRepo.GetOrdersByTenantAndDateRange(ctx, req.TenantID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orders: %w", err)
+	}
+
+	if len(orders) == 0 {
+		return &ExportResult{
+			FileName:        "empty_orders_export_api.txt",
+			FileContent:     "No orders found for the given period",
+			RecordsExported: 0,
+		}, nil
+	}
+
+	// Export each order via REST API
+	exported := 0
+	for _, order := range orders {
+		if e.apiClient != nil {
+			if err := e.callExportOrderMethod(ctx, order); err != nil {
+				log.Printf("Failed to export order %s: %v", order.ID, err)
+				continue
+			}
+		}
+		exported++
+	}
+
+	fileName := fmt.Sprintf("tally_order_api_export_%s_%s_%s.txt", req.TenantID.String(), req.StartDate, req.EndDate)
+
+	return &ExportResult{
+		FileName:        fileName,
+		FileContent:     fmt.Sprintf("Successfully exported %d out of %d orders via REST API", exported, len(orders)),
+		RecordsExported: exported,
+	}, nil
+}
+
+// Helper method to call API client export order using interface{}
+func (e *TallyExporter) callExportOrderMethod(ctx context.Context, order *models.Order) error {
+	if client, ok := e.apiClient.(orderCaller); ok {
+		return client.ExportOrder(ctx, order)
+	}
+	return fmt.Errorf("API client not properly configured")
+}
+
+// Order caller interface to avoid reflection
+type orderCaller interface {
+	ExportOrder(ctx context.Context, order *models.Order) error
+}
+
+func (e *TallyExporter) exportOrdersViaCSV(ctx context.Context, req ExportRequest) (*ExportResult, error) {
 	// Parse dates
 	startDate, err := time.Parse("2006-01-02", req.StartDate)
 	if err != nil {
@@ -227,7 +381,7 @@ func (e *TallyExporter) generateOrderCSV(orders []*models.Order) (string, error)
 
 // Scheduled export job
 func (e *TallyExporter) DailyExportJob(ctx context.Context) error {
-	log.Println("Starting daily Tally export job")
+	fmt.Printf("Starting daily Tally export job in %s mode\n", e.mode)
 
 	// Get current date -1 day for yesterday's data
 	yesterday := time.Now().AddDate(0, 0, -1)

@@ -33,9 +33,10 @@ type QueuingConfig struct {
 
 // ExportImportConfig contains timeouts and retry settings
 type ExportImportConfig struct {
-	TimeoutSeconds   int `toml:"timeout_seconds"`
-	MaxRetryAttempts int `toml:"max_retry_attempts"`
-	RetryDelaySeconds int `toml:"retry_delay_seconds"`
+	Mode               string `toml:"mode"`
+	TimeoutSeconds     int    `toml:"timeout_seconds"`
+	MaxRetryAttempts   int    `toml:"max_retry_attempts"`
+	RetryDelaySeconds  int    `toml:"retry_delay_seconds"`
 }
 
 // LoadTallyConfig loads configuration from a TOML file

@@ -1,6 +1,8 @@
 package models
 
-import ()
+import (
+	"time"
+)
 
 // ExportRequest represents the request payload for tally export operations
 type ExportRequest struct {
@@ -30,4 +32,30 @@ type ImportResult struct {
 	RecordsImported  int      `json:"records_imported" example:"8"`
 	Errors           []string `json:"errors" example:"['Row 9: invalid product ID: invalid UUID format','Row 10: insufficient columns, expected at least 7']"`
 	Message          string   `json:"message,omitempty" example:"Import completed with some errors"`
+}
+
+// TallyLedger represents ledger entries from Tally
+type TallyLedger struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Type        string    `json:"type"`
+	Balance     float64   `json:"balance"`
+	LastUpdated time.Time `json:"last_updated"`
+	Transactions []TallyTransaction `json:"transactions"`
+}
+
+// TallyBalance represents account balances from Tally
+type TallyBalance struct {
+	AccountName string    `json:"account_name"`
+	Balance     float64   `json:"balance"`
+	LastUpdated time.Time `json:"last_updated"`
+}
+
+// TallyTransaction represents individual ledger transactions
+type TallyTransaction struct {
+	ID          string    `json:"id"`
+	Date        time.Time `json:"date"`
+	Type        string    `json:"type"` // debit/credit
+	Amount      float64   `json:"amount"`
+	Description string    `json:"description"`
 }

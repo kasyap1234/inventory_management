@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"agromart2/internal/config"
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
@@ -18,6 +19,14 @@ import (
 type TallyImporter struct {
 	orderRepo   repositories.OrderRepository
 	invoiceRepo repositories.InvoiceRepository
+	config      *config.TallyConfig
+	mode        string
+	apiClient   interface{} // *internal.TallyAPIClient - using interface{} to avoid import cycle
+}
+
+// Setter for API client to avoid circular imports
+func (i *TallyImporter) SetAPIClient(client interface{}) {
+	i.apiClient = client
 }
 
 type ImportRequest struct {
@@ -32,14 +41,30 @@ type ImportResult struct {
 	Errors           []string
 }
 
-func NewTallyImporter(orderRepo repositories.OrderRepository, invoiceRepo repositories.InvoiceRepository) *TallyImporter {
+func NewTallyImporter(orderRepo repositories.OrderRepository, invoiceRepo repositories.InvoiceRepository, cfg *config.TallyConfig) *TallyImporter {
 	return &TallyImporter{
 		orderRepo:   orderRepo,
 		invoiceRepo: invoiceRepo,
+		config:      cfg,
+		mode:        cfg.ExportImport.Mode,
 	}
 }
 
+func (i *TallyImporter) isRestMode() bool {
+	return i.mode == "rest"
+}
+
 func (i *TallyImporter) ImportData(ctx context.Context, req ImportRequest) (*ImportResult, error) {
+	fmt.Printf("Starting import in %s mode\n", i.mode)
+
+	if i.isRestMode() {
+		return i.importViaAPI(ctx, req)
+	}
+
+	return i.importViaCSV(ctx, req)
+}
+
+func (i *TallyImporter) importViaCSV(ctx context.Context, req ImportRequest) (*ImportResult, error) {
 	result := &ImportResult{
 		RecordsProcessed: 0,
 		RecordsImported:  0,
@@ -76,6 +101,111 @@ func (i *TallyImporter) ImportData(ctx context.Context, req ImportRequest) (*Imp
 	}
 
 	return result, nil
+}
+
+func (i *TallyImporter) importViaAPI(ctx context.Context, req ImportRequest) (*ImportResult, error) {
+	result := &ImportResult{
+		RecordsProcessed: 0,
+		RecordsImported:  0,
+		Errors:           []string{},
+	}
+
+	switch req.DataType {
+	case "ledger":
+		return i.importLedgerViaAPI(ctx, req)
+	case "balances":
+		return i.importBalancesViaAPI(ctx, req)
+	default:
+		result.Errors = append(result.Errors, "Invalid data_type for REST mode: must be 'ledger' or 'balances'")
+		return result, nil
+	}
+}
+
+func (i *TallyImporter) importLedgerViaAPI(ctx context.Context, req ImportRequest) (*ImportResult, error) {
+	result := &ImportResult{
+		RecordsProcessed: 0,
+		RecordsImported:  0,
+		Errors:           []string{},
+	}
+
+	if i.apiClient == nil {
+		result.Errors = append(result.Errors, "API client not configured")
+		return result, nil
+	}
+
+	// Import ledger data from Tally
+	ledgerName := req.Data // Use data field as ledger name for REST mode
+	ledgerData, err := i.callImportLedgerMethod(ctx, ledgerName)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to import ledger: %v", err))
+		return result, nil
+	}
+
+	// Process ledger entries (in a real scenario, you might store this data or use it for reconciliation)
+	result.RecordsProcessed = len(ledgerData)
+	for _, entry := range ledgerData {
+		// Log the entry for demonstration
+		log.Printf("Imported ledger entry: %s, Balance: %.2f", entry.Name, entry.Balance)
+		result.RecordsImported++
+	}
+
+	return result, nil
+}
+
+func (i *TallyImporter) importBalancesViaAPI(ctx context.Context, req ImportRequest) (*ImportResult, error) {
+	result := &ImportResult{
+		RecordsProcessed: 0,
+		RecordsImported:  0,
+		Errors:           []string{},
+	}
+
+	if i.apiClient == nil {
+		result.Errors = append(result.Errors, "API client not configured")
+		return result, nil
+	}
+
+	// Import balances from Tally
+	balances, err := i.callImportBalancesMethod(ctx)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to import balances: %v", err))
+		return result, nil
+	}
+
+	// Process balance entries
+	result.RecordsProcessed = len(balances)
+	for _, balance := range balances {
+		// Log the balance for demonstration
+		log.Printf("Imported balance: %s, Amount: %.2f", balance.AccountName, balance.Balance)
+		result.RecordsImported++
+	}
+
+	return result, nil
+}
+
+// Helper method to call API client import ledger using interface{}
+func (i *TallyImporter) callImportLedgerMethod(ctx context.Context, ledgerName string) ([]models.TallyLedger, error) {
+	if client, ok := i.apiClient.(ledgerCaller); ok {
+		return client.ImportLedger(ctx, ledgerName)
+	}
+	return nil, fmt.Errorf("API client not properly configured")
+}
+
+// Ledger caller interface to avoid reflection
+type ledgerCaller interface {
+	ImportLedger(ctx context.Context, ledgerName string) ([]models.TallyLedger, error)
+}
+
+// Helper method to call API client import balances using interface{}
+func (i *TallyImporter) callImportBalancesMethod(ctx context.Context) ([]models.TallyBalance, error) {
+	if client, ok := i.apiClient.(balanceCaller); ok {
+		return client.ImportBalances(ctx)
+	}
+	return nil, fmt.Errorf("API client not properly configured")
+}
+
+// Balance caller interface to avoid reflection
+type balanceCaller interface {
+	ImportBalances(ctx context.Context) ([]models.TallyBalance, error)
 }
 
 func (i *TallyImporter) importOrders(ctx context.Context, tenantID uuid.UUID, rows [][]string, result *ImportResult) error {
@@ -284,7 +414,7 @@ func (i *TallyImporter) parseInvoiceRow(tenantID uuid.UUID, row []string) (*mode
 
 // Scheduled import job (for scanning import directory, not implemented)
 func (i *TallyImporter) ScheduledImportJob(ctx context.Context) error {
-	log.Println("Starting scheduled Tally import job")
+	fmt.Printf("Starting scheduled Tally import job in %s mode\n", i.mode)
 
 	// In a real implementation, this would scan a directory for CSV files
 	// and process them automatically

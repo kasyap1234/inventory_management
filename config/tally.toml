@@ -16,6 +16,7 @@ queue_priorities = { critical = 6, default = 3, low = 1 }
 
 # Export/Import Settings
 [export_import]
+mode = "csv"  # Options: "csv" or "rest"
 timeout_seconds = 300
 max_retry_attempts = 3
 retry_delay_seconds = 5
