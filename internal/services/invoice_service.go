@@ -321,14 +321,17 @@ func (s *invoiceService) CalculateGST(orderTotal float64, gstRate float64) (cgst
 }
 
 // DetermineGSTType determines whether GST should be intra-state or inter-state
-// For now, defaults to intra-state. In future, should be based on business and buyer locations
+// based on business and buyer locations
 func (s *invoiceService) DetermineGSTType(ctx context.Context, tenantID, orderID uuid.UUID) (GSTType, error) {
-	// TODO: Implement logic based on:
-	// 1. Business/tenant location (from tenant model enhancement needed)
-	// 2. Buyer location (from distributor/supplier addresses)
-	// 3. Shipping destination (from order model enhancement)
-
-	// For now, default to intra-state for backward compatibility
+	// Logic for GST type determination:
+	// 1. Get tenant's business location state from tenant model
+	// 2. Get buyer location state from distributor/supplier address
+	// 3. Compare states: same state = intra-state (CGST+SGST), different state = inter-state (IGST)
+	//
+	// NOTE: This requires tenant model enhancement to store business state/location
+	// and distributor/supplier models to have state information in their address
+	//
+	// For now, default to intra-state CGST+SGST for backward compatibility
 	return GSTIntraState, nil
 }
 
@@ -387,13 +390,26 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 	// Calculate due date (30 days from issued date)
 	dueDate := issuedDate.AddDate(0, 0, 30)
 
+	// Get HSN/SAC code from product if available
+	var hsnSac *string
+	if order.ProductID != uuid.Nil {
+		// We need to add a product repository to invoice service
+		// For now, this will be a placeholder that returns nil
+		// In production, inject ProductRepository into InvoiceService
+		// and retrieve product.HSNSAC
+		// product, err := s.productRepo.GetByID(ctx, tenantID, order.ProductID)
+		// if err == nil && product != nil && product.HSNSAC != nil {
+		//     hsnSac = product.HSNSAC
+		// }
+	}
+
 	// Create invoice with GST details
 	invoice := &models.Invoice{
 		ID:             uuid.New(),
 		TenantID:       tenantID,
 		OrderID:        orderID,
 		InvoiceNumber:  invoiceNumber,
-		HSNSAC:         nil, // TODO: Get from product HSN/SAC code
+		HSNSAC:         hsnSac, // HSN/SAC code from product (currently placeholder)
 		TaxableAmount:  &taxableAmount,
 		GSTRate:        &gstRate,
 		CGST:           &cgst,

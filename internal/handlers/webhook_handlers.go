@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"agromart2/internal/middleware"
+	"agromart2/internal/models"
 	"agromart2/internal/services"
 
 	"github.com/google/uuid"
@@ -144,27 +148,54 @@ func (h *WebhookHandlers) handleSubscriptionHalted(event *services.WebhookEvent)
 
 // handleEvent is a helper method to handle common webhook event processing
 func (h *WebhookHandlers) handleEvent(event *services.WebhookEvent, status string) error {
-	razorpayID, ok := event.Data["subscription_id"].(string)
-	if !ok {
-		return nil // Skip if no subscription ID
+	// Extract Razorpay subscription ID from event data
+	var razorpayID string
+	
+	// Check for subscription_id in different possible locations
+	if subID, ok := event.Data["subscription_id"].(string); ok {
+		razorpayID = subID
+	} else if payload, ok := event.Data["payload"].(map[string]interface{}); ok {
+		if subscription, ok := payload["subscription"].(map[string]interface{}); ok {
+			if id, ok := subscription["entity"].(map[string]interface{})["id"].(string); ok {
+				razorpayID = id
+			}
+		}
+	}
+	
+	if razorpayID == "" {
+		return nil // Skip if no subscription ID found
 	}
 
-	// TODO: Find subscription by Razorpay ID and update status
-	// This is a placeholder implementation that logs the event
-	_ = razorpayID
-	_ = status
+	// Find the subscription by Razorpay ID using a direct repository query
+	// This queries across tenants to find the matching subscription
+	ctx := context.Background()
+	subscription, tenantID, err := h.findSubscriptionByRazorpayID(ctx, razorpayID)
+	if err != nil {
+		// Log but don't fail - webhook might be for a non-existent subscription
+		log.Printf("Failed to find subscription for Razorpay ID %s: %v", razorpayID, err)
+		return nil
+	}
 
-	// In a real implementation, you would:
-	// 1. Find the subscription by razorpayID across all tenants
-	// 2. Update the local subscription status
-	// 3. Send notifications if needed
+	// Update the subscription status
+	subscription.Status = status
+	if err := h.subscriptionService.Update(ctx, tenantID, subscription); err != nil {
+		return fmt.Errorf("failed to update subscription status: %v", err)
+	}
+
+	// Log the event for auditing
+	log.Printf("Updated subscription %s for tenant %s to status %s via webhook", subscription.ID.String(), tenantID.String(), status)
 
 	return nil
 }
 
-// Helper method to find tenant by Razorpay subscription ID
-func (h *WebhookHandlers) findTenantByRazorpaySubscriptionID(razorpayID string) (uuid.UUID, error) {
-	// TODO: Implement a way to find the tenant by Razorpay subscription ID
-	// This might require maintaining a mapping or querying across tenants
-	return uuid.Nil, echo.NewHTTPError(http.StatusNotFound, "Tenant not found for Razorpay subscription ID")
+// Helper method to find subscription by Razorpay subscription ID
+func (h *WebhookHandlers) findSubscriptionByRazorpayID(ctx context.Context, razorpayID string) (*models.Subscription, uuid.UUID, error) {
+	// Query across all tenants using repository method
+	// This uses an indexed query on razorpay_subscription_id
+	subscription, err := h.subscriptionService.FindByRazorpayIDCrossTenant(ctx, razorpayID)
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("subscription not found for Razorpay ID %s: %v", razorpayID, err)
+	}
+	
+	return subscription, subscription.TenantID, nil
 }

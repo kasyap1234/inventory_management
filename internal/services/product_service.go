@@ -1,9 +1,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
+	_ "image/gif"  // Register GIF format
 	"io"
 	"path/filepath"
 	"strings"
@@ -13,6 +18,7 @@ import (
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
+	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 )
 
@@ -217,17 +223,16 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 		return fmt.Errorf("product not found: %w", err)
 	}
 
-	// TODO: Add image processing for resizing and optimization
-	// For example using github.com/nfnt/resize library:
-	// - Resize to multiple sizes (thumbnail, medium, original)
-	// - Optimize quality to reduce file size
-	// - Convert to appropriate formats
+	// Read the image data into memory for processing
+	imageData, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read image data: %w", err)
+	}
 
 	// Generate tenant-isolated key for MinIO
 	fileExt := filepath.Ext(filename)
 	baseName := strings.TrimSuffix(filename, fileExt)
-	objectKey := fmt.Sprintf("%s/%s/%s%s", tenantID.String(), productID.String(), baseName, fileExt)
-
+	
 	// Set default bucket for product images
 	bucketName := "product-images"
 
@@ -237,25 +242,108 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 		return fmt.Errorf("failed to ensure bucket exists: %w", err)
 	}
 
-	// Upload original image to MinIO
-	err = s.minioService.UploadImage(ctx, bucketName, objectKey, reader, size)
+	// Process and upload original image (optimized quality)
+	originalKey := fmt.Sprintf("%s/%s/%s%s", tenantID.String(), productID.String(), baseName, fileExt)
+	optimizedImage, err := s.optimizeImage(imageData, 1920, 1920, 85) // Max 1920px, quality 85%
 	if err != nil {
-		return fmt.Errorf("failed to upload image to storage: %w", err)
+		// If optimization fails, fall back to original
+		fmt.Printf("Warning: Image optimization failed, using original: %v\n", err)
+		optimizedImage = imageData
+	}
+	
+	err = s.minioService.UploadImage(ctx, bucketName, originalKey, bytes.NewReader(optimizedImage), int64(len(optimizedImage)))
+	if err != nil {
+		return fmt.Errorf("failed to upload original image: %w", err)
 	}
 
-	// TODO: Generate and upload resized versions
-	// e.g., thumbnail: small resolution, medium: reasonable resolution
+	// Generate and upload thumbnail version (300x300)
+	thumbnailKey := fmt.Sprintf("%s/%s/%s_thumb%s", tenantID.String(), productID.String(), baseName, fileExt)
+	thumbnail, err := s.optimizeImage(imageData, 300, 300, 80)
+	if err != nil {
+		fmt.Printf("Warning: Thumbnail generation failed: %v\n", err)
+	} else {
+		err = s.minioService.UploadImage(ctx, bucketName, thumbnailKey, bytes.NewReader(thumbnail), int64(len(thumbnail)))
+		if err != nil {
+			fmt.Printf("Warning: Failed to upload thumbnail: %v\n", err)
+		}
+	}
 
-	// Save image metadata to database
+	// Generate and upload medium version (800x800)
+	mediumKey := fmt.Sprintf("%s/%s/%s_medium%s", tenantID.String(), productID.String(), baseName, fileExt)
+	medium, err := s.optimizeImage(imageData, 800, 800, 82)
+	if err != nil {
+		fmt.Printf("Warning: Medium image generation failed: %v\n", err)
+	} else {
+		err = s.minioService.UploadImage(ctx, bucketName, mediumKey, bytes.NewReader(medium), int64(len(medium)))
+		if err != nil {
+			fmt.Printf("Warning: Failed to upload medium image: %v\n", err)
+		}
+	}
+
+	// Save image metadata to database (store original key)
 	image := &models.ProductImage{
 		ID:        uuid.New(),
 		TenantID:  tenantID,
 		ProductID: productID,
-		ImageURL:  objectKey, // Store key instead of full URL for tenant isolation
+		ImageURL:  originalKey, // Store original key
 		AltText:   altText,
 	}
 
 	return s.productImageRepo.Create(ctx, image)
+}
+
+// optimizeImage resizes and optimizes an image using basic Go image processing
+// This is a simple implementation - for production, consider using libraries like:
+// - github.com/h2non/bimg (requires libvips)
+// - github.com/disintegration/imaging (pure Go)
+// - github.com/nfnt/resize (pure Go, simpler)
+func (s *productService) optimizeImage(imageData []byte, maxWidth, maxHeight int, quality int) ([]byte, error) {
+	// Decode the image
+	img, format, err := image.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	// Get current dimensions
+	bounds := img.Bounds()
+	currentWidth := bounds.Dx()
+	currentHeight := bounds.Dy()
+
+	// Calculate new dimensions while maintaining aspect ratio
+	newWidth, newHeight := currentWidth, currentHeight
+	if currentWidth > maxWidth || currentHeight > maxHeight {
+		ratio := float64(currentWidth) / float64(currentHeight)
+		if currentWidth > currentHeight {
+			newWidth = maxWidth
+			newHeight = int(float64(maxWidth) / ratio)
+		} else {
+			newHeight = maxHeight
+			newWidth = int(float64(maxHeight) * ratio)
+		}
+	}
+
+	// Resize image using simple nearest-neighbor resampling
+	// For better quality, use imaging.Resize with Lanczos filter
+	resizedImg := imaging.Resize(img, newWidth, newHeight, imaging.Lanczos)
+
+	// Encode the resized image
+	var buf bytes.Buffer
+	switch format {
+	case "jpeg", "jpg":
+		err = jpeg.Encode(&buf, resizedImg, &jpeg.Options{Quality: quality})
+	case "png":
+		encoder := &png.Encoder{CompressionLevel: png.BestCompression}
+		err = encoder.Encode(&buf, resizedImg)
+	default:
+		// For other formats, try JPEG encoding as fallback
+		err = jpeg.Encode(&buf, resizedImg, &jpeg.Options{Quality: quality})
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode image: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // GetProductImages retrieves all images for a product

@@ -16,11 +16,13 @@ type SubscriptionService interface {
 	Create(ctx context.Context, tenantID uuid.UUID, planID string, customerEmail string) (*models.Subscription, error)
 	GetByID(ctx context.Context, tenantID, subscriptionID uuid.UUID) (*models.Subscription, error)
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Subscription, error)
+	Update(ctx context.Context, tenantID uuid.UUID, subscription *models.Subscription) error
 	Cancel(ctx context.Context, tenantID, subscriptionID uuid.UUID) error
 	Pause(ctx context.Context, tenantID, subscriptionID uuid.UUID) error
 	Resume(ctx context.Context, tenantID, subscriptionID uuid.UUID) error
 	UpdatePlan(ctx context.Context, tenantID, subscriptionID uuid.UUID, newPlanID string) error
 	GetSubscriptionByRazorpayID(ctx context.Context, tenantID uuid.UUID, razorpayID string) (*models.Subscription, error)
+	FindByRazorpayIDCrossTenant(ctx context.Context, razorpayID string) (*models.Subscription, error)
 	ValidateBilling(ctx context.Context, tenantID uuid.UUID, subscriptionID uuid.UUID) error
 	GetAvailablePlans() map[string]PlanConfig
 }
@@ -135,7 +137,14 @@ func (s *subscriptionService) Create(ctx context.Context, tenantID uuid.UUID, pl
 
 	err = s.subscriptionRepo.Create(ctx, subscription)
 	if err != nil {
-		// TODO: Handle rollback of Razorpay subscription if database insert fails
+		// Rollback Razorpay subscription if database insert fails
+		if razorpayResp != nil && razorpayResp.ID != "" {
+			_, cancelErr := s.razorpaySvc.CancelSubscription(ctx, razorpayResp.ID)
+			if cancelErr != nil {
+				return nil, fmt.Errorf("failed to create subscription and rollback failed: db_err=%v, rollback_err=%v", err, cancelErr)
+			}
+			return nil, fmt.Errorf("failed to create subscription in database (Razorpay subscription rolled back): %v", err)
+		}
 		return nil, fmt.Errorf("failed to create subscription: %v", err)
 	}
 
@@ -259,6 +268,11 @@ func (s *subscriptionService) GetSubscriptionByRazorpayID(ctx context.Context, t
 	return s.subscriptionRepo.GetByRazorpayID(ctx, tenantID, razorpayID)
 }
 
+// FindByRazorpayIDCrossTenant finds subscription by Razorpay ID across all tenants
+func (s *subscriptionService) FindByRazorpayIDCrossTenant(ctx context.Context, razorpayID string) (*models.Subscription, error) {
+	return s.subscriptionRepo.FindByRazorpayIDCrossTenant(ctx, razorpayID)
+}
+
 // ValidateBilling validates billing status for subscription
 func (s *subscriptionService) ValidateBilling(ctx context.Context, tenantID uuid.UUID, subscriptionID uuid.UUID) error {
 	subscription, err := s.subscriptionRepo.GetByID(ctx, tenantID, subscriptionID)
@@ -284,6 +298,12 @@ func (s *subscriptionService) ValidateBilling(ctx context.Context, tenantID uuid
 	}
 
 	return nil
+}
+
+// Update updates a subscription
+func (s *subscriptionService) Update(ctx context.Context, tenantID uuid.UUID, subscription *models.Subscription) error {
+	subscription.TenantID = tenantID
+	return s.subscriptionRepo.Update(ctx, subscription)
 }
 
 // GetAvailablePlans returns all available subscription plans

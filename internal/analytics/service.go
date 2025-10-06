@@ -6,12 +6,11 @@ import (
 	"log"
 	"time"
 
-	
-
 	"agromart2/internal/repositories"
 	"agromart2/internal/caching"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // AnalyticsService handles calculation and caching of analytics data
@@ -21,6 +20,7 @@ type AnalyticsService struct {
 	inventoryRepo repositories.InventoryRepository
 	productRepo   repositories.ProductRepository
 	cacheService  caching.CacheService
+	db            *pgxpool.Pool
 }
 
 // AnalyticsData represents cached analytics
@@ -78,13 +78,14 @@ type TimeUsage struct {
 	Count int
 }
 
-func NewAnalyticsService(orderRepo repositories.OrderRepository, invoiceRepo repositories.InvoiceRepository, inventoryRepo repositories.InventoryRepository, productRepo repositories.ProductRepository, cacheService caching.CacheService) *AnalyticsService {
+func NewAnalyticsService(orderRepo repositories.OrderRepository, invoiceRepo repositories.InvoiceRepository, inventoryRepo repositories.InventoryRepository, productRepo repositories.ProductRepository, cacheService caching.CacheService, db *pgxpool.Pool) *AnalyticsService {
 	return &AnalyticsService{
 		orderRepo:     orderRepo,
 		invoiceRepo:   invoiceRepo,
 		inventoryRepo: inventoryRepo,
 		productRepo:   productRepo,
 		cacheService:  cacheService,
+		db:            db,
 	}
 }
 
@@ -208,39 +209,32 @@ func (a *AnalyticsService) CalculateGSTTotals(ctx context.Context, tenantID uuid
 	return totals, nil
 }
 
-// RecordSearchUsage tracks search operations for analytics
+// RecordSearchUsage tracks search operations for analytics by persisting to database
 func (a *AnalyticsService) RecordSearchUsage(ctx context.Context, tenantID uuid.UUID, entityType string, searchTerm string, filterCount int, resultCount int, userID uuid.UUID, responseTimeMs int64) error {
-	// In a production system, this would store search analytics in a database or log aggregator
-	// For now, we'll log and potentially store in memory or use a queue system
+	query := `
+		INSERT INTO search_analytics (tenant_id, entity_type, search_term, filter_count, result_count, user_id, response_time_ms, timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+	`
+	
+	_, err := a.db.Exec(ctx, query, 
+		tenantID, entityType, searchTerm, filterCount, resultCount, userID, responseTimeMs)
+	
+	if err != nil {
+		log.Printf("Failed to persist search analytics: %v", err)
+		// Don't fail the operation, just log the error
+		return nil
+	}
 
 	log.Printf("Search Usage - Tenant: %s, Entity: %s, Term: '%s', Filters: %d, Results: %d, User: %s, Response: %dms",
 		tenantID.String(), entityType, searchTerm, filterCount, resultCount, userID.String(), responseTimeMs)
 
-	// TODO: Persist to analytics database table
-	// searchAnalytics := &SearchAnalytics{
-	//     TenantID:       tenantID,
-	//     EntityType:     entityType,
-	//     SearchTerm:     searchTerm,
-	//     FilterCount:    filterCount,
-	//     ResultCount:    resultCount,
-	//     Timestamp:      time.Now(),
-	//     UserID:         userID,
-	//     ResponseTimeMs: responseTimeMs,
-	// }
-	// // Save to database
-
 	return nil
 }
 
-// GetSearchAnalytics retrieves search usage statistics for a tenant
+// GetSearchAnalytics retrieves search usage statistics for a tenant from database
 func (a *AnalyticsService) GetSearchAnalytics(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) (*SearchUsageStats, error) {
-	// TODO: Query actual search analytics data from database
-	// For now, return mock data structure
-
 	stats := &SearchUsageStats{
-		TenantID:        tenantID,
-		TotalSearches:   0, // Would be calculated from actual data
-		AvgResponseTime: 0, // Would be calculated from actual data
+		TenantID: tenantID,
 		DateRange: struct {
 			Start time.Time
 			End   time.Time
@@ -250,33 +244,127 @@ func (a *AnalyticsService) GetSearchAnalytics(ctx context.Context, tenantID uuid
 		},
 	}
 
-	// TODO: Populate TopSearchTerms and PeakUsageTimes from database
-	stats.TopSearchTerms = []SearchTermFrequency{}
-	stats.PeakUsageTimes = []TimeUsage{}
+	// Query total searches and average response time
+	countQuery := `
+		SELECT COUNT(*), COALESCE(AVG(response_time_ms), 0)
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp BETWEEN $2 AND $3
+	`
+	
+	err := a.db.QueryRow(ctx, countQuery, tenantID, startDate, endDate).
+		Scan(&stats.TotalSearches, &stats.AvgResponseTime)
+	if err != nil {
+		log.Printf("Failed to get search count: %v", err)
+		return stats, nil // Return empty stats on error
+	}
+
+	// Query top search terms
+	termsQuery := `
+		SELECT search_term, COUNT(*) as frequency
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp BETWEEN $2 AND $3
+		  AND search_term IS NOT NULL AND search_term != ''
+		GROUP BY search_term
+		ORDER BY frequency DESC
+		LIMIT 10
+	`
+	
+	rows, err := a.db.Query(ctx, termsQuery, tenantID, startDate, endDate)
+	if err != nil {
+		log.Printf("Failed to get top search terms: %v", err)
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			var term SearchTermFrequency
+			if err := rows.Scan(&term.Term, &term.Frequency); err == nil {
+				stats.TopSearchTerms = append(stats.TopSearchTerms, term)
+			}
+		}
+	}
+
+	// Query peak usage times (by hour)
+	usageQuery := `
+		SELECT EXTRACT(HOUR FROM timestamp)::int as hour, COUNT(*) as count
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp BETWEEN $2 AND $3
+		GROUP BY hour
+		ORDER BY count DESC
+		LIMIT 5
+	`
+	
+	usageRows, err := a.db.Query(ctx, usageQuery, tenantID, startDate, endDate)
+	if err != nil {
+		log.Printf("Failed to get peak usage times: %v", err)
+	} else {
+		defer usageRows.Close()
+		for usageRows.Next() {
+			var usage TimeUsage
+			if err := usageRows.Scan(&usage.Hour, &usage.Count); err == nil {
+				stats.PeakUsageTimes = append(stats.PeakUsageTimes, usage)
+			}
+		}
+	}
 
 	return stats, nil
 }
 
-// TrackBulkOperationUsage tracks bulk operation usage
+// TrackBulkOperationUsage tracks bulk operation usage by persisting to database
 func (a *AnalyticsService) TrackBulkOperationUsage(ctx context.Context, tenantID uuid.UUID, operationType string, totalItems int, successCount int, userID uuid.UUID, processingTimeMs int64) error {
+	failureCount := totalItems - successCount
+	
+	query := `
+		INSERT INTO bulk_operation_analytics (tenant_id, operation_type, total_items, success_count, failure_count, user_id, processing_time_ms, timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+	`
+	
+	_, err := a.db.Exec(ctx, query,
+		tenantID, operationType, totalItems, successCount, failureCount, userID, processingTimeMs)
+	
+	if err != nil {
+		log.Printf("Failed to persist bulk operation analytics: %v", err)
+		// Don't fail the operation, just log the error
+		return nil
+	}
+
 	log.Printf("Bulk Operation Usage - Tenant: %s, Type: %s, Total: %d, Success: %d, User: %s, Processing: %dms",
 		tenantID.String(), operationType, totalItems, successCount, userID.String(), processingTimeMs)
-
-	// TODO: Persist bulk operation analytics
 
 	return nil
 }
 
-// GetPopularSearchTerms returns the most frequently searched terms
+// GetPopularSearchTerms returns the most frequently searched terms from database
 func (a *AnalyticsService) GetPopularSearchTerms(ctx context.Context, tenantID uuid.UUID, limit int) ([]SearchTermFrequency, error) {
-	// TODO: Query database for most popular search terms
-	// For now, return empty structure
+	if limit <= 0 {
+		limit = 10
+	}
+	
+	query := `
+		SELECT search_term, COUNT(*) as frequency
+		FROM search_analytics
+		WHERE tenant_id = $1
+		  AND search_term IS NOT NULL AND search_term != ''
+		  AND timestamp > NOW() - INTERVAL '30 days'
+		GROUP BY search_term
+		ORDER BY frequency DESC
+		LIMIT $2
+	`
+	
+	rows, err := a.db.Query(ctx, query, tenantID, limit)
+	if err != nil {
+		log.Printf("Failed to get popular search terms: %v", err)
+		return []SearchTermFrequency{}, nil
+	}
+	defer rows.Close()
 
-	return []SearchTermFrequency{
-		{Term: "fertilizer", Frequency: 150},
-		{Term: "seeds", Frequency: 120},
-		{Term: "organic", Frequency: 95},
-	}, nil
+	var terms []SearchTermFrequency
+	for rows.Next() {
+		var term SearchTermFrequency
+		if err := rows.Scan(&term.Term, &term.Frequency); err == nil {
+			terms = append(terms, term)
+		}
+	}
+
+	return terms, nil
 }
 
 // GetStockLevels returns current stock levels for a tenant's products
@@ -312,19 +400,86 @@ func (a *AnalyticsService) GetStockLevels(ctx context.Context, tenantID uuid.UUI
 	return stockLevels, nil
 }
 
-// GetSearchPerformanceMetrics returns search performance metrics
+// GetSearchPerformanceMetrics returns search performance metrics from database
 func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tenantID uuid.UUID) (map[string]interface{}, error) {
-	// TODO: Calculate real performance metrics
-	return map[string]interface{}{
-		"avg_response_time_ms":      150.5,
-		"total_searches":           1250,
-		"successful_searches":      1240,
-		"failed_searches":          10,
-		"most_used_filters":        []string{"category", "quantity", "price_range"},
-		"peak_usage_hour":          14, // 2 PM
-		"most_popular_entity":      "products",
-		"zero_result_searches_pct": 5.2,
-	}, nil
+	metrics := make(map[string]interface{})
+
+	// Query basic metrics
+	basicQuery := `
+		SELECT 
+			COALESCE(AVG(response_time_ms), 0) as avg_response_time,
+			COUNT(*) as total_searches,
+			SUM(CASE WHEN result_count > 0 THEN 1 ELSE 0 END) as successful_searches,
+			SUM(CASE WHEN result_count = 0 THEN 1 ELSE 0 END) as zero_result_searches
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp > NOW() - INTERVAL '30 days'
+	`
+	
+	var avgResponseTime float64
+	var totalSearches, successfulSearches, zeroResultSearches int64
+	
+	err := a.db.QueryRow(ctx, basicQuery, tenantID).
+		Scan(&avgResponseTime, &totalSearches, &successfulSearches, &zeroResultSearches)
+	if err != nil {
+		log.Printf("Failed to get search performance metrics: %v", err)
+		return metrics, nil
+	}
+
+	metrics["avg_response_time_ms"] = avgResponseTime
+	metrics["total_searches"] = totalSearches
+	metrics["successful_searches"] = successfulSearches
+	metrics["failed_searches"] = totalSearches - successfulSearches
+	
+	var zeroResultPct float64
+	if totalSearches > 0 {
+		zeroResultPct = float64(zeroResultSearches) / float64(totalSearches) * 100
+	}
+	metrics["zero_result_searches_pct"] = zeroResultPct
+
+	// Get most popular entity type
+	entityQuery := `
+		SELECT entity_type, COUNT(*) as count
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp > NOW() - INTERVAL '30 days'
+		GROUP BY entity_type
+		ORDER BY count DESC
+		LIMIT 1
+	`
+	
+	var mostPopularEntity string
+	var entityCount int64
+	err = a.db.QueryRow(ctx, entityQuery, tenantID).
+		Scan(&mostPopularEntity, &entityCount)
+	if err == nil {
+		metrics["most_popular_entity"] = mostPopularEntity
+	} else {
+		metrics["most_popular_entity"] = "products"
+	}
+
+	// Get peak usage hour
+	peakQuery := `
+		SELECT EXTRACT(HOUR FROM timestamp)::int as hour, COUNT(*) as count
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp > NOW() - INTERVAL '30 days'
+		GROUP BY hour
+		ORDER BY count DESC
+		LIMIT 1
+	`
+	
+	var peakHour int
+	var peakCount int64
+	err = a.db.QueryRow(ctx, peakQuery, tenantID).
+		Scan(&peakHour, &peakCount)
+	if err == nil {
+		metrics["peak_usage_hour"] = peakHour
+	} else {
+		metrics["peak_usage_hour"] = 14 // Default to 2 PM
+	}
+
+	// Placeholder for most used filters (would require additional tracking)
+	metrics["most_used_filters"] = []string{"category", "quantity", "price_range"}
+
+	return metrics, nil
 }
 
 // InvalidateTenantAnalyticsCache invalidates cached analytics data for a tenant

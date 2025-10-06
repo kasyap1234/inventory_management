@@ -16,6 +16,7 @@ type SubscriptionRepository interface {
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Subscription, error)
 	GetByRazorpayID(ctx context.Context, tenantID uuid.UUID, razorpayID string) (*models.Subscription, error)
+	FindByRazorpayIDCrossTenant(ctx context.Context, razorpayID string) (*models.Subscription, error)
 }
 
 type subscriptionRepo struct {
@@ -102,4 +103,19 @@ func (r *subscriptionRepo) List(ctx context.Context, tenantID uuid.UUID, limit, 
 		subscriptions = append(subscriptions, subscription)
 	}
 	return subscriptions, nil
+}
+
+func (r *subscriptionRepo) FindByRazorpayIDCrossTenant(ctx context.Context, razorpayID string) (*models.Subscription, error) {
+	subscription := &models.Subscription{}
+	query := `
+		SELECT id, tenant_id, razorpay_subscription_id, plan_name, amount, currency, status, start_date, end_date, created_at, updated_at
+		FROM subscriptions
+		WHERE razorpay_subscription_id = $1
+		LIMIT 1
+	`
+	err := r.db.QueryRow(ctx, query, razorpayID).Scan(&subscription.ID, &subscription.TenantID, &subscription.RazorpaySubscriptionID, &subscription.PlanName, &subscription.Amount, &subscription.Currency, &subscription.Status, &subscription.StartDate, &subscription.EndDate, &subscription.CreatedAt, &subscription.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return subscription, nil
 }

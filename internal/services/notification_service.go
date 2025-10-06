@@ -3,10 +3,15 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"text/template"
 	"time"
 
@@ -57,13 +62,17 @@ type NotificationService interface {
 }
 
 type notificationService struct {
-	redisClient *redis.Client
-	templates   map[string]*template.Template // Cached templates
-	httpClient  *http.Client
+	redisClient      *redis.Client
+	templates        map[string]*template.Template // Cached templates
+	httpClient       *http.Client
+	sendgridAPIKey   string
+	twilioAccountSID string
+	twilioAuthToken  string
+	twilioPhone      string
 }
 
-// NewNotificationService creates a new notification service
-func NewNotificationService(redisAddr, redisPassword string, redisDB int) NotificationService {
+// NewNotificationService creates a new notification service with provider configurations
+func NewNotificationService(redisAddr, redisPassword string, redisDB int, sendgridAPIKey, twilioAccountSID, twilioAuthToken, twilioPhone string) NotificationService {
 	// Create Redis client for this service
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
@@ -76,9 +85,13 @@ func NewNotificationService(redisAddr, redisPassword string, redisDB int) Notifi
 	}
 
 	return &notificationService{
-		redisClient: redisClient,
-		templates:   make(map[string]*template.Template),
-		httpClient:  httpClient,
+		redisClient:      redisClient,
+		templates:        make(map[string]*template.Template),
+		httpClient:       httpClient,
+		sendgridAPIKey:   sendgridAPIKey,
+		twilioAccountSID: twilioAccountSID,
+		twilioAuthToken:  twilioAuthToken,
+		twilioPhone:      twilioPhone,
 	}
 }
 
@@ -110,30 +123,115 @@ func (s *notificationService) SendNotification(ctx context.Context, tenantID uui
 	}
 }
 
-// SendEmail sends an email notification (placeholder implementation)
+// SendEmail sends an email notification using SendGrid
 func (s *notificationService) SendEmail(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string) error {
-	// TODO: Integration with email service (SendGrid, SES, etc.)
-	// Placeholder implementation - log the email that would be sent
+	// Check if SendGrid is configured
+	if s.sendgridAPIKey == "" {
+		// Fallback to logging if no API key configured
+		log.Printf("[EMAIL] SendGrid API key not configured, logging only")
+		log.Printf("[EMAIL] Tenant=%s, To=%s, Subject=%s, Body=%s", tenantID.String(), recipient, subject, body)
+		return nil
+	}
+	
+	fromEmail := "noreply@agromart.com"
+	fromName := "Agromart"
 
-	log.Printf("[EMAIL] Tenant=%s, To=%s, Subject=%s, Body=%s", tenantID.String(), recipient, subject, body)
+	// Build SendGrid API request
+	emailData := map[string]interface{}{
+		"personalizations": []map[string]interface{}{
+			{
+				"to": []map[string]string{
+					{"email": recipient},
+				},
+				"subject": subject,
+			},
+		},
+		"from": map[string]string{
+			"email": fromEmail,
+			"name":  fromName,
+		},
+		"content": []map[string]string{
+			{
+				"type":  "text/html",
+				"value": body,
+			},
+		},
+	}
 
-	// In production, integrate with actual email provider
-	// Example: SendGrid API call would go here
+	jsonData, err := json.Marshal(emailData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal email data: %v", err)
+	}
 
-	return nil // Placeholder - no actual sending
+	// Make SendGrid API call
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.sendgrid.com/v3/mail/send", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create email request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+s.sendgridAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send email: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("SendGrid API error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	log.Printf("[EMAIL] Successfully sent email via SendGrid to %s for tenant %s", recipient, tenantID.String())
+	return nil
 }
 
-// SendSMS sends an SMS notification (placeholder implementation)
+// SendSMS sends an SMS notification using Twilio
 func (s *notificationService) SendSMS(ctx context.Context, tenantID uuid.UUID, recipient, message string) error {
-	// TODO: Integration with SMS service (Twilio, AWS SNS, etc.)
-	// Placeholder implementation - log the SMS that would be sent
+	// Check if Twilio is configured
+	if s.twilioAccountSID == "" || s.twilioAuthToken == "" {
+		// Fallback to logging if no credentials configured
+		log.Printf("[SMS] Twilio credentials not configured, logging only")
+		log.Printf("[SMS] Tenant=%s, To=%s, Message=%s", tenantID.String(), recipient, message)
+		return nil
+	}
+	
+	twilioPhoneNumber := s.twilioPhone
+	if twilioPhoneNumber == "" {
+		twilioPhoneNumber = "+1234567890" // Default
+	}
 
-	log.Printf("[SMS] Tenant=%s, To=%s, Message=%s", tenantID.String(), recipient, message)
+	// Build Twilio API request using application/x-www-form-urlencoded
+	formData := fmt.Sprintf("To=%s&From=%s&Body=%s", 
+		url.QueryEscape(recipient), 
+		url.QueryEscape(twilioPhoneNumber), 
+		url.QueryEscape(message))
 
-	// In production, integrate with actual SMS provider
-	// Example: Twilio API call would go here
+	twilioURL := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", s.twilioAccountSID)
 
-	return nil // Placeholder - no actual sending
+	req, err := http.NewRequestWithContext(ctx, "POST", twilioURL, bytes.NewBufferString(formData))
+	if err != nil {
+		return fmt.Errorf("failed to create SMS request: %v", err)
+	}
+
+	// Set Basic Authentication
+	req.SetBasicAuth(s.twilioAccountSID, s.twilioAuthToken)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send SMS: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Twilio API error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	log.Printf("[SMS] Successfully sent SMS via Twilio to %s for tenant %s", recipient, tenantID.String())
+	return nil
 }
 
 // SendWebhook sends a webhook notification
@@ -153,7 +251,9 @@ func (s *notificationService) SendWebhook(ctx context.Context, tenantID uuid.UUI
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Webhook-Signature", "signature-placeholder") // TODO: Implement HMAC signature
+	// Implement HMAC-SHA256 signature for webhook security
+	signature := generateWebhookSignature(jsonPayload, webhook.Secret)
+	req.Header.Set("X-Webhook-Signature", signature)
 	req.Header.Set("X-Tenant-ID", tenantID.String())
 
 	resp, err := s.httpClient.Do(req)
@@ -483,4 +583,11 @@ func (s *notificationService) updateWebhookSubscription(ctx context.Context, ten
 	}
 
 	return s.redisClient.Set(ctx, cacheKey, data, time.Hour).Err()
+}
+
+// generateWebhookSignature generates HMAC-SHA256 signature for webhook payload
+func generateWebhookSignature(payload []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	return hex.EncodeToString(mac.Sum(nil))
 }

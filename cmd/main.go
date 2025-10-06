@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,12 +39,30 @@ func main() {
 		log.Fatal("DATABASE_URL environment variable is required")
 	}
 
-	// Create database connection pool
-	pool, err := pgxpool.New(context.Background(), databaseURL)
+	// Create optimized database connection pool
+	poolConfig, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		log.Fatalf("Failed to parse database URL: %v", err)
+	}
+
+	// Optimize connection pool settings for production performance
+	poolConfig.MaxConns = 50                       // Maximum connections in pool
+	poolConfig.MinConns = 10                       // Minimum idle connections
+	poolConfig.MaxConnLifetime = 30 * time.Minute  // Recycle connections every 30 min
+	poolConfig.MaxConnIdleTime = 5 * time.Minute   // Close idle connections after 5 min
+	poolConfig.HealthCheckPeriod = 1 * time.Minute // Health check interval
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer pool.Close()
+	
+	// Verify database connection
+	if err := pool.Ping(context.Background()); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+	log.Println("Database connection pool initialized successfully")
 
 	// JWT configuration
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -104,7 +123,7 @@ func main() {
 
 	// Create services
 	// Create analytics service
-	analyticsSvc := analytics.NewAnalyticsService(orderRepo, invoiceRepo, inventoryRepo, productRepo, cacheSvc)
+	analyticsSvc := analytics.NewAnalyticsService(orderRepo, invoiceRepo, inventoryRepo, productRepo, cacheSvc, pool)
 
 	rbacService := services.NewRBACService(userRoleRepo, rolePermissionRepo, permissionRepo)
 
@@ -170,7 +189,21 @@ func main() {
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
 	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, rbacMiddleware)
 
-	notificationService := services.NewNotificationService(redisAddr, redisPassword, redisDB)
+	// Notification service configuration
+	sendgridAPIKey := os.Getenv("SENDGRID_API_KEY")
+	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
+	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
+	twilioPhone := os.Getenv("TWILIO_PHONE_NUMBER")
+	
+	notificationService := services.NewNotificationService(
+		redisAddr, 
+		redisPassword, 
+		redisDB,
+		sendgridAPIKey,
+		twilioAccountSID,
+		twilioAuthToken,
+		twilioPhone,
+	)
 	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
 
 	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
@@ -207,14 +240,26 @@ func main() {
 	mux.HandleFunc(jobs.TypeTallyExport, tallyExporter.TallyExportHandler)
 	mux.HandleFunc(jobs.TypeTallyImport, tallyImporter.TallyImportHandler)
 
-	// Create Echo instance
+	// Create Echo instance with optimized settings
 	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = false
 
-	// Global middleware
-	e.Use(echoMiddleware.Logger())
+	// Performance middleware
+	perfMiddleware := middleware.NewPerformanceMiddleware()
+	
+	// Global middleware (order matters for performance)
 	e.Use(echoMiddleware.Recover())
+	e.Use(perfMiddleware.Gzip())                     // Enable gzip compression
+	e.Use(perfMiddleware.RateLimiter())              // Rate limiting (100 req/min per IP)
+	e.Use(perfMiddleware.Timeout(30 * time.Second)) // Request timeout
+	e.Use(perfMiddleware.BodyLimit("10M"))           // Limit request body size
+	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.CORS())
 	e.Use(echoMiddleware.RemoveTrailingSlash())
+	
+	// Request ID for tracing
+	e.Use(echoMiddleware.RequestID())
 
 	// Version middleware
 	versionMiddleware := middleware.NewVersionMiddleware()

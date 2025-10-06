@@ -18,6 +18,7 @@ type JobHandlers struct {
 	tallyImporter      *jobs.TallyImporter
 	inventoryAlerts    *jobs.InventoryAlertService
 	analyticsRefresh   *jobs.AnalyticsRefreshService
+	analyticsService   *analytics.AnalyticsService
 	orderRepo          repositories.OrderRepository
 	invoiceRepo        repositories.InvoiceRepository
 	productRepo        repositories.ProductRepository
@@ -29,6 +30,7 @@ func NewJobHandlers(
 	tallyImporter *jobs.TallyImporter,
 	inventoryAlerts *jobs.InventoryAlertService,
 	analyticsRefresh *jobs.AnalyticsRefreshService,
+	analyticsService *analytics.AnalyticsService,
 	orderRepo repositories.OrderRepository,
 	invoiceRepo repositories.InvoiceRepository,
 	productRepo repositories.ProductRepository,
@@ -39,6 +41,7 @@ func NewJobHandlers(
 		tallyImporter:    tallyImporter,
 		inventoryAlerts:  inventoryAlerts,
 		analyticsRefresh: analyticsRefresh,
+		analyticsService: analyticsService,
 		orderRepo:        orderRepo,
 		invoiceRepo:      invoiceRepo,
 		productRepo:      productRepo,
@@ -215,8 +218,7 @@ func (h *JobHandlers) GetAnalyticsData(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-	analyticsService := analytics.NewAnalyticsService(h.orderRepo, h.invoiceRepo, h.inventoryRepo, h.productRepo, nil)
-	data, err := analyticsService.CalculateTenantAnalytics(ctx, tenantID)
+	data, err := h.analyticsService.CalculateTenantAnalytics(ctx, tenantID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get analytics data")
 	}
