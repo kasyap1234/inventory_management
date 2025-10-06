@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
@@ -33,21 +32,14 @@ type ListWarehousesRequest struct {
 
 // ListWarehouses handles getting a list of warehouses with tenant filtering
 func (h *WarehouseHandlers) ListWarehouses(c echo.Context) error {
-	log.Printf("DEBUG: ListWarehouses handler called")
-
-	// TODO: Enable RBAC for warehouses once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("warehouses:list")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	log.Printf("DEBUG: ListWarehouses RBAC failed: %v", err)
-	// 	return err // RBAC middleware will return appropriate error
-	// }
-
-	log.Printf("DEBUG: ListWarehouses handlers (RBAC disabled)")
+	err := h.rbacMiddleware.RequirePermission("warehouses:list")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
-	log.Printf("DEBUG: ListWarehouses context retrieved")
 
 	var req ListWarehousesRequest
 	if err := c.Bind(&req); err != nil {
@@ -94,13 +86,13 @@ type CreateWarehouseRequest struct {
 
 // CreateWarehouse handles creating a new warehouse
 func (h *WarehouseHandlers) CreateWarehouse(c echo.Context) error {
-	// TODO: Enable RBAC for warehouses once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("warehouses:create")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	
+	err := h.rbacMiddleware.RequirePermission("warehouses:create")(func(c echo.Context) error {
+		return nil
+	        })(c)
+	        if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -140,13 +132,13 @@ func (h *WarehouseHandlers) CreateWarehouse(c echo.Context) error {
 
 // GetWarehouse handles getting warehouse details by ID
 func (h *WarehouseHandlers) GetWarehouse(c echo.Context) error {
-	// TODO: Enable RBAC for warehouses once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("warehouses:read")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	
+	err := h.rbacMiddleware.RequirePermission("warehouses:read")(func(c echo.Context) error {
+		return nil
+	        })(c)
+	        if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -162,9 +154,7 @@ func (h *WarehouseHandlers) GetWarehouse(c echo.Context) error {
 
 	// Get tenant ID from context
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
-	log.Printf("DEBUG: ListWarehouses tenant ID: %s, ok: %v", tenantID.String(), ok)
 	if !ok {
-		log.Printf("DEBUG: ListWarehouses - tenant not found in context")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
@@ -187,13 +177,13 @@ type UpdateWarehouseRequest struct {
 
 // UpdateWarehouse handles updating warehouse details
 func (h *WarehouseHandlers) UpdateWarehouse(c echo.Context) error {
-	// TODO: Enable RBAC for warehouses once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("warehouses:update")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	
+	err := h.rbacMiddleware.RequirePermission("warehouses:update")(func(c echo.Context) error {
+		return nil
+	        })(c)
+	        if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -247,13 +237,13 @@ func (h *WarehouseHandlers) UpdateWarehouse(c echo.Context) error {
 
 // DeleteWarehouse handles deleting a warehouse
 func (h *WarehouseHandlers) DeleteWarehouse(c echo.Context) error {
-	// TODO: Enable RBAC for warehouses once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("warehouses:delete")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	
+	err := h.rbacMiddleware.RequirePermission("warehouses:delete")(func(c echo.Context) error {
+		return nil
+	        })(c)
+	        if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 

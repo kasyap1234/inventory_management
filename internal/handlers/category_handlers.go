@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 
 	"agromart2/internal/common"
@@ -35,18 +34,14 @@ type ListCategoriesRequest struct {
 
 // ListCategories handles getting a list of categories with tenant filtering
 func (h *CategoryHandlers) ListCategories(c echo.Context) error {
-	log.Printf("DEBUG: ListCategories handler called")
-
-	// TODO: Enable RBAC for categories once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("categories:list")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err // RBAC middleware will return appropriate error
-	// }
+	err := h.rbacMiddleware.RequirePermission("categories:list")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
-	log.Printf("DEBUG: ListCategories handler context retrieved")
 
 	var req ListCategoriesRequest
 	if err := c.Bind(&req); err != nil {
@@ -92,13 +87,12 @@ type CreateCategoryRequest struct {
 
 // CreateCategory handles creating a new category
 func (h *CategoryHandlers) CreateCategory(c echo.Context) error {
-	// TODO: Enable RBAC for categories once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("categories:create")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	err := h.rbacMiddleware.RequirePermission("categories:create")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -168,13 +162,12 @@ func (h *CategoryHandlers) CreateCategory(c echo.Context) error {
 
 // GetCategory handles getting category details by ID
 func (h *CategoryHandlers) GetCategory(c echo.Context) error {
-	// TODO: Enable RBAC for categories once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("categories:read")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	err := h.rbacMiddleware.RequirePermission("categories:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -190,9 +183,7 @@ func (h *CategoryHandlers) GetCategory(c echo.Context) error {
 
 	// Get tenant ID from context
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
-	log.Printf("DEBUG: ListCategories tenant ID: %s, ok: %v", tenantID.String(), ok)
 	if !ok {
-		log.Printf("DEBUG: ListCategories - tenant not found in context")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
@@ -213,13 +204,12 @@ type UpdateCategoryRequest struct {
 
 // UpdateCategory handles updating category details
 func (h *CategoryHandlers) UpdateCategory(c echo.Context) error {
-	// TODO: Enable RBAC for categories once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("categories:update")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	err := h.rbacMiddleware.RequirePermission("categories:update")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -274,13 +264,12 @@ type SearchCategoriesRequest struct {
 
 // SearchCategories handles searching categories by name or description
 func (h *CategoryHandlers) SearchCategories(c echo.Context) error {
-	// TODO: Enable RBAC for categories once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("categories:list")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	err := h.rbacMiddleware.RequirePermission("categories:list")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 
@@ -322,13 +311,12 @@ func (h *CategoryHandlers) SearchCategories(c echo.Context) error {
 
 // DeleteCategory handles deleting a category
 func (h *CategoryHandlers) DeleteCategory(c echo.Context) error {
-	// TODO: Enable RBAC for categories once permissions are configured
-	// err := h.rbacMiddleware.RequirePermission("categories:delete")(func(c echo.Context) error {
-	// 	return nil
-	// })(c)
-	// if err != nil {
-	// 	return err
-	// }
+	err := h.rbacMiddleware.RequirePermission("categories:delete")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
 
 	ctx := c.Request().Context()
 

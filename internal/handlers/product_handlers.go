@@ -461,33 +461,12 @@ func (h *ProductHandlers) UploadProductImage(c echo.Context) error {
 func (h *ProductHandlers) GetProductImages(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	// Enhanced debugging for UUID parsing
+	// Parse and validate product ID
 	idParam := c.Param("id")
-	log.Printf("DEBUG: GetProductImages called with ID param: '%s', length: %d", idParam, len(idParam))
-	log.Printf("DEBUG: Context type: %T", ctx)
-
-	// Check for unexpected characters
-	for i, r := range idParam {
-		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') || r == '-') {
-			log.Printf("DEBUG: Invalid character at position %d: '%c' (ASCII: %d)", i, r, r)
-			return echo.NewHTTPError(http.StatusBadRequest, "UUID contains invalid characters")
-		}
-	}
-
-	// Check if it's a valid UUID format first
-	if _, parseErr := uuid.Parse(idParam); parseErr != nil {
-		log.Printf("DEBUG: UUID format validation failed for: '%s', parse error: %v", idParam, parseErr)
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format")
-	}
-
-	// Now try to parse it
-	productID, err := h.validateUUID(idParam)
+	productID, err := uuid.Parse(idParam)
 	if err != nil {
-		log.Printf("DEBUG: UUID parsing failed for: '%s', error: %v", idParam, err)
-		return echo.NewHTTPError(http.StatusBadRequest, "UUID could not be parsed")
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid product ID format")
 	}
-
-	log.Printf("DEBUG: UUID validation successful: %s", productID.String())
 
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {

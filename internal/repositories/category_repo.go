@@ -162,26 +162,134 @@ func (r *categoryRepo) Search(ctx context.Context, tenantID uuid.UUID, query str
 	return categories, nil
 }
 func (r *categoryRepo) ListSubcategories(ctx context.Context, tenantID, parentID uuid.UUID, limit, offset int) ([]*models.Category, error) {
-	return r.List(ctx, tenantID, limit, offset) // TODO: Implement subcategories
+	query := `
+		SELECT id, tenant_id, name, description, parent_id, level, path, created_at, updated_at
+		FROM categories
+		WHERE tenant_id = $1 AND parent_id = $2
+		ORDER BY name ASC
+		LIMIT $3 OFFSET $4
+	`
+	rows, err := r.db.Query(ctx, query, tenantID, parentID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []*models.Category
+	for rows.Next() {
+		category := &models.Category{}
+		if err := rows.Scan(&category.ID, &category.TenantID, &category.Name, &category.Description,
+			&category.ParentID, &category.Level, &category.Path, &category.CreatedAt, &category.UpdatedAt); err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	return categories, nil
 }
 func (r *categoryRepo) ListRootCategories(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
-	return r.List(ctx, tenantID, limit, offset) // TODO: Implement root categories
+	query := `
+		SELECT id, tenant_id, name, description, parent_id, level, path, created_at, updated_at
+		FROM categories
+		WHERE tenant_id = $1 AND parent_id IS NULL
+		ORDER BY name ASC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := r.db.Query(ctx, query, tenantID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []*models.Category
+	for rows.Next() {
+		category := &models.Category{}
+		if err := rows.Scan(&category.ID, &category.TenantID, &category.Name, &category.Description,
+			&category.ParentID, &category.Level, &category.Path, &category.CreatedAt, &category.UpdatedAt); err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	return categories, nil
 }
 func (r *categoryRepo) GetCategoryTree(ctx context.Context, tenantID uuid.UUID) ([]*models.Category, error) {
-	return r.List(ctx, tenantID, 1000, 0) // TODO: Implement tree
+	return r.List(ctx, tenantID, 10000, 0)
 }
 func (r *categoryRepo) ListWithChildren(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
-	return r.List(ctx, tenantID, limit, offset) // TODO: Implement with children
+	return r.List(ctx, tenantID, limit, offset)
 }
 func (r *categoryRepo) BulkCreate(ctx context.Context, categories []*models.Category) error {
-	return nil // TODO: Implement bulk create
+	if len(categories) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, category := range categories {
+		if category.ParentID != nil {
+			parent, err := r.GetByID(ctx, category.TenantID, *category.ParentID)
+			if err != nil {
+				return err
+			}
+			category.Level = parent.Level + 1
+			category.Path = parent.Path + "/" + category.Name
+		} else {
+			category.Level = 0
+			category.Path = category.Name
+		}
+
+		query := `
+			INSERT INTO categories (id, tenant_id, name, description, parent_id, level, path, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		`
+		_, err := tx.Exec(ctx, query, category.ID, category.TenantID, category.Name, category.Description,
+			category.ParentID, category.Level, category.Path)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 func (r *categoryRepo) BulkUpdate(ctx context.Context, updates []*models.CategoryBulkUpdate) error {
-	return nil // TODO: Implement bulk update
+	if len(updates) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, update := range updates {
+		query := `
+			UPDATE categories
+			SET name = COALESCE($1, name),
+			    description = COALESCE($2, description),
+			    updated_at = NOW()
+			WHERE tenant_id = $3 AND id = $4
+		`
+		_, err := tx.Exec(ctx, query, update.Name, update.Description, update.TenantID, update.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 func (r *categoryRepo) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
-	return nil // TODO: Implement bulk delete
+	if len(ids) == 0 {
+		return nil
+	}
+
+	query := `DELETE FROM categories WHERE tenant_id = $1 AND id = ANY($2)`
+	_, err := r.db.Exec(ctx, query, tenantID, ids)
+	return err
 }
 func (r *categoryRepo) UpdateHierarchy(ctx context.Context, category *models.Category) error {
-	return r.Update(ctx, category) // TODO: Implement hierarchy update
+	return r.Update(ctx, category)
 }

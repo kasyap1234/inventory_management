@@ -164,6 +164,19 @@ func main() {
 	orderHandlers := handlers.NewOrderHandlers(orderSvc)
 	invoiceHandlers := handlers.NewInvoiceHandlers(invoiceSvc, orderSvc, productSvc, minioSvc)
 
+	// Create subscription, notification, and audit log handlers
+	subscriptionRepo := repositories.NewSubscriptionRepo(pool)
+	razorpayService := services.NewRazorpayService(os.Getenv("RAZORPAY_KEY_ID"), os.Getenv("RAZORPAY_KEY_SECRET"))
+	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
+	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, rbacMiddleware)
+
+	notificationService := services.NewNotificationService(redisAddr, redisPassword, redisDB)
+	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
+
+	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
+	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
+	auditLogsHandlers := handlers.NewAuditLogsHandlers(auditLogsService, rbacMiddleware)
+
 	// Create Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
 		Addr:     redisAddr,
@@ -173,8 +186,8 @@ func main() {
 	defer asynqClient.Close()
 
 	// Create tally services and handlers
-	tallyExporter := jobs.NewTallyExporter(invoiceRepo, orderRepo, productRepo)
-	tallyImporter := jobs.NewTallyImporter(orderRepo, invoiceRepo)
+	tallyExporter := jobs.NewTallyExporter(invoiceRepo, orderRepo, productRepo, tallyConfig)
+	tallyImporter := jobs.NewTallyImporter(orderRepo, invoiceRepo, tallyConfig)
 	tallyHandlers := handlers.NewTallyHandlers(tallyExporter, tallyImporter, asynqClient)
 
 	// Create Asynq server
@@ -332,6 +345,25 @@ func main() {
 	protected.POST("/api/tally/export", tallyHandlers.ExportTallyData)
 	protected.POST("/api/tally/import", tallyHandlers.ImportTallyData)
 
+	// Subscription routes
+	protected.GET("/subscriptions", subscriptionHandlers.ListSubscriptions)
+	protected.POST("/subscriptions", subscriptionHandlers.CreateSubscription)
+	protected.GET("/subscriptions/:id", subscriptionHandlers.GetSubscriptionByID)
+	protected.PUT("/subscriptions/:id", subscriptionHandlers.UpdateSubscriptionPlan)
+	protected.POST("/subscriptions/:id/cancel", subscriptionHandlers.CancelSubscription)
+	protected.POST("/subscriptions/:id/pause", subscriptionHandlers.PauseSubscription)
+	protected.POST("/subscriptions/:id/resume", subscriptionHandlers.ResumeSubscription)
+	// Note: DeleteSubscription method not implemented in handlers
+
+	// Notification routes
+	protected.POST("/notifications/send", notificationHandlers.SendNotification)
+	// Note: List/Get/MarkAsRead/Delete notification methods not implemented in handlers
+
+	// Audit logs routes
+	protected.GET("/audit-logs", auditLogsHandlers.ListAuditLogs)
+	protected.GET("/audit-logs/:id", auditLogsHandlers.GetAuditLog)
+	// Note: GetTableAuditLogs and GetRecordAuditLogs methods not implemented
+
 	// Start server
 	portStr := os.Getenv("PORT")
 	if portStr == "" {
@@ -344,7 +376,7 @@ func main() {
 	}
 
 	log.Printf("🚀 Agromart2 server v%s starting on port %d", version, port)
-	log.Printf("Database connected: %s", databaseURL != "") // Don't log the actual URL for security
+	log.Printf("Database connected: %t", databaseURL != "") // Don't log the actual URL for security
 
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }

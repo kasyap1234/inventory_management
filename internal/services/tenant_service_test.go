@@ -780,7 +780,7 @@ func (suite *TenantServiceTestSuite) TestContextCancellation() {
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel() // Cancel immediately
 
-	bucket := "test-bucket"
+	_ = "test-bucket" // unused bucket variable
 	subdomain := "cancel-test"
 
 	req := &CreateTenantRequest{

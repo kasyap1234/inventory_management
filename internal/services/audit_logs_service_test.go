@@ -8,9 +8,7 @@ import (
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )

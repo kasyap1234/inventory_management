@@ -166,6 +166,51 @@ func (m *MockCategoryRepository) List(ctx context.Context, tenantID uuid.UUID, l
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
+func (m *MockCategoryRepository) Search(ctx context.Context, tenantID uuid.UUID, query string, limit, offset int) ([]*models.Category, error) {
+	args := m.Called(ctx, tenantID, query, limit, offset)
+	return args.Get(0).([]*models.Category), args.Error(1)
+}
+
+func (m *MockCategoryRepository) ListSubcategories(ctx context.Context, tenantID, parentID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+	args := m.Called(ctx, tenantID, parentID, limit, offset)
+	return args.Get(0).([]*models.Category), args.Error(1)
+}
+
+func (m *MockCategoryRepository) ListRootCategories(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+	args := m.Called(ctx, tenantID, limit, offset)
+	return args.Get(0).([]*models.Category), args.Error(1)
+}
+
+func (m *MockCategoryRepository) GetCategoryTree(ctx context.Context, tenantID uuid.UUID) ([]*models.Category, error) {
+	args := m.Called(ctx, tenantID)
+	return args.Get(0).([]*models.Category), args.Error(1)
+}
+
+func (m *MockCategoryRepository) ListWithChildren(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+	args := m.Called(ctx, tenantID, limit, offset)
+	return args.Get(0).([]*models.Category), args.Error(1)
+}
+
+func (m *MockCategoryRepository) BulkCreate(ctx context.Context, categories []*models.Category) error {
+	args := m.Called(ctx, categories)
+	return args.Error(0)
+}
+
+func (m *MockCategoryRepository) BulkUpdate(ctx context.Context, updates []*models.CategoryBulkUpdate) error {
+	args := m.Called(ctx, updates)
+	return args.Error(0)
+}
+
+func (m *MockCategoryRepository) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	args := m.Called(ctx, tenantID, ids)
+	return args.Error(0)
+}
+
+func (m *MockCategoryRepository) UpdateHierarchy(ctx context.Context, category *models.Category) error {
+	args := m.Called(ctx, category)
+	return args.Error(0)
+}
+
 type MockProductImageRepository struct {
 	mock.Mock
 }
@@ -198,7 +243,143 @@ func (m *MockProductImageRepository) DeleteAllByProductID(ctx context.Context, t
 	return args.Error(0)
 }
 
-type MockMinioService struct {
+type MockCacheService struct {
+	mock.Mock
+}
+
+func (m *MockCacheService) Get(ctx context.Context, key string) (string, error) {
+	args := m.Called(ctx, key)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockCacheService) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	args := m.Called(ctx, key, value, expiration)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) Delete(ctx context.Context, key string) error {
+	args := m.Called(ctx, key)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) InvalidatePattern(ctx context.Context, pattern string) error {
+	args := m.Called(ctx, pattern)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GetCategory(ctx context.Context, tenantID, categoryID uuid.UUID) (*models.Category, error) {
+	args := m.Called(ctx, tenantID, categoryID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Category), args.Error(1)
+}
+
+func (m *MockCacheService) SetCategory(ctx context.Context, tenantID uuid.UUID, category *models.Category, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, category, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) DeleteCategory(ctx context.Context, tenantID, categoryID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, categoryID)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GetInventory(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) (*models.Inventory, error) {
+	args := m.Called(ctx, tenantID, warehouseID, productID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Inventory), args.Error(1)
+}
+
+func (m *MockCacheService) SetInventory(ctx context.Context, tenantID uuid.UUID, inventory *models.Inventory, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, inventory, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) DeleteInventory(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, warehouseID, productID)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GetProduct(ctx context.Context, tenantID, productID uuid.UUID) (*models.Product, error) {
+	args := m.Called(ctx, tenantID, productID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Product), args.Error(1)
+}
+
+func (m *MockCacheService) SetProduct(ctx context.Context, tenantID uuid.UUID, product *models.Product, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, product, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) DeleteProduct(ctx context.Context, tenantID, productID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, productID)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GetTenantAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]interface{}, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]interface{}), args.Error(1)
+}
+
+func (m *MockCacheService) SetTenantAnalytics(ctx context.Context, tenantID uuid.UUID, analytics map[string]interface{}, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, analytics, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) InvalidateTenantCache(ctx context.Context, tenantID uuid.UUID) error {
+	args := m.Called(ctx, tenantID)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) InvalidateAllCache(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) SetSession(ctx context.Context, sessionID, userID string, ttl time.Duration) error {
+	args := m.Called(ctx, sessionID, userID, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GetSession(ctx context.Context, sessionID string) (string, error) {
+	args := m.Called(ctx, sessionID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockCacheService) DeleteSession(ctx context.Context, sessionID string) error {
+	args := m.Called(ctx, sessionID)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) IsRateLimited(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
+	args := m.Called(ctx, key, limit, window)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCacheService) IncrementRateLimit(ctx context.Context, key string, window time.Duration) error {
+	args := m.Called(ctx, key, window)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) SetString(ctx context.Context, key string, value string, ttl time.Duration) error {
+	args := m.Called(ctx, key, value, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) GetString(ctx context.Context, key string) (string, error) {
+	args := m.Called(ctx, key)
+	return args.String(0), args.Error(1)
+}
+
+type MockMinioService struct{
 	mock.Mock
 }
 
@@ -214,6 +395,11 @@ func (m *MockMinioService) GetPresignedURL(bucket, key string, expiry time.Durat
 
 func (m *MockMinioService) DeleteImage(ctx context.Context, bucket, key string) error {
 	args := m.Called(ctx, bucket, key)
+	return args.Error(0)
+}
+
+func (m *MockMinioService) EnsureBucketExists(ctx context.Context, bucket string) error {
+	args := m.Called(ctx, bucket)
 	return args.Error(0)
 }
 
@@ -235,7 +421,8 @@ func (suite *ProductServiceTestSuite) SetupTest() {
 	suite.mockCategoryRepo = &MockCategoryRepository{}
 	suite.mockProductImageRepo = &MockProductImageRepository{}
 	suite.mockMinioService = &MockMinioService{}
-	suite.service = NewProductService(suite.mockProductRepo, suite.mockInventoryRepo, suite.mockCategoryRepo, suite.mockProductImageRepo, suite.mockMinioService)
+	mockCacheService := &MockCacheService{}
+	suite.service = NewProductService(suite.mockProductRepo, suite.mockInventoryRepo, suite.mockCategoryRepo, suite.mockProductImageRepo, suite.mockMinioService, mockCacheService)
 	suite.tenantID = uuid.New()
 
 	suite.mockMinioService.Test(suite.T())

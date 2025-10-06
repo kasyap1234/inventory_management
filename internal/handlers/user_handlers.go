@@ -121,9 +121,6 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid tenant ID")
 	}
 
-	c.Logger().Infof("DEBUG: Requested tenant_id from body: %s", req.TenantID)
-	c.Logger().Infof("DEBUG: Parsed tenant_id UUID: %s", tenantID.String())
-
 	// Check if this is a cross-tenant operation
 	currentUserTenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
@@ -132,8 +129,6 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 
 	isCrossTenantOperation := tenantID != currentUserTenantID
 	if isCrossTenantOperation {
-		c.Logger().Infof("DEBUG: Cross-tenant operation detected - requested: %s vs user: %s",
-			tenantID.String(), currentUserTenantID.String())
 
 		// Check for admin permissions
 		err := h.rbacMiddleware.RequirePermission("users:create_any_tenant")(func(c echo.Context) error { return nil })(c)
@@ -143,9 +138,6 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 
 		// Set explicit tenant override for JWT middleware
 		c.Set("explicit_tenant_id", tenantID)
-		c.Logger().Infof("DEBUG: Cross-tenant operation granted - explicit_tenant_id set for middleware override")
-	} else {
-		c.Logger().Infof("DEBUG: Same-tenant operation - no override needed")
 	}
 
 	// Validate that tenant exists
@@ -156,8 +148,6 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 	if tenant == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Tenant does not exist")
 	}
-
-	c.Logger().Infof("DEBUG: Tenant validation successful: %s (ID: %s)", tenant.Name, tenant.ID.String())
 
 	// Check if user already exists in this tenant
 	existingUser, err := h.userRepo.GetByEmail(ctx, tenantID, req.Email)
@@ -184,24 +174,8 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 		Status:    status,
 	}
 
-	c.Logger().Infof("DEBUG: User object before repository.Create:")
-	c.Logger().Infof("DEBUG:   User ID: %s", user.ID.String())
-	c.Logger().Infof("DEBUG:   User Tenant ID: %s (expected: %s)", user.TenantID.String(), tenantID.String())
-	c.Logger().Infof("DEBUG:   User Email: %s", user.Email)
-
 	if err := h.userRepo.Create(ctx, user); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create user")
-	}
-
-	c.Logger().Infof("DEBUG: User creation successful, retrieving created user to verify tenant association...")
-	createdUser, err := h.userRepo.GetByID(ctx, tenantID, userID)
-	if err == nil && createdUser != nil {
-		c.Logger().Infof("DEBUG: Created user retrieved - Actual tenant_id: %s", createdUser.TenantID.String())
-		if createdUser.TenantID != tenantID {
-			c.Logger().Errorf("CRITICAL BUG: Created user has wrong tenant_id! Expected: %s, Actual: %s", tenantID.String(), createdUser.TenantID.String())
-		}
-	} else {
-		c.Logger().Errorf("DEBUG: Could not retrieve created user for verification")
 	}
 
 	return c.JSON(http.StatusCreated, user)

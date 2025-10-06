@@ -13,8 +13,8 @@ services:
       - DATABASE_URL=postgresql://testuser:testpass@localhost:5440/testdb
       - REDIS_URL=redis://localhost:6379
       - JWT_SECRET=development_secret_key_not_for_production
-      - SUPABASE_URL=https://wmrkmicokzlfyuwtdbkf.supabase.co
-      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndtcmttaWNva3psZnl1d3RkYmtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NzM1MjgsImV4cCI6MjA3MjE0OTUyOH0.s5I4PJXATSwfd11lJBoOEweAIYcATF6WtODckfzjzmg
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

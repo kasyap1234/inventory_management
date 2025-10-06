@@ -22,6 +22,7 @@ type Category struct {
 // CategoryBulkUpdate represents bulk update operations for categories
 type CategoryBulkUpdate struct {
 	ID          uuid.UUID  `json:"id"`
+	TenantID    uuid.UUID  `json:"tenant_id"`
 	ParentID    *uuid.UUID `json:"parent_id,omitempty"`
 	Name        *string    `json:"name,omitempty"`
 	Description *string    `json:"description,omitempty"`

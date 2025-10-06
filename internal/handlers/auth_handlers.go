@@ -188,8 +188,8 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 	}
 
 	if err := h.userRepo.Create(ctx, user); err != nil {
-		// Debug: Log the exact database error
-		log.Printf("DEBUG: Failed to create user %s for tenant %s: %v", user.Email, tenantID.String(), err)
+		// Log user creation error
+		log.Printf("Failed to create user %s for tenant %s: %v", user.Email, tenantID.String(), err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create user")
 	}
 

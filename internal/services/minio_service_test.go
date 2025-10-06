@@ -33,6 +33,11 @@ func (m *MockMinioServiceForMinioTest) DeleteImage(ctx context.Context, bucket, 
 	return args.Error(0)
 }
 
+func (m *MockMinioServiceForMinioTest) EnsureBucketExists(ctx context.Context, bucket string) error {
+	args := m.Called(ctx, bucket)
+	return args.Error(0)
+}
+
 type MinioServiceTestSuite struct {
 	suite.Suite
 	service MinioService
