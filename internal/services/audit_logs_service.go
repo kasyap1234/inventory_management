@@ -242,8 +242,12 @@ func (s *auditLogsService) ValidateAuditFilters(filters *models.AuditLogFilters)
 		return nil
 	}
 
-	// Limit date range to prevent excessive data extraction
+	// Validate date range order
 	if filters.StartDate != nil && filters.EndDate != nil {
+		if filters.StartDate.After(*filters.EndDate) {
+			return errors.New("start_date cannot be after end_date")
+		}
+		// Limit date range to prevent excessive data extraction
 		if filters.EndDate.Sub(*filters.StartDate) > 365*24*time.Hour {
 			return errors.New("date range cannot exceed 1 year")
 		}

@@ -1,0 +1,555 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  TrendingUp, 
+  DollarSign, 
+  Package, 
+  AlertTriangle,
+  BarChart3,
+  PieChart as PieChartIcon,
+  RefreshCw,
+  LineChart as LineChartIcon
+} from 'lucide-react';
+import {
+  analyticsService,
+  categoryService,
+  type AnalyticsDashboard,
+  type AnalyticsSalesTrends,
+  type ProductSales,
+  type LowStockItem,
+  type OrderStatusEntry,
+  type RevenueByCategory,
+  type InventoryValuation,
+} from '@/lib/services';
+import { formatCurrency } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import { format } from 'date-fns';
+
+type CategoryOption = {
+  id: string;
+  name: string;
+};
+
+export default function AnalyticsPage() {
+  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<AnalyticsDashboard>({
+    queryKey: ['analytics-dashboard'],
+    queryFn: analyticsService.getDashboardAnalytics,
+  });
+
+  const { data: salesTrendsData, isLoading: salesTrendLoading } = useQuery<AnalyticsSalesTrends>({
+    queryKey: ['analytics-sales-trends'],
+    queryFn: () => analyticsService.getSalesTrends(),
+  });
+
+  const { data: topProductsData, isLoading: topProductsLoading } = useQuery<ProductSales[]>({
+    queryKey: ['analytics-top-products'],
+    queryFn: () => analyticsService.getTopProducts({ limit: 10 }),
+  });
+
+  const { data: lowStockData, isLoading: lowStockLoading } = useQuery<LowStockItem[]>({
+    queryKey: ['analytics-low-stock'],
+    queryFn: () => analyticsService.getLowStockReport({ threshold: 10 }),
+  });
+
+  const { data: orderStatusData, isLoading: orderStatusLoading } = useQuery<OrderStatusEntry[]>({
+    queryKey: ['analytics-order-status'],
+    queryFn: () => analyticsService.getOrderStatusDistribution(),
+  });
+
+  const { data: revenueByCategoryData, isLoading: revenueByCategoryLoading } = useQuery<RevenueByCategory[]>({
+    queryKey: ['analytics-revenue-category'],
+    queryFn: () => analyticsService.getRevenueByCategory(),
+  });
+
+  const { data: inventoryValuationData, isLoading: inventoryValuationLoading } = useQuery<InventoryValuation>({
+    queryKey: ['analytics-inventory-valuation'],
+    queryFn: analyticsService.getInventoryValuation,
+  });
+
+  const { data: categoriesData } = useQuery<CategoryOption[]>({
+    queryKey: ['categories-all'],
+    queryFn: async () => {
+      const response = await categoryService.list();
+      const raw = Array.isArray(response.data?.categories) ? response.data.categories : [];
+      return raw
+        .filter((category): category is { id: string; name: string } =>
+          typeof category?.id === 'string' && typeof category?.name === 'string'
+        )
+        .map((category) => ({ id: category.id, name: category.name }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const salesTrendChartData = useMemo((): Array<{
+    dateISO: string | null;
+    label: string;
+    revenue: number;
+    orders: number;
+  }> => {
+    if (!salesTrendsData?.trends?.length) {
+      return [];
+    }
+
+    return salesTrendsData.trends.map((trend) => ({
+      dateISO: trend.date ?? null,
+      label: trend.date ? format(new Date(trend.date), 'MMM dd') : 'Unknown',
+      revenue: trend.salesAmount ?? 0,
+      orders: trend.orderCount ?? 0,
+    }));
+  }, [salesTrendsData]);
+
+  const revenueByCategoryChartData = useMemo((): Array<{
+    categoryId: string;
+    label: string;
+    totalRevenue: number;
+  }> => {
+    if (!revenueByCategoryData?.length) {
+      return [];
+    }
+
+    const categoryMap = new Map<string, string>(
+      (categoriesData ?? []).map((category) => [category.id, category.name])
+    );
+
+    return revenueByCategoryData.map((item) => ({
+      categoryId: item.categoryId,
+      label:
+        categoryMap.get(item.categoryId) ??
+        (item.categoryId === 'uncategorized'
+          ? 'Uncategorized'
+          : `Category ${item.categoryId.slice(0, 8)}`),
+      totalRevenue: item.totalRevenue,
+    }));
+  }, [revenueByCategoryData, categoriesData]);
+
+  const revenueChange = useMemo(() => computePercentageChange(salesTrendChartData.map((trend) => trend.revenue)), [
+    salesTrendChartData,
+  ]);
+
+  const orderCountChange = useMemo(
+    () => computePercentageChange(salesTrendChartData.map((trend) => trend.orders)),
+    [salesTrendChartData]
+  );
+
+  const statCards = useMemo(
+    () => [
+      {
+        title: 'Total Revenue',
+        value: dashboardData ? formatCurrency(dashboardData.totalSales) : '—',
+        icon: DollarSign,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+        change: revenueChange,
+        isLoading: dashboardLoading || salesTrendLoading,
+        changeLabel: 'vs. first data point',
+      },
+      {
+        title: 'Total Orders',
+        value: dashboardData?.orderCount ?? 0,
+        icon: TrendingUp,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        change: orderCountChange,
+        isLoading: dashboardLoading || salesTrendLoading,
+        changeLabel: 'vs. first data point',
+      },
+      {
+        title: 'Inventory Value',
+        value: inventoryValuationData ? formatCurrency(inventoryValuationData.totalValue) : '—',
+        icon: Package,
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50',
+        change: 'N/A',
+        isLoading: inventoryValuationLoading,
+        changeLabel: '',
+      },
+      {
+        title: 'Low Stock Items',
+        value: lowStockData?.length ?? 0,
+        icon: AlertTriangle,
+        color: 'text-orange-600',
+        bgColor: 'bg-orange-50',
+        change: 'N/A',
+        isLoading: lowStockLoading,
+        changeLabel: '',
+      },
+    ],
+    [
+      dashboardData,
+      revenueChange,
+      orderCountChange,
+      inventoryValuationData,
+      dashboardLoading,
+      salesTrendLoading,
+      inventoryValuationLoading,
+      lowStockData,
+      lowStockLoading,
+    ]
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await analyticsService.refreshAnalytics();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['analytics-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['analytics-sales-trends'] }),
+        queryClient.invalidateQueries({ queryKey: ['analytics-top-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['analytics-low-stock'] }),
+        queryClient.invalidateQueries({ queryKey: ['analytics-order-status'] }),
+        queryClient.invalidateQueries({ queryKey: ['analytics-revenue-category'] }),
+        queryClient.invalidateQueries({ queryKey: ['analytics-inventory-valuation'] }),
+      ]);
+    } catch (error) {
+      console.error('Failed to refresh analytics:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const topProducts: ProductSales[] = topProductsData ?? [];
+  const lowStockItems: LowStockItem[] = lowStockData ?? [];
+  const orderStatus: OrderStatusEntry[] = orderStatusData ?? [];
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            Analytics & Reports
+          </h1>
+          <p className="text-gray-600 mt-2 text-lg">
+            Comprehensive insights into your business performance
+          </p>
+        </div>
+        <Button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transition-all"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh Data
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((stat, index) => (
+          <Card
+            key={stat.title}
+            className="card-hover border-0 shadow-md bg-white overflow-hidden"
+            style={{ animationDelay: `${index * 100}ms` }}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-6">
+              <CardTitle className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                {stat.title}
+              </CardTitle>
+              <div className={`p-3 rounded-xl ${stat.bgColor} shadow-sm`}>
+                <stat.icon className={`h-6 w-6 ${stat.color}`} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-gray-900 mb-1">
+                {stat.isLoading ? (
+                  <div className="h-9 w-24 bg-gray-200 rounded animate-pulse" />
+                ) : typeof stat.value === 'number' ? (
+                  stat.value.toLocaleString()
+                ) : (
+                  stat.value
+                )}
+              </div>
+              {stat.change !== 'N/A' && (
+                <p className="text-sm text-gray-500 flex items-center">
+                  <span
+                    className={`font-medium mr-1 ${
+                      stat.change.startsWith('-')
+                        ? 'text-red-600'
+                        : stat.change.startsWith('+')
+                        ? 'text-green-600'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    {stat.change}
+                  </span>
+                  {stat.changeLabel}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-0 shadow-md">
+        <CardHeader className="border-b border-gray-100">
+          <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+            <LineChartIcon className="h-5 w-5 mr-2 text-blue-600" />
+            Sales Trend (Last 30 Days)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {salesTrendLoading ? (
+            <div className="h-72 bg-gray-200 rounded animate-pulse" />
+          ) : salesTrendChartData.length ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={salesTrendChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="label" stroke="#888" />
+                <YAxis stroke="#888" />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  formatter={(value: number | string, name: string) =>
+                    name === 'revenue' ? formatCurrency(Number(value)) : `${Number(value)} orders`
+                  }
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#3b82f6"
+                  strokeWidth={3}
+                  dot={{ fill: '#3b82f6', r: 4 }}
+                  activeDot={{ r: 6 }}
+                  name="Revenue"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="orders"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Orders"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center text-gray-500 py-10">
+              No sales data available for the selected period.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-0 shadow-md">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+              <BarChart3 className="h-5 w-5 mr-2 text-blue-600" />
+              Top Selling Products
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {topProductsLoading ? (
+              <div className="h-80 bg-gray-200 rounded animate-pulse" />
+            ) : topProducts.length ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={topProducts.slice(0, 5)} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="productName"
+                    stroke="#888"
+                    angle={-15}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis stroke="#888" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value: number | string, name: string) =>
+                      name === 'unitsSold' ? `${Number(value)} units` : formatCurrency(Number(value))
+                    }
+                  />
+                  <Legend />
+                  <Bar dataKey="unitsSold" fill="#3b82f6" name="Units Sold" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-gray-500 py-10">No product sales data available.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2 text-orange-600" />
+              Low Stock Alert
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {lowStockLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 bg-gray-200 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : lowStockItems.length ? (
+              <div className="space-y-4">
+                {lowStockItems.slice(0, 5).map((item) => (
+                  <div
+                    key={`${item.productId}-${item.warehouseId}`}
+                    className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">{item.productName || 'Unnamed Product'}</p>
+                      <p className="text-sm text-gray-600">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-orange-600">{item.currentStock} units</p>
+                      <p className="text-xs text-gray-500">Threshold: {item.threshold}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-12">
+                <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                All items are well stocked
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+              <PieChartIcon className="h-5 w-5 mr-2 text-purple-600" />
+              Order Status Distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {orderStatusLoading ? (
+              <div className="h-80 bg-gray-200 rounded animate-pulse" />
+            ) : orderStatus.length ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie
+                    data={orderStatus}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ status, count, percent }) =>
+                      `${status}: ${count} (${Math.round((percent ?? 0) * 100)}%)`
+                    }
+                    outerRadius={100}
+                    dataKey="count"
+                    nameKey="status"
+                  >
+                    {orderStatus.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={STATUS_COLORS[entry.status] || STATUS_COLORS.default}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(
+                      value: number | string,
+                      name: string,
+                      entry: { payload?: OrderStatusEntry }
+                    ) => {
+                      const count = typeof value === 'number' ? value : Number(value) || 0;
+                      const percent = entry?.payload?.percent ?? 0;
+                      return [`${count} orders (${Math.round(percent * 100)}%)`, name];
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-gray-500 py-10">No orders available for the selected range.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md lg:col-span-2">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+              <DollarSign className="h-5 w-5 mr-2 text-green-600" />
+              Revenue by Category
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {revenueByCategoryLoading ? (
+              <div className="h-80 bg-gray-200 rounded animate-pulse" />
+            ) : revenueByCategoryChartData.length ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={revenueByCategoryChartData} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="label"
+                    stroke="#888"
+                    angle={-15}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis stroke="#888" />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    formatter={(value: number | string) => formatCurrency(Number(value))}
+                  />
+                  <Legend />
+                  <Bar dataKey="totalRevenue" fill="#10b981" name="Revenue" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-gray-500 py-10">No category revenue data available.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Helper constants and functions
+const STATUS_COLORS: Record<string, string> = {
+  pending: '#f59e0b',
+  approved: '#3b82f6',
+  processing: '#8b5cf6',
+  shipped: '#06b6d4',
+  delivered: '#10b981',
+  cancelled: '#ef4444',
+  default: '#6b7280',
+};
+
+function computePercentageChange(values: number[]): string {
+  if (!values || values.length < 2) {
+    return 'N/A';
+  }
+
+  const filtered = values.filter((value) => typeof value === 'number');
+  if (filtered.length < 2) {
+    return 'N/A';
+  }
+
+  const first = filtered[0];
+  const last = filtered[filtered.length - 1];
+
+  if (first === 0) {
+    return last === 0 ? '0%' : 'N/A';
+  }
+
+  const change = ((last - first) / Math.abs(first)) * 100;
+  const sign = change > 0 ? '+' : '';
+  return `${sign}${change.toFixed(1)}%`;
+}

@@ -354,3 +354,96 @@ func (h *NotificationHandlers) RenderTemplate(c echo.Context) error {
 		"subject":       template.Subject,
 	})
 }
+
+// ListNotifications lists notifications for a tenant
+func (h *NotificationHandlers) ListNotifications(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Parse query parameters for filtering
+	notificationType := c.QueryParam("type")
+	eventType := c.QueryParam("event_type")
+	status := c.QueryParam("status") // e.g., "pending", "sent", "failed"
+
+	notifications, err := h.notificationSvc.ListNotifications(ctx, tenantID, notificationType, eventType, status)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"notifications": notifications,
+		"count":         len(notifications),
+	})
+}
+
+// GetNotification gets a specific notification by ID
+func (h *NotificationHandlers) GetNotification(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Notification ID is required")
+	}
+
+	notification, err := h.notificationSvc.GetNotification(ctx, tenantID, id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Notification not found")
+	}
+
+	return c.JSON(http.StatusOK, notification)
+}
+
+// MarkNotificationAsRead marks a notification as read
+func (h *NotificationHandlers) MarkNotificationAsRead(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Notification ID is required")
+	}
+
+	if err := h.notificationSvc.MarkAsRead(ctx, tenantID, id); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Notification marked as read",
+	})
+}
+
+// DeleteNotification deletes a notification
+func (h *NotificationHandlers) DeleteNotification(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	id := c.Param("id")
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Notification ID is required")
+	}
+
+	if err := h.notificationSvc.DeleteNotification(ctx, tenantID, id); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Notification deleted successfully",
+	})
+}

@@ -21,6 +21,7 @@ type SubscriptionService interface {
 	Pause(ctx context.Context, tenantID, subscriptionID uuid.UUID) error
 	Resume(ctx context.Context, tenantID, subscriptionID uuid.UUID) error
 	UpdatePlan(ctx context.Context, tenantID, subscriptionID uuid.UUID, newPlanID string) error
+	Delete(ctx context.Context, tenantID, subscriptionID uuid.UUID) error
 	GetSubscriptionByRazorpayID(ctx context.Context, tenantID uuid.UUID, razorpayID string) (*models.Subscription, error)
 	FindByRazorpayIDCrossTenant(ctx context.Context, razorpayID string) (*models.Subscription, error)
 	ValidateBilling(ctx context.Context, tenantID uuid.UUID, subscriptionID uuid.UUID) error
@@ -314,4 +315,25 @@ func (s *subscriptionService) GetAvailablePlans() map[string]PlanConfig {
 		result[k] = v
 	}
 	return result
+}
+
+// Delete permanently deletes a subscription
+func (s *subscriptionService) Delete(ctx context.Context, tenantID, subscriptionID uuid.UUID) error {
+	// Get existing subscription
+	subscription, err := s.subscriptionRepo.GetByID(ctx, tenantID, subscriptionID)
+	if err != nil {
+		return err
+	}
+
+	// Cancel in Razorpay first if it exists
+	if subscription.RazorpaySubscriptionID != nil {
+		_, err = s.razorpaySvc.CancelSubscription(ctx, *subscription.RazorpaySubscriptionID)
+		if err != nil {
+			// Log error but continue with deletion
+			return fmt.Errorf("failed to cancel Razorpay subscription before deletion: %v", err)
+		}
+	}
+
+	// Delete from database
+	return s.subscriptionRepo.Delete(ctx, tenantID, subscriptionID)
 }

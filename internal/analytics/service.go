@@ -491,3 +491,307 @@ func (a *AnalyticsService) InvalidateTenantAnalyticsCache(ctx context.Context, t
 	cacheKey := fmt.Sprintf("agromart:analytics:%s", tenantID.String())
 	return a.cacheService.Delete(ctx, cacheKey)
 }
+
+// ProductSales represents product sales statistics
+type ProductSales struct {
+	ProductID   uuid.UUID `json:"product_id"`
+	ProductName string    `json:"product_name"`
+	TotalSales  float64   `json:"total_sales"`
+	UnitsSold   int       `json:"units_sold"`
+	OrderCount  int       `json:"order_count"`
+}
+
+// GetTopSellingProducts returns the top selling products by revenue
+func (a *AnalyticsService) GetTopSellingProducts(ctx context.Context, tenantID uuid.UUID, limit int) ([]ProductSales, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100 // Cap at 100
+	}
+
+	// Query orders and aggregate by product
+	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0) // Get all orders for calculation
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch orders: %w", err)
+	}
+
+	// Aggregate sales by product
+	productSalesMap := make(map[uuid.UUID]*ProductSales)
+
+	for _, order := range orders {
+		if order.Status == "cancelled" {
+			continue // Skip cancelled orders
+		}
+
+		if _, exists := productSalesMap[order.ProductID]; !exists {
+			// Fetch product details
+			product, err := a.productRepo.GetByID(ctx, tenantID, order.ProductID)
+			if err != nil {
+				log.Printf("Failed to get product %s: %v", order.ProductID.String(), err)
+				continue
+			}
+
+			productSalesMap[order.ProductID] = &ProductSales{
+				ProductID:   order.ProductID,
+				ProductName: product.Name,
+				TotalSales:  0,
+				UnitsSold:   0,
+				OrderCount:  0,
+			}
+		}
+
+		sales := productSalesMap[order.ProductID]
+		sales.TotalSales += float64(order.Quantity) * order.UnitPrice
+		sales.UnitsSold += order.Quantity
+		sales.OrderCount++
+	}
+
+	// Convert map to slice and sort by total sales
+	var productSales []ProductSales
+	for _, ps := range productSalesMap {
+		productSales = append(productSales, *ps)
+	}
+
+	// Sort by total sales descending
+	for i := 0; i < len(productSales); i++ {
+		for j := i + 1; j < len(productSales); j++ {
+			if productSales[j].TotalSales > productSales[i].TotalSales {
+				productSales[i], productSales[j] = productSales[j], productSales[i]
+			}
+		}
+	}
+
+	// Return top N products
+	if len(productSales) > limit {
+		productSales = productSales[:limit]
+	}
+
+	log.Printf("Retrieved top %d selling products for tenant %s", len(productSales), tenantID.String())
+	return productSales, nil
+}
+
+// LowStockItem represents a product with low inventory
+type LowStockItem struct {
+	ProductID    uuid.UUID `json:"product_id"`
+	ProductName  string    `json:"product_name"`
+	WarehouseID  uuid.UUID `json:"warehouse_id"`
+	CurrentStock int       `json:"current_stock"`
+	Threshold    int       `json:"threshold"`
+	UnitPrice    float64   `json:"unit_price"`
+	StockValue   float64   `json:"stock_value"`
+}
+
+// GetLowStockReport generates a report of products below the stock threshold
+func (a *AnalyticsService) GetLowStockReport(ctx context.Context, tenantID uuid.UUID, threshold int) ([]LowStockItem, error) {
+	if threshold <= 0 {
+		threshold = 10 // Default threshold
+	}
+
+	// Get all inventory items
+	inventories, err := a.inventoryRepo.List(ctx, tenantID, 100000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch inventories: %w", err)
+	}
+
+	var lowStockItems []LowStockItem
+
+	for _, inv := range inventories {
+		if inv.Quantity >= threshold {
+			continue // Skip items above threshold
+		}
+
+		// Fetch product details
+		product, err := a.productRepo.GetByID(ctx, tenantID, inv.ProductID)
+		if err != nil {
+			log.Printf("Failed to get product %s: %v", inv.ProductID.String(), err)
+			continue
+		}
+
+		stockValue := float64(inv.Quantity) * product.UnitPrice
+
+		lowStockItems = append(lowStockItems, LowStockItem{
+			ProductID:    inv.ProductID,
+			ProductName:  product.Name,
+			WarehouseID:  inv.WarehouseID,
+			CurrentStock: inv.Quantity,
+			Threshold:    threshold,
+			UnitPrice:    product.UnitPrice,
+			StockValue:   stockValue,
+		})
+	}
+
+	// Sort by current stock ascending (most critical first)
+	for i := 0; i < len(lowStockItems); i++ {
+		for j := i + 1; j < len(lowStockItems); j++ {
+			if lowStockItems[j].CurrentStock < lowStockItems[i].CurrentStock {
+				lowStockItems[i], lowStockItems[j] = lowStockItems[j], lowStockItems[i]
+			}
+		}
+	}
+
+	log.Printf("Generated low stock report for tenant %s: %d items below threshold %d",
+		tenantID.String(), len(lowStockItems), threshold)
+
+	return lowStockItems, nil
+}
+
+// InventoryValuation represents the total valuation of inventory
+type InventoryValuation struct {
+	TenantID       uuid.UUID              `json:"tenant_id"`
+	TotalValue     float64                `json:"total_value"`
+	TotalItems     int                    `json:"total_items"`
+	TotalQuantity  int                    `json:"total_quantity"`
+	ByWarehouse    map[string]float64     `json:"by_warehouse"`
+	ByCategory     map[string]float64     `json:"by_category"`
+	LastCalculated time.Time              `json:"last_calculated"`
+}
+
+// CalculateInventoryValuation calculates the total value of inventory
+func (a *AnalyticsService) CalculateInventoryValuation(ctx context.Context, tenantID uuid.UUID) (*InventoryValuation, error) {
+	valuation := &InventoryValuation{
+		TenantID:       tenantID,
+		TotalValue:     0,
+		TotalItems:     0,
+		TotalQuantity:  0,
+		ByWarehouse:    make(map[string]float64),
+		ByCategory:     make(map[string]float64),
+		LastCalculated: time.Now(),
+	}
+
+	// Get all inventory items
+	inventories, err := a.inventoryRepo.List(ctx, tenantID, 100000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch inventories: %w", err)
+	}
+
+	for _, inv := range inventories {
+		// Fetch product details
+		product, err := a.productRepo.GetByID(ctx, tenantID, inv.ProductID)
+		if err != nil {
+			log.Printf("Failed to get product %s: %v", inv.ProductID.String(), err)
+			continue
+		}
+
+		itemValue := float64(inv.Quantity) * product.UnitPrice
+		valuation.TotalValue += itemValue
+		valuation.TotalItems++
+		valuation.TotalQuantity += inv.Quantity
+
+		// Group by warehouse
+		warehouseKey := inv.WarehouseID.String()
+		valuation.ByWarehouse[warehouseKey] += itemValue
+
+		// Group by category if available
+		if product.CategoryID != nil {
+			categoryKey := product.CategoryID.String()
+			valuation.ByCategory[categoryKey] += itemValue
+		}
+	}
+
+	log.Printf("Calculated inventory valuation for tenant %s: Total value: %.2f, Items: %d",
+		tenantID.String(), valuation.TotalValue, valuation.TotalItems)
+
+	return valuation, nil
+}
+
+// GetRevenueByCategory calculates revenue breakdown by product category
+func (a *AnalyticsService) GetRevenueByCategory(ctx context.Context, tenantID uuid.UUID) (map[string]float64, error) {
+	revenueByCategory := make(map[string]float64)
+
+	// Get all orders
+	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch orders: %w", err)
+	}
+
+	for _, order := range orders {
+		if order.Status == "cancelled" {
+			continue // Skip cancelled orders
+		}
+
+		// Fetch product details
+		product, err := a.productRepo.GetByID(ctx, tenantID, order.ProductID)
+		if err != nil {
+			log.Printf("Failed to get product %s: %v", order.ProductID.String(), err)
+			continue
+		}
+
+		revenue := float64(order.Quantity) * order.UnitPrice
+
+		// Group by category
+		if product.CategoryID != nil {
+			categoryKey := product.CategoryID.String()
+			revenueByCategory[categoryKey] += revenue
+		} else {
+			revenueByCategory["uncategorized"] += revenue
+		}
+	}
+
+	log.Printf("Calculated revenue by category for tenant %s: %d categories",
+		tenantID.String(), len(revenueByCategory))
+
+	return revenueByCategory, nil
+}
+
+// GetOrderStatusDistribution returns the count of orders by status
+func (a *AnalyticsService) GetOrderStatusDistribution(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
+	distribution := make(map[string]int)
+
+	// Initialize with common statuses
+	distribution["pending"] = 0
+	distribution["approved"] = 0
+	distribution["processing"] = 0
+	distribution["shipped"] = 0
+	distribution["delivered"] = 0
+	distribution["cancelled"] = 0
+
+	// Get all orders
+	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch orders: %w", err)
+	}
+
+	// Count orders by status
+	for _, order := range orders {
+		distribution[order.Status]++
+	}
+
+	log.Printf("Calculated order status distribution for tenant %s: %d total orders",
+		tenantID.String(), len(orders))
+
+	return distribution, nil
+}
+
+// RefreshTenantAnalytics triggers a full refresh of analytics data for a tenant
+func (a *AnalyticsService) RefreshTenantAnalytics(ctx context.Context, tenantID uuid.UUID) error {
+	log.Printf("Starting analytics refresh for tenant %s", tenantID.String())
+
+	// Calculate fresh analytics
+	data, err := a.CalculateTenantAnalytics(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to calculate tenant analytics: %w", err)
+	}
+
+	// Convert AnalyticsData to map for caching
+	analyticsMap := map[string]interface{}{
+		"tenant_id":            data.TenantID,
+		"total_sales":          data.TotalSales,
+		"total_stock_value":    data.TotalStockValue,
+		"gst_collected":        data.GSTCollected,
+		"order_count":          data.OrderCount,
+		"low_stock_items_count": data.LowStockItemsCount,
+		"last_updated":         data.LastUpdated,
+	}
+
+	// Cache the results
+	cacheDuration := 15 * time.Minute // Cache for 15 minutes
+
+	if err := a.cacheService.SetTenantAnalytics(ctx, tenantID, analyticsMap, cacheDuration); err != nil {
+		log.Printf("Failed to cache analytics for tenant %s: %v", tenantID.String(), err)
+		// Don't fail the operation if caching fails
+	}
+
+	log.Printf("Analytics refresh completed for tenant %s", tenantID.String())
+	return nil
+}

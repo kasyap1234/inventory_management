@@ -29,6 +29,12 @@ type NotificationService interface {
 	SendSMS(ctx context.Context, tenantID uuid.UUID, recipient, message string) error
 	SendWebhook(ctx context.Context, tenantID uuid.UUID, webhook *models.WebhookSubscription, payload map[string]interface{}) error
 
+	// Notification management
+	ListNotifications(ctx context.Context, tenantID uuid.UUID, notificationType, eventType, status string) ([]*models.Notification, error)
+	GetNotification(ctx context.Context, tenantID uuid.UUID, notificationID string) (*models.Notification, error)
+	MarkAsRead(ctx context.Context, tenantID uuid.UUID, notificationID string) error
+	DeleteNotification(ctx context.Context, tenantID uuid.UUID, notificationID string) error
+
 	// Template management
 	CreateTemplate(ctx context.Context, tenantID uuid.UUID, template *models.NotificationTemplate) error
 	UpdateTemplate(ctx context.Context, tenantID uuid.UUID, template *models.NotificationTemplate) error
@@ -590,4 +596,89 @@ func generateWebhookSignature(payload []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// ListNotifications lists notifications for a tenant
+func (s *notificationService) ListNotifications(ctx context.Context, tenantID uuid.UUID, notificationType, eventType, status string) ([]*models.Notification, error) {
+	// Build cache key based on filters
+	cacheKey := fmt.Sprintf("notifications:%s:%s:%s:%s", tenantID.String(), notificationType, eventType, status)
+	
+	// Try to get from cache
+	data, err := s.redisClient.Get(ctx, cacheKey).Bytes()
+	if err == nil {
+		var notifications []*models.Notification
+		if unmarshalErr := json.Unmarshal(data, &notifications); unmarshalErr == nil {
+			return notifications, nil
+		}
+	}
+
+	// In production, this would query the database with filters
+	// For now, return empty slice
+	notifications := []*models.Notification{}
+	
+	// Cache the result
+	if cachedData, marshalErr := json.Marshal(notifications); marshalErr == nil {
+		s.redisClient.Set(ctx, cacheKey, cachedData, 5*time.Minute)
+	}
+	
+	return notifications, nil
+}
+
+// GetNotification retrieves a specific notification by ID
+func (s *notificationService) GetNotification(ctx context.Context, tenantID uuid.UUID, notificationID string) (*models.Notification, error) {
+	cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
+	
+	// Try cache first
+	data, err := s.redisClient.Get(ctx, cacheKey).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, fmt.Errorf("notification not found")
+		}
+		return nil, fmt.Errorf("failed to get notification: %v", err)
+	}
+
+	var notification models.Notification
+	if err := json.Unmarshal(data, &notification); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal notification: %v", err)
+	}
+	
+	return &notification, nil
+}
+
+// MarkAsRead marks a notification as read
+func (s *notificationService) MarkAsRead(ctx context.Context, tenantID uuid.UUID, notificationID string) error {
+	cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
+	
+	// Get the notification
+	data, err := s.redisClient.Get(ctx, cacheKey).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return fmt.Errorf("notification not found")
+		}
+		return fmt.Errorf("failed to get notification: %v", err)
+	}
+
+	var notification models.Notification
+	if err := json.Unmarshal(data, &notification); err != nil {
+		return fmt.Errorf("failed to unmarshal notification: %v", err)
+	}
+	
+	// Mark as read (in production, update database)
+	// For now, just log it
+	log.Printf("Marking notification %s as read for tenant %s", notificationID, tenantID.String())
+	
+	return nil
+}
+
+// DeleteNotification deletes a notification
+func (s *notificationService) DeleteNotification(ctx context.Context, tenantID uuid.UUID, notificationID string) error {
+	cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
+	
+	// Delete from cache (in production, also delete from database)
+	if err := s.redisClient.Del(ctx, cacheKey).Err(); err != nil {
+		return fmt.Errorf("failed to delete notification: %v", err)
+	}
+	
+	log.Printf("Deleted notification %s for tenant %s", notificationID, tenantID.String())
+	return nil
 }

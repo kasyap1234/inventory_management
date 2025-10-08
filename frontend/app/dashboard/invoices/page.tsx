@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Download, Eye } from 'lucide-react';
+import { Plus, Search, Download, Eye, FileText, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,8 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isBulkGenerateOpen, setIsBulkGenerateOpen] = useState(false);
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
   const { data: invoices, isLoading } = useQuery<{ invoices: Invoice[] }>({
@@ -57,6 +59,66 @@ export default function InvoicesPage() {
     return matchesStatus;
   }) || [];
 
+  const bulkDownloadPDFs = useMutation({
+    mutationFn: async (invoiceIds: string[]) => {
+      for (const id of invoiceIds) {
+        const response = await api.post(`/invoices/${id}/generate-pdf`, {}, {
+          responseType: 'blob',
+        });
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `invoice-${id}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        // Small delay between downloads
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    },
+    onSuccess: () => {
+      setSelectedInvoices([]);
+    },
+  });
+
+  const bulkDeleteInvoices = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map(id => api.delete(`/invoices/${id}`)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      setSelectedInvoices([]);
+    },
+  });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedInvoices(filteredInvoices.map(i => i.id));
+    } else {
+      setSelectedInvoices([]);
+    }
+  };
+
+  const handleSelectInvoice = (invoiceId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedInvoices(prev => [...prev, invoiceId]);
+    } else {
+      setSelectedInvoices(prev => prev.filter(id => id !== invoiceId));
+    }
+  };
+
+  const handleBulkDownload = () => {
+    if (confirm(`Download ${selectedInvoices.length} PDF(s)?`)) {
+      bulkDownloadPDFs.mutate(selectedInvoices);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (confirm(`Are you sure you want to delete ${selectedInvoices.length} invoice(s)?`)) {
+      bulkDeleteInvoices.mutate(selectedInvoices);
+    }
+  };
+
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'paid': return 'success';
@@ -77,11 +139,41 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
           <p className="text-gray-500 mt-1">Manage billing and invoices</p>
+          {selectedInvoices.length > 0 && (
+            <p className="text-blue-600 text-sm mt-1">
+              {selectedInvoices.length} invoice(s) selected
+            </p>
+          )}
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedInvoices.length > 0 && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleBulkDownload}
+                disabled={bulkDownloadPDFs.isPending}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {bulkDownloadPDFs.isPending ? 'Downloading...' : 'Download PDFs'}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBulkDelete}
+              >
+                <Trash className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+            </>
+          )}
+          <Button variant="outline" onClick={() => setIsBulkGenerateOpen(true)}>
+            <FileText className="h-4 w-4 mr-2" />
+            Bulk Generate
+          </Button>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Invoice
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -155,6 +247,14 @@ export default function InvoicesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedInvoices.length === filteredInvoices.length && filteredInvoices.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Invoice ID</TableHead>
                   <TableHead>GSTIN</TableHead>
                   <TableHead>Total Amount</TableHead>
@@ -170,6 +270,14 @@ export default function InvoicesPage() {
                   
                   return (
                     <TableRow key={invoice.id}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoices.includes(invoice.id)}
+                          onChange={(e) => handleSelectInvoice(invoice.id, e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                      </TableCell>
                       <TableCell className="font-mono text-sm">
                         {invoice.id.substring(0, 8)}...
                       </TableCell>
@@ -216,6 +324,12 @@ export default function InvoicesPage() {
       <InvoiceFormDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
+        orders={orders?.orders || []}
+      />
+
+      <BulkInvoiceGenerateDialog
+        open={isBulkGenerateOpen}
+        onOpenChange={setIsBulkGenerateOpen}
         orders={orders?.orders || []}
       />
     </div>
@@ -393,6 +507,223 @@ function InvoiceFormDialog({
             </Button>
             <Button type="submit" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? 'Creating...' : 'Create Invoice'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkInvoiceGenerateDialog({
+  open,
+  onOpenChange,
+  orders,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  orders: Order[];
+}) {
+  const queryClient = useQueryClient();
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [defaultGSTRate, setDefaultGSTRate] = useState(18);
+  const [defaultGSTIN, setDefaultGSTIN] = useState('');
+  const [defaultHSN, setDefaultHSN] = useState('');
+
+  const bulkGenerateMutation = useMutation({
+    mutationFn: async () => {
+      const invoices = selectedOrders.map(orderId => {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return null;
+        
+        const taxableAmount = order.quantity * order.unit_price;
+        const gstAmount = (taxableAmount * defaultGSTRate) / 100;
+        
+        return {
+          order_id: orderId,
+          gstin: defaultGSTIN,
+          hsn_sac: defaultHSN,
+          taxable_amount: taxableAmount,
+          gst_rate: defaultGSTRate,
+          cgst: gstAmount / 2,
+          sgst: gstAmount / 2,
+          igst: 0,
+          total_amount: taxableAmount + gstAmount,
+        };
+      }).filter(Boolean);
+
+      await api.post('/invoices/bulk-create', { invoices });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      onOpenChange(false);
+      setSelectedOrders([]);
+    },
+  });
+
+  const handleToggleOrder = (orderId: string) => {
+    setSelectedOrders(prev =>
+      prev.includes(orderId)
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedOrders(eligibleOrders.map(o => o.id));
+    } else {
+      setSelectedOrders([]);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedOrders.length === 0) {
+      alert('Please select at least one order');
+      return;
+    }
+    if (confirm(`Generate ${selectedOrders.length} invoice(s)?`)) {
+      bulkGenerateMutation.mutate();
+    }
+  };
+
+  // Filter orders that can have invoices generated (delivered orders without invoices)
+  const eligibleOrders = orders.filter(o => 
+    ['approved', 'delivered', 'shipped'].includes(o.status)
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Bulk Generate Invoices</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <p className="text-sm text-blue-800">
+              Generate invoices for multiple orders at once with default GST settings
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default GST Rate (%) *</label>
+              <Input
+                required
+                type="number"
+                step="0.01"
+                value={defaultGSTRate}
+                onChange={(e) => setDefaultGSTRate(parseFloat(e.target.value))}
+                placeholder="18"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default GSTIN</label>
+              <Input
+                value={defaultGSTIN}
+                onChange={(e) => setDefaultGSTIN(e.target.value)}
+                placeholder="22AAAAA0000A1Z5"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default HSN/SAC</label>
+              <Input
+                value={defaultHSN}
+                onChange={(e) => setDefaultHSN(e.target.value)}
+                placeholder="2301"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Select Orders</label>
+              <label className="flex items-center text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedOrders.length === eligibleOrders.length && eligibleOrders.length > 0}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="mr-2 h-4 w-4 rounded border-gray-300"
+                />
+                Select All
+              </label>
+            </div>
+            <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
+              {eligibleOrders.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No eligible orders found. Orders must be approved, shipped, or delivered.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {eligibleOrders.map((order) => {
+                    const amount = order.quantity * order.unit_price;
+                    const gstAmount = (amount * defaultGSTRate) / 100;
+                    const total = amount + gstAmount;
+                    
+                    return (
+                      <label
+                        key={order.id}
+                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(order.id)}
+                          onChange={() => handleToggleOrder(order.id)}
+                          className="h-4 w-4 text-blue-600 rounded mr-3"
+                        />
+                        <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              Order #{order.id.substring(0, 8)}...
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {order.order_type}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">Qty: {order.quantity}</div>
+                            <div className="text-xs text-gray-500">@ {formatCurrency(order.unit_price)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">Taxable: {formatCurrency(amount)}</div>
+                            <div className="text-xs text-gray-500">GST: {formatCurrency(gstAmount)}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold text-gray-900">
+                              {formatCurrency(total)}
+                            </div>
+                            <Badge variant={order.status === 'delivered' ? 'success' : 'warning'}>
+                              {order.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {selectedOrders.length > 0 && (
+            <div className="bg-green-50 p-3 rounded-lg">
+              <p className="text-sm text-green-800">
+                <strong>{selectedOrders.length}</strong> invoice(s) will be generated
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={bulkGenerateMutation.isPending || selectedOrders.length === 0}
+            >
+              {bulkGenerateMutation.isPending ? 'Generating...' : `Generate ${selectedOrders.length} Invoice(s)`}
             </Button>
           </div>
         </form>

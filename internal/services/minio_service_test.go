@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +125,7 @@ func (suite *MinioServiceTestSuite) TestGetPresignedURL_Success() {
 	bucketName := "product-images"
 	objectName := "test-presigned.jpg"
 	expiry := 1 * time.Hour
-	expectedURL := "https://presigned-url.example.com/test-presigned.jpg?param=test"
+	expectedURL := "https://presigned-url.example.com/product-images/test-presigned.jpg?param=test"
 
 	suite.mockService.On("GetPresignedURL", bucketName, objectName, expiry).Return(expectedURL, nil).Once()
 
@@ -440,6 +441,14 @@ func (suite *MinioServiceTestSuite) validateBucketObject(bucket, object string) 
 	}
 	if object == "" {
 		return "object cannot be empty"
+	}
+	// Check for invalid characters in bucket name
+	if strings.Contains(bucket, "/") || strings.Contains(bucket, "\\") {
+		return "invalid bucket name"
+	}
+	// Check for path traversal in object name
+	if strings.Contains(object, "..") {
+		return "invalid object name"
 	}
 	if len(bucket) < 3 {
 		return "bucket name too short"

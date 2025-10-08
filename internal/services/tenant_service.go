@@ -46,8 +46,8 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 	if req.Name == "" || req.Subdomain == "" {
 		return nil, errors.New("name and subdomain are required")
 	}
-	// Basic validation
-	if strings.TrimSpace(req.Subdomain) != req.Subdomain {
+	// Basic validation - check for any spaces in subdomain
+	if strings.Contains(req.Subdomain, " ") {
 		return nil, errors.New("subdomain cannot have spaces")
 	}
 

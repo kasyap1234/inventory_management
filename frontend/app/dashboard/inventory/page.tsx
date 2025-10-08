@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Edit, AlertTriangle, PlusCircle, MinusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,7 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingInventory, setEditingInventory] = useState<Inventory | null>(null);
+  const [adjustingInventory, setAdjustingInventory] = useState<Inventory | null>(null);
   const queryClient = useQueryClient();
 
   const { data: inventory, isLoading } = useQuery<{ inventory: InventoryWithDetails[] }>({
@@ -171,13 +172,23 @@ export default function InventoryPage() {
                       </TableCell>
                       <TableCell>{formatDateTime(item.last_updated)}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingInventory(item)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAdjustingInventory(item)}
+                          >
+                            <PlusCircle className="h-4 w-4 mr-1" />
+                            Adjust
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingInventory(item)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -197,6 +208,16 @@ export default function InventoryPage() {
         inventory={editingInventory}
         products={products?.products || []}
         warehouses={warehouses?.warehouses || []}
+      />
+
+      <StockAdjustmentDialog
+        open={!!adjustingInventory}
+        onOpenChange={(open) => {
+          if (!open) setAdjustingInventory(null);
+        }}
+        inventory={adjustingInventory}
+        product={products?.products?.find(p => p.id === adjustingInventory?.product_id)}
+        warehouse={warehouses?.warehouses?.find(w => w.id === adjustingInventory?.warehouse_id)}
       />
     </div>
   );
@@ -297,6 +318,192 @@ function InventoryFormDialog({
             </Button>
             <Button type="submit" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StockAdjustmentDialog({
+  open,
+  onOpenChange,
+  inventory,
+  product,
+  warehouse,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  inventory: Inventory | null;
+  product?: Product;
+  warehouse?: Warehouse;
+}) {
+  const queryClient = useQueryClient();
+  const [adjustment, setAdjustment] = useState(0);
+  const [reason, setReason] = useState('');
+
+  const adjustMutation = useMutation({
+    mutationFn: async () => {
+      if (!inventory) return;
+      await api.post(`/inventory/${inventory.id}/adjust`, {
+        adjustment,
+        reason,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      onOpenChange(false);
+      setAdjustment(0);
+      setReason('');
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.error?.message || 'Failed to adjust stock');
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inventory) return;
+    
+    const newQuantity = inventory.quantity + adjustment;
+    if (newQuantity < 0) {
+      alert('Adjustment would result in negative stock. Please adjust the amount.');
+      return;
+    }
+    
+    if (confirm(`Adjust stock from ${inventory.quantity} to ${newQuantity}?`)) {
+      adjustMutation.mutate();
+    }
+  };
+
+  if (!inventory) return null;
+
+  const newQuantity = inventory.quantity + adjustment;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adjust Stock</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-600">Product</label>
+            <div className="text-base font-semibold">{product?.name || 'Unknown Product'}</div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-600">Warehouse</label>
+            <div className="text-base font-semibold">{warehouse?.name || 'Unknown Warehouse'}</div>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-md">
+            <label className="text-sm font-medium text-gray-600">Current Quantity</label>
+            <div className="text-3xl font-bold text-gray-900 mt-1">{inventory.quantity}</div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Adjustment *</label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAdjustment(Math.max(adjustment - 10, -inventory.quantity))}
+              >
+                <MinusCircle className="h-4 w-4 mr-1" />
+                -10
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAdjustment(Math.max(adjustment - 1, -inventory.quantity))}
+              >
+                <MinusCircle className="h-4 w-4 mr-1" />
+                -1
+              </Button>
+              <Input
+                required
+                type="number"
+                value={adjustment}
+                onChange={(e) => setAdjustment(parseInt(e.target.value) || 0)}
+                className="text-center font-mono text-lg"
+                placeholder="0"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAdjustment(adjustment + 1)}
+              >
+                <PlusCircle className="h-4 w-4 mr-1" />
+                +1
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAdjustment(adjustment + 10)}
+              >
+                <PlusCircle className="h-4 w-4 mr-1" />
+                +10
+              </Button>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              {adjustment > 0 && `Adding ${adjustment} units`}
+              {adjustment < 0 && `Removing ${Math.abs(adjustment)} units`}
+              {adjustment === 0 && 'Enter adjustment amount'}
+            </p>
+          </div>
+
+          <div className={`p-4 rounded-md ${
+            newQuantity < 0 ? 'bg-red-50' : 
+            newQuantity === 0 ? 'bg-orange-50' : 
+            'bg-green-50'
+          }`}>
+            <label className="text-sm font-medium text-gray-600">New Quantity</label>
+            <div className={`text-3xl font-bold mt-1 ${
+              newQuantity < 0 ? 'text-red-600' : 
+              newQuantity === 0 ? 'text-orange-600' : 
+              'text-green-600'
+            }`}>
+              {newQuantity}
+            </div>
+            {newQuantity < 0 && (
+              <p className="text-sm text-red-600 mt-1">⚠️ Cannot have negative stock</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reason *</label>
+            <Input
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g., Damaged goods, Stock count correction, Return from customer"
+            />
+            <p className="text-xs text-gray-500">This will be recorded in the audit log</p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                onOpenChange(false);
+                setAdjustment(0);
+                setReason('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={adjustMutation.isPending || adjustment === 0 || !reason || newQuantity < 0}
+            >
+              {adjustMutation.isPending ? 'Adjusting...' : 'Adjust Stock'}
             </Button>
           </div>
         </form>

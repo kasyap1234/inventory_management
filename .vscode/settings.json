@@ -1,1 +1,21 @@
-{}
+{
+    "zencoder.mcpServers": {
+        "sequential thinking": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-sequential-thinking"
+            ]
+        },
+        "firecrawl": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "firecrawl-mcp"
+            ],
+            "env": {
+                "FIRECRAWL_API_KEY": "YOUR_API_KEY"
+            }
+        }
+    }
+}

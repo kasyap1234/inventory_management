@@ -6,6 +6,7 @@ import (
 	"html"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -391,4 +392,13 @@ func ValidateDateRange(startDate, endDate time.Time) error {
 	}
 
 	return nil
+}
+
+// ParseIntOrDefault parses a string to int, returning default value on error
+func ParseIntOrDefault(s string, defaultValue int) int {
+	val, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultValue
+	}
+	return val
 }

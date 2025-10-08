@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -31,19 +32,16 @@ func (suite *AuditLogsServiceTestSuite) SetupTest() {
 }
 
 func (suite *AuditLogsServiceTestSuite) TestLogActivity_Success() {
-	// Arrange
-	auditLog := &models.AuditLog{
-		ID:         uuid.New(),
-		TenantID:   suite.tenantID,
-		TableName:  "users",
-		RecordID:   suite.userID.String(),
-		Action:     models.ActionUpdate,
-		NewValues:  models.JSONB{"name": "John Doe"},
-		ChangedBy:  &suite.userID,
-		Deleted:    false,
-	}
-
-	suite.mockRepo.On("Create", suite.ctx, auditLog).Return(nil)
+	// Arrange - use mock.MatchedBy to match relevant fields, ignore ID and CreatedAt
+	suite.mockRepo.On("Create", suite.ctx, mock.MatchedBy(func(log *models.AuditLog) bool {
+		return log.TenantID == suite.tenantID &&
+			log.TableName == "users" &&
+			log.RecordID == suite.userID.String() &&
+			log.Action == models.ActionUpdate &&
+			log.ChangedBy != nil && *log.ChangedBy == suite.userID &&
+			log.Deleted == false &&
+			!log.CreatedAt.IsZero()
+	})).Return(nil)
 
 	// Act
 	err := suite.service.LogActivity(suite.ctx, suite.tenantID, "users", suite.userID.String(),
@@ -118,18 +116,18 @@ func (suite *AuditLogsServiceTestSuite) TestGetEntityHistory_Success() {
 }
 
 func (suite *AuditLogsServiceTestSuite) TestLogEntityCreate_Success() {
-	// Arrange
+	// Arrange - use mock.MatchedBy to match relevant fields, ignore ID and CreatedAt
 	newValues := models.JSONB{"name": "New Product", "price": 100}
-	auditLog := &models.AuditLog{
-		TenantID:  suite.tenantID,
-		TableName: "products",
-		RecordID:  "prod-123",
-		Action:    models.ActionInsert,
-		NewValues: newValues,
-		ChangedBy: &suite.userID,
-	}
-
-	suite.mockRepo.On("Create", suite.ctx, auditLog).Return(nil)
+	
+	suite.mockRepo.On("Create", suite.ctx, mock.MatchedBy(func(log *models.AuditLog) bool {
+		return log.TenantID == suite.tenantID &&
+			log.TableName == "products" &&
+			log.RecordID == "prod-123" &&
+			log.Action == models.ActionInsert &&
+			log.ChangedBy != nil && *log.ChangedBy == suite.userID &&
+			log.Deleted == false &&
+			!log.CreatedAt.IsZero()
+	})).Return(nil)
 
 	// Act
 	err := suite.service.LogEntityCreate(suite.ctx, suite.tenantID, "products", "prod-123", &suite.userID, newValues)

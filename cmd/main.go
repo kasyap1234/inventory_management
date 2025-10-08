@@ -57,7 +57,7 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer pool.Close()
-	
+
 	// Verify database connection
 	if err := pool.Ping(context.Background()); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
@@ -125,7 +125,8 @@ func main() {
 	// Create analytics service
 	analyticsSvc := analytics.NewAnalyticsService(orderRepo, invoiceRepo, inventoryRepo, productRepo, cacheSvc, pool)
 
-	rbacService := services.NewRBACService(userRoleRepo, rolePermissionRepo, permissionRepo)
+	// Create RBAC service with caching for improved performance
+	rbacService := services.NewRBACServiceWithCache(userRoleRepo, rolePermissionRepo, permissionRepo, cacheSvc)
 
 	// RBAC middleware
 	rbacMiddleware := middleware.NewRBACMiddleware(rbacService)
@@ -180,8 +181,20 @@ func main() {
 		inventoryService,
 		rbacMiddleware,
 	)
-	orderHandlers := handlers.NewOrderHandlers(orderSvc)
-	invoiceHandlers := handlers.NewInvoiceHandlers(invoiceSvc, orderSvc, productSvc, minioSvc)
+	orderHandlers := handlers.NewOrderHandlers(orderSvc, rbacMiddleware)
+	invoiceHandlers := handlers.NewInvoiceHandlers(invoiceSvc, orderSvc, productSvc, minioSvc, rbacMiddleware)
+
+	jobHandlers := handlers.NewJobHandlers(
+		tallyExporter,
+		tallyImporter,
+		jobs.NewInventoryAlertService(inventoryRepo, productRepo),
+		jobs.NewAnalyticsRefreshService(analyticsSvc),
+		analyticsSvc,
+		orderRepo,
+		invoiceRepo,
+		productRepo,
+		inventoryRepo,
+	)
 
 	// Create subscription, notification, and audit log handlers
 	subscriptionRepo := repositories.NewSubscriptionRepo(pool)
@@ -194,10 +207,10 @@ func main() {
 	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
 	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
 	twilioPhone := os.Getenv("TWILIO_PHONE_NUMBER")
-	
+
 	notificationService := services.NewNotificationService(
-		redisAddr, 
-		redisPassword, 
+		redisAddr,
+		redisPassword,
 		redisDB,
 		sendgridAPIKey,
 		twilioAccountSID,
@@ -209,6 +222,9 @@ func main() {
 	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
 	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
 	auditLogsHandlers := handlers.NewAuditLogsHandlers(auditLogsService, rbacMiddleware)
+
+	// Create analytics handlers
+	analyticsHandlers := handlers.NewAnalyticsHandlers(analyticsSvc, rbacMiddleware)
 
 	// Create Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -247,17 +263,17 @@ func main() {
 
 	// Performance middleware
 	perfMiddleware := middleware.NewPerformanceMiddleware()
-	
+
 	// Global middleware (order matters for performance)
 	e.Use(echoMiddleware.Recover())
-	e.Use(perfMiddleware.Gzip())                     // Enable gzip compression
-	e.Use(perfMiddleware.RateLimiter())              // Rate limiting (100 req/min per IP)
+	e.Use(perfMiddleware.Gzip())                    // Enable gzip compression
+	e.Use(perfMiddleware.RateLimiter())             // Rate limiting (100 req/min per IP)
 	e.Use(perfMiddleware.Timeout(30 * time.Second)) // Request timeout
-	e.Use(perfMiddleware.BodyLimit("10M"))           // Limit request body size
+	e.Use(perfMiddleware.BodyLimit("10M"))          // Limit request body size
 	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.CORS())
 	e.Use(echoMiddleware.RemoveTrailingSlash())
-	
+
 	// Request ID for tracing
 	e.Use(echoMiddleware.RequestID())
 
@@ -292,7 +308,6 @@ func main() {
 	auth.POST("/login", authHandlers.Login)
 	auth.POST("/refresh", authHandlers.Refresh)
 
-
 	// Protected routes (require JWT and RBAC)
 	protected := v1.Group("")
 	protected.Use(middleware.JWTMiddleware(userRepo, jwtSecret))
@@ -317,7 +332,6 @@ func main() {
 	// Business routes
 	protected.GET("/categories", categoryHandlers.ListCategories)
 	protected.POST("/categories", categoryHandlers.CreateCategory)
-	protected.POST("/categories", categoryHandlers.CreateCategory)
 	protected.GET("/categories/:id", categoryHandlers.GetCategory)
 	protected.PUT("/categories/:id", categoryHandlers.UpdateCategory)
 	protected.DELETE("/categories/:id", categoryHandlers.DeleteCategory)
@@ -331,6 +345,7 @@ func main() {
 	protected.GET("/products/search", productHandlers.SearchProducts)
 	protected.POST("/products/bulk/update", productHandlers.BulkUpdateProducts)
 	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts)
+	protected.POST("/products/bulk-price-update", productHandlers.BulkPriceUpdate)
 
 	// Product image routes
 	protected.POST("/products/:id/images", productHandlers.UploadProductImage)
@@ -376,9 +391,16 @@ func main() {
 	protected.GET("/orders/:id", orderHandlers.GetOrder)
 	protected.PUT("/orders/:id", orderHandlers.UpdateOrder)
 	protected.DELETE("/orders/:id", orderHandlers.DeleteOrder)
+	protected.POST("/orders/:id/approve", orderHandlers.ApproveOrder)
+	protected.POST("/orders/:id/process", orderHandlers.ProcessOrder)
+	protected.POST("/orders/:id/receive", orderHandlers.ReceiveOrder)
+	protected.POST("/orders/:id/ship", orderHandlers.ShipOrder)
+	protected.POST("/orders/:id/deliver", orderHandlers.DeliverOrder)
+	protected.POST("/orders/:id/cancel", orderHandlers.CancelOrder)
 
 	protected.GET("/invoices", invoiceHandlers.ListInvoices)
 	protected.POST("/invoices", invoiceHandlers.CreateInvoice)
+	protected.POST("/invoices/bulk-create", invoiceHandlers.BulkCreateInvoices)
 	protected.GET("/invoices/:id", invoiceHandlers.GetInvoice)
 	protected.PUT("/invoices/:id", invoiceHandlers.UpdateInvoice)
 	protected.PUT("/invoices/:id/status", invoiceHandlers.UpdateInvoiceStatus)
@@ -398,16 +420,47 @@ func main() {
 	protected.POST("/subscriptions/:id/cancel", subscriptionHandlers.CancelSubscription)
 	protected.POST("/subscriptions/:id/pause", subscriptionHandlers.PauseSubscription)
 	protected.POST("/subscriptions/:id/resume", subscriptionHandlers.ResumeSubscription)
-	// Note: DeleteSubscription method not implemented in handlers
+	protected.DELETE("/subscriptions/:id", subscriptionHandlers.DeleteSubscription)
+	protected.GET("/subscriptions/plans", subscriptionHandlers.GetAvailablePlans)
 
 	// Notification routes
 	protected.POST("/notifications/send", notificationHandlers.SendNotification)
-	// Note: List/Get/MarkAsRead/Delete notification methods not implemented in handlers
+	protected.GET("/notifications", notificationHandlers.ListNotifications)
+	protected.GET("/notifications/:id", notificationHandlers.GetNotification)
+	protected.PUT("/notifications/:id/read", notificationHandlers.MarkNotificationAsRead)
+	protected.DELETE("/notifications/:id", notificationHandlers.DeleteNotification)
+
+	// Job management routes
+	protected.GET("/jobs", jobHandlers.ListJobs)
+	protected.GET("/jobs/:id", jobHandlers.GetJob)
+	protected.POST("/jobs/:id/retry", jobHandlers.RetryJob)
+	protected.POST("/jobs/:id/cancel", jobHandlers.CancelJob)
+	protected.GET("/jobs/stats", jobHandlers.GetJobStats)
 
 	// Audit logs routes
 	protected.GET("/audit-logs", auditLogsHandlers.ListAuditLogs)
 	protected.GET("/audit-logs/:id", auditLogsHandlers.GetAuditLog)
-	// Note: GetTableAuditLogs and GetRecordAuditLogs methods not implemented
+	protected.GET("/audit-logs/entity/:table/:record_id", auditLogsHandlers.GetEntityHistory)
+	protected.GET("/audit-logs/user/:user_id", auditLogsHandlers.GetUserActivity)
+	protected.GET("/audit-logs/summary", auditLogsHandlers.GetAuditSummary)
+	protected.GET("/audit-logs/tables", auditLogsHandlers.GetTableNames)
+	protected.GET("/audit-logs/actions", auditLogsHandlers.GetActions)
+
+	// Advanced order management routes
+	protected.GET("/orders/search", orderHandlers.SearchOrders)
+	protected.GET("/orders/:id/history", orderHandlers.GetOrderHistory)
+	protected.GET("/orders/analytics", orderHandlers.GetOrderAnalytics)
+
+	// Analytics routes
+	protected.GET("/analytics/dashboard", analyticsHandlers.GetDashboardAnalytics)
+	protected.GET("/analytics/sales-trends", analyticsHandlers.GetSalesTrends)
+	protected.GET("/analytics/gst-totals", analyticsHandlers.GetGSTTotals)
+	protected.GET("/analytics/top-products", analyticsHandlers.GetTopProducts)
+	protected.GET("/analytics/low-stock", analyticsHandlers.GetLowStockReport)
+	protected.GET("/analytics/inventory-valuation", analyticsHandlers.GetInventoryValuation)
+	protected.GET("/analytics/revenue-by-category", analyticsHandlers.GetRevenueByCategory)
+	protected.GET("/analytics/order-status", analyticsHandlers.GetOrderStatusDistribution)
+	protected.POST("/analytics/refresh", analyticsHandlers.RefreshAnalytics)
 
 	// Start server
 	portStr := os.Getenv("PORT")

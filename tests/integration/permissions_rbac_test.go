@@ -99,9 +99,9 @@ func (suite *RBACIntegrationTestSuite) TestEndToEndPermissionWorkflow_UserHasPer
 	ctx := context.Background()
 
 	// Setup: User has role with required permission
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
 
 	hasPermission, err := suite.rbacService.UserHasPermission(ctx, suite.userID, suite.tenantID, suite.testPermission.Name)
 
@@ -114,7 +114,7 @@ func (suite *RBACIntegrationTestSuite) TestEndToEndPermissionWorkflow_UserHasPer
 	ctx := context.Background()
 
 	// Setup: User has no roles
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{}, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{}, nil).Once()
 
 	hasPermission, err := suite.rbacService.UserHasPermission(ctx, suite.userID, suite.tenantID, "any:permission")
 
@@ -127,8 +127,8 @@ func (suite *RBACIntegrationTestSuite) TestEndToEndPermissionWorkflow_UserHasPer
 	ctx := context.Background()
 
 	// Setup: User has role but role has no permissions
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{}, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{}, nil).Once()
 
 	hasPermission, err := suite.rbacService.UserHasPermission(ctx, suite.userID, suite.tenantID, "missing:permission")
 
@@ -145,12 +145,12 @@ func (suite *RBACIntegrationTestSuite) TestMultiTenantPermissionIsolation() {
 
 	// Setup tenant 1: User has permission
 	userRole1 := &models.UserRole{ID: uuid.New(), UserID: suite.userID, RoleID: suite.testRole.ID}
-	suite.mockUserRoleRepo.On("ListByUser", ctx, tenantID1, suite.userID).Return([]*models.UserRole{userRole1}, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, tenantID1, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, tenantID1, suite.userID).Return([]*models.UserRole{userRole1}, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, tenantID1, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
 
 	// Setup tenant 2: Same user but different tenant has no permissions
-	suite.mockUserRoleRepo.On("ListByUser", ctx, tenantID2, suite.userID).Return([]*models.UserRole{}, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, tenantID2, suite.userID).Return([]*models.UserRole{}, nil).Once()
 
 	// Test: User has permission in tenant 1 but not in tenant 2
 	hasPermission1, err := suite.rbacService.UserHasPermission(ctx, suite.userID, tenantID1, suite.testPermission.Name)
@@ -166,9 +166,9 @@ func (suite *RBACIntegrationTestSuite) TestMultiTenantPermissionIsolation() {
 func (suite *RBACIntegrationTestSuite) TestGetUserPermissions_Success() {
 	ctx := context.Background()
 
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
 
 	permissions, err := suite.rbacService.GetUserPermissions(ctx, suite.userID, suite.tenantID)
 
@@ -181,7 +181,7 @@ func (suite *RBACIntegrationTestSuite) TestGetUserPermissions_Success() {
 func (suite *RBACIntegrationTestSuite) TestGetUserPermissions_NoRoles() {
 	ctx := context.Background()
 
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{}, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{}, nil).Once()
 
 	permissions, err := suite.rbacService.GetUserPermissions(ctx, suite.userID, suite.tenantID)
 
@@ -226,11 +226,11 @@ func (suite *RBACIntegrationTestSuite) TestMultipleRolesMultiplePermissions() {
 	rolePermissions1 := []*models.RolePermission{suite.testRolePermission}
 	rolePermissions2 := []*models.RolePermission{rolePermission2}
 
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return(userRoles, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return(rolePermissions1, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, role2.ID).Return(rolePermissions2, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, permission2.ID).Return(permission2, nil).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return(userRoles, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return(rolePermissions1, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, role2.ID).Return(rolePermissions2, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).Return(suite.testPermission, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, permission2.ID).Return(permission2, nil).Once()
 
 	permissions, err := suite.rbacService.GetUserPermissions(ctx, suite.userID, suite.tenantID)
 
@@ -252,24 +252,24 @@ func (suite *RBACIntegrationTestSuite) TestRepositoryErrorHandling() {
 	ctx := context.Background()
 
 	// Test error in user role repository
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return((*[]*models.UserRole)(nil), assert.AnError).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole(nil), assert.AnError).Once()
 
 	hasPermission, err := suite.rbacService.UserHasPermission(ctx, suite.userID, suite.tenantID, "any:permission")
 	assert.Error(suite.T(), err)
 	assert.False(suite.T(), hasPermission, "Error should result in permission denial")
 
 	// Test error in role permission repository
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return((*[]*models.RolePermission)(nil), assert.AnError).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission(nil), assert.AnError).Once()
 
 	hasPermission, err = suite.rbacService.UserHasPermission(ctx, suite.userID, suite.tenantID, suite.testPermission.Name)
 	assert.Error(suite.T(), err)
 	assert.False(suite.T(), hasPermission, "Repository error should result in permission denial")
 
 	// Test error in permission repository
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return((*models.Permission)(nil), assert.AnError).Once()
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).Return((*models.Permission)(nil), assert.AnError).Once()
 
 	hasPermission, err = suite.rbacService.UserHasPermission(ctx, suite.userID, suite.tenantID, suite.testPermission.Name)
 	assert.Error(suite.T(), err)
@@ -306,10 +306,10 @@ func (suite *RBACIntegrationTestSuite) TestPermissionsDeduplication() {
 	rolePermissions1 := []*models.RolePermission{suite.testRolePermission}
 	rolePermissions2 := []*models.RolePermission{rolePermission2}
 
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return(userRoles, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return(rolePermissions1, nil).Once()
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, role2.ID).Return(rolePermissions2, nil).Once()
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return(suite.testPermission, nil).Twice() // Same permission retrieved twice
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).Return(userRoles, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).Return(rolePermissions1, nil).Once()
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, role2.ID).Return(rolePermissions2, nil).Once()
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).Return(suite.testPermission, nil).Twice() // Same permission retrieved twice
 
 	permissions, err := suite.rbacService.GetUserPermissions(ctx, suite.userID, suite.tenantID)
 
@@ -449,9 +449,15 @@ func (suite *RBACIntegrationTestSuite) TestConcurrentPermissionAccess() {
 	ctx := context.Background()
 
 	// Setup expectations that should work for multiple concurrent calls
-	suite.mockUserRoleRepo.On("ListByUser", ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{suite.testUserRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", ctx, suite.tenantID, suite.testRole.ID).Return([]*models.RolePermission{suite.testRolePermission}, nil)
-	suite.mockPermissionRepo.On("GetByID", ctx, suite.testPermission.ID).Return(suite.testPermission, nil)
+	suite.mockUserRoleRepo.On("ListByUser", mock.Anything, suite.tenantID, suite.userID).
+		Return([]*models.UserRole{suite.testUserRole}, nil).
+		Times(10)
+	suite.mockRolePermissionRepo.On("ListByRole", mock.Anything, suite.tenantID, suite.testRole.ID).
+		Return([]*models.RolePermission{suite.testRolePermission}, nil).
+		Times(10)
+	suite.mockPermissionRepo.On("GetByID", mock.Anything, suite.testPermission.ID).
+		Return(suite.testPermission, nil).
+		Times(10)
 
 	// Run multiple concurrent permission checks
 	done := make(chan bool, 10)

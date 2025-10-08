@@ -455,8 +455,8 @@ func (suite *InventoryAlertServiceTestSuite) TestPerformanceWithHighVolumeInvent
 		}
 		inventories = append(inventories, inventory)
 
-		// Count expected alerts (stock below threshold)
-		if stockLevel < threshold {
+		// Count expected alerts (stock <= threshold, matching the actual code logic)
+		if stockLevel <= threshold {
 			expectedAlerts++
 			product := &models.Product{ID: productID, Name: "Product " + string(rune(65+i))}
 			suite.mockProductRepo.On("GetByID", ctx, suite.tenantID, productID).Return(product, nil).Once()

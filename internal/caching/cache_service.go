@@ -72,13 +72,37 @@ func NewRedisCacheService(addr, password string, db int) CacheService {
 		Addr:     parsedAddr,
 		Password: password,
 		DB:       db,
+
+		// Connection timeouts (prevent hanging connections)
+		DialTimeout:  5 * time.Second,  // Maximum time to establish connection
+		ReadTimeout:  3 * time.Second,  // Maximum time to read response
+		WriteTimeout: 3 * time.Second,  // Maximum time to write request
+
+		// Connection pool settings (optimize resource usage)
+		PoolSize:     50,               // Maximum number of socket connections
+		MinIdleConns: 10,               // Minimum idle connections to maintain
+		PoolTimeout:  4 * time.Second,  // Maximum time to wait for connection from pool
+
+		// Retry configuration (handle transient failures)
+		MaxRetries:      3,                     // Retry failed commands up to 3 times
+		MinRetryBackoff: 8 * time.Millisecond,  // Minimum backoff between retries
+		MaxRetryBackoff: 512 * time.Millisecond, // Maximum backoff between retries
+
+		// Health check and cleanup
+		IdleTimeout:        5 * time.Minute, // Close idle connections after 5 minutes
+		IdleCheckFrequency: 1 * time.Minute, // Check for idle connections every minute
 	})
 
-	// Test initial connectivity
-	if pingErr := client.Ping(context.Background()).Err(); pingErr != nil {
+	// Test initial connectivity with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if pingErr := client.Ping(ctx).Err(); pingErr != nil {
 		log.Printf("WARN: Redis ping failed on initialization: %v (address: %s)", pingErr, parsedAddr)
+		log.Printf("WARN: Redis commands may fail until connection is established")
 	} else {
-		log.Printf("DEBUG: Redis connection established successfully")
+		log.Printf("INFO: Redis connection established successfully")
+		log.Printf("INFO: Redis pool configured: PoolSize=%d, MinIdleConns=%d", 50, 10)
 	}
 
 	return &redisCacheService{client: client}

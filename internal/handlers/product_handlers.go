@@ -69,9 +69,9 @@ func (h *ProductHandlers) validateUUID(idStr string) (uuid.UUID, error) {
 		return uuid.Nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format: empty string")
 	}
 
-	// Validate exact length of 36 characters
-	if len(idStr) != 36 {
-		log.Printf("PRODUCT_HANDLER_UUID_VALIDATION: Incorrect length - expected 36, got %d", len(idStr))
+	// Validate minimum length required to inspect hyphen positions
+	if len(idStr) < 24 {
+		log.Printf("PRODUCT_HANDLER_UUID_VALIDATION: Incorrect length - expected at least 24, got %d", len(idStr))
 		return uuid.Nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format: length must be 36 characters (including hyphens)")
 	}
 
@@ -79,6 +79,12 @@ func (h *ProductHandlers) validateUUID(idStr string) (uuid.UUID, error) {
 	if idStr[8] != '-' || idStr[13] != '-' || idStr[18] != '-' || idStr[23] != '-' {
 		log.Printf("PRODUCT_HANDLER_UUID_VALIDATION: Invalid hyphen placement: positions 8,13,18,23 should be hyphens")
 		return uuid.Nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23")
+	}
+
+	// Validate exact length to ensure canonical UUID format
+	if len(idStr) != 36 {
+		log.Printf("PRODUCT_HANDLER_UUID_VALIDATION: Incorrect length - expected 36, got %d", len(idStr))
+		return uuid.Nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid UUID format: length must be 36 characters (including hyphens)")
 	}
 
 	// Fallback validation using standard UUID parser to catch any remaining format issues
@@ -191,6 +197,84 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 		"products": products,
 		"limit":    limit,
 		"offset":   offset,
+	})
+}
+
+// BulkPriceUpdate handles POST /products/bulk-price-update
+func (h *ProductHandlers) BulkPriceUpdate(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var req struct {
+		ProductIDs []string `json:"product_ids"`
+		Adjustment struct {
+			Type  string  `json:"type"`  // "percentage" or "fixed"
+			Value float64 `json:"value"` // percentage or fixed amount
+		} `json:"adjustment"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if len(req.ProductIDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "At least one product ID is required")
+	}
+
+	if req.Adjustment.Type != "percentage" && req.Adjustment.Type != "fixed" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Adjustment type must be 'percentage' or 'fixed'")
+	}
+
+	// Validate and convert product IDs
+	productUUIDs := make([]uuid.UUID, len(req.ProductIDs))
+	for i, idStr := range req.ProductIDs {
+		id, err := h.validateUUID(idStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid product ID: "+idStr)
+		}
+		productUUIDs[i] = id
+	}
+
+	// Update prices for all products
+	updatedCount := 0
+	for _, productID := range productUUIDs {
+		// Get existing product
+		product, err := h.productService.GetByID(ctx, tenantID, productID)
+		if err != nil {
+			log.Printf("Failed to get product %s: %v", productID, err)
+			continue
+		}
+
+		// Calculate new price
+		newPrice := product.UnitPrice
+		if req.Adjustment.Type == "percentage" {
+			newPrice = product.UnitPrice * (1 + req.Adjustment.Value/100)
+		} else {
+			newPrice = product.UnitPrice + req.Adjustment.Value
+		}
+
+		// Ensure price doesn't go negative
+		if newPrice < 0 {
+			newPrice = 0
+		}
+
+		// Update product price
+		product.UnitPrice = newPrice
+		if err := h.productService.Update(ctx, tenantID, productID, product); err != nil {
+			log.Printf("Failed to update product %s: %v", productID, err)
+			continue
+		}
+		updatedCount++
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":       "Bulk price update completed",
+		"updated_count": updatedCount,
+		"total_count":   len(req.ProductIDs),
 	})
 }
 

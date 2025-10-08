@@ -43,6 +43,16 @@ type orderService struct {
 	inventoryService InventoryService
 }
 
+// validOrderStatusTransitions defines allowed status transitions
+var validOrderStatusTransitions = map[string][]string{
+	"pending":    {"approved", "cancelled"},
+	"approved":   {"processing", "cancelled"},
+	"processing": {"shipped", "cancelled"},
+	"shipped":    {"delivered", "cancelled"},
+	"delivered":  {}, // Terminal state - no further transitions
+	"cancelled":  {}, // Terminal state - no further transitions
+}
+
 // NewOrderService creates a new order service instance
 func NewOrderService(orderRepo repositories.OrderRepository, inventoryRepo repositories.InventoryRepository, inventoryService InventoryService) OrderServiceInterface {
 	return &orderService{
@@ -50,6 +60,51 @@ func NewOrderService(orderRepo repositories.OrderRepository, inventoryRepo repos
 		inventoryRepo:    inventoryRepo,
 		inventoryService: inventoryService,
 	}
+}
+
+// ValidateStatusTransition validates if a status transition is allowed
+func (s *orderService) ValidateStatusTransition(currentStatus, newStatus string) error {
+	if currentStatus == newStatus {
+		return nil // Same status is allowed (no-op)
+	}
+
+	allowedTransitions, exists := validOrderStatusTransitions[currentStatus]
+	if !exists {
+		return fmt.Errorf("unknown current status: %s", currentStatus)
+	}
+
+	// Check if new status is in allowed transitions
+	for _, allowed := range allowedTransitions {
+		if allowed == newStatus {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid status transition from '%s' to '%s'. Allowed transitions: %v", 
+		currentStatus, newStatus, allowedTransitions)
+}
+
+// UpdateOrderStatus updates order status with validation
+func (s *orderService) UpdateOrderStatus(ctx context.Context, tenantID, orderID uuid.UUID, newStatus string) error {
+	// Get current order
+	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
+	if err != nil {
+		return fmt.Errorf("failed to get order: %w", err)
+	}
+	if order == nil {
+		return fmt.Errorf("order not found")
+	}
+
+	// Validate transition
+	if err := s.ValidateStatusTransition(order.Status, newStatus); err != nil {
+		return err
+	}
+
+	// Update status
+	order.Status = newStatus
+	order.UpdatedAt = time.Now()
+
+	return s.orderRepo.Update(ctx, order)
 }
 
 // CreateOrder creates a new order with enhanced security and validation
@@ -262,7 +317,7 @@ func (s *orderService) SearchOrders(ctx context.Context, tenantID uuid.UUID, fil
 	return orders, nil
 }
 
-// ApproveOrder changes order status to approved
+// ApproveOrder changes order status to approved with validation
 func (s *orderService) ApproveOrder(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	// Get the order
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
@@ -273,9 +328,9 @@ func (s *orderService) ApproveOrder(ctx context.Context, tenantID, orderID uuid.
 		return fmt.Errorf("order not found")
 	}
 
-	// Can only approve pending orders
-	if order.Status != "pending" {
-		return fmt.Errorf("can only approve orders with status 'pending', current status: %s", order.Status)
+	// Validate status transition
+	if err := s.ValidateStatusTransition(order.Status, "approved"); err != nil {
+		return err
 	}
 
 	order.Status = "approved"
@@ -294,9 +349,9 @@ func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.
 		return common.SecureErrorMessage("order lookup", fmt.Errorf("order not found"))
 	}
 
-	if order.Status != "approved" {
-		return common.SecureErrorMessage("validate order status for processing",
-			fmt.Errorf("invalid status transition attempted"))
+	// Validate status transition
+	if err := s.ValidateStatusTransition(order.Status, "processing"); err != nil {
+		return common.SecureErrorMessage("validate order status for processing", err)
 	}
 
 	// Additional validation: ensure data integrity
@@ -349,8 +404,10 @@ func (s *orderService) ReceiveOrder(ctx context.Context, tenantID, orderID uuid.
 	if order.OrderType != "purchase" {
 		return fmt.Errorf("receive operation only valid for purchase orders")
 	}
-	if order.Status != "processing" {
-		return fmt.Errorf("can only receive orders with status 'processing', current status: %s", order.Status)
+
+	// Validate status transition (for purchase orders, processing -> delivered)
+	if err := s.ValidateStatusTransition(order.Status, "delivered"); err != nil {
+		return err
 	}
 
 		// Add quantity to inventory using AdjustStock (handles existing or new)
@@ -376,8 +433,9 @@ func (s *orderService) ShipOrder(ctx context.Context, tenantID, orderID uuid.UUI
 		return fmt.Errorf("order not found")
 	}
 
-	if order.Status != "processing" {
-		return fmt.Errorf("can only ship orders with status 'processing', current status: %s", order.Status)
+	// Validate status transition
+	if err := s.ValidateStatusTransition(order.Status, "shipped"); err != nil {
+		return err
 	}
 
 	order.Status = "shipped"
@@ -399,8 +457,9 @@ func (s *orderService) DeliverOrder(ctx context.Context, tenantID, orderID uuid.
 		return fmt.Errorf("order not found")
 	}
 
-	if order.Status != "shipped" {
-		return fmt.Errorf("can only deliver orders with status 'shipped', current status: %s", order.Status)
+	// Validate status transition
+	if err := s.ValidateStatusTransition(order.Status, "delivered"); err != nil {
+		return err
 	}
 
 	order.Status = "delivered"
@@ -419,10 +478,9 @@ func (s *orderService) CancelOrder(ctx context.Context, tenantID, orderID uuid.U
 		return common.SecureErrorMessage("order lookup", fmt.Errorf("order not found"))
 	}
 
-	// Can only cancel if not yet delivered or cancelled
-	if order.Status == "delivered" || order.Status == "cancelled" {
-		return common.SecureErrorMessage("validate cancellation eligibility",
-			fmt.Errorf("order cannot be cancelled in current status"))
+	// Validate status transition (any status can be cancelled except terminal states)
+	if err := s.ValidateStatusTransition(order.Status, "cancelled"); err != nil {
+		return common.SecureErrorMessage("validate cancellation eligibility", err)
 	}
 
 	// Restore inventory if order was processing with validation

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"agromart2/internal/common"
+	"agromart2/internal/middleware"
 	"bytes"
 	"context"
 	"fmt"
@@ -23,15 +24,17 @@ type InvoiceHandlers struct {
 	orderService   services.OrderServiceInterface
 	productService services.ProductService
 	minioSvc       services.MinioService
+	rbacMiddleware *middleware.RBACMiddleware
 }
 
 // NewInvoiceHandlers creates a new invoice handlers instance
-func NewInvoiceHandlers(invoiceService services.InvoiceServiceInterface, orderService services.OrderServiceInterface, productService services.ProductService, minioSvc services.MinioService) *InvoiceHandlers {
+func NewInvoiceHandlers(invoiceService services.InvoiceServiceInterface, orderService services.OrderServiceInterface, productService services.ProductService, minioSvc services.MinioService, rbacMiddleware *middleware.RBACMiddleware) *InvoiceHandlers {
 	return &InvoiceHandlers{
 		invoiceService: invoiceService,
 		orderService:   orderService,
 		productService: productService,
 		minioSvc:       minioSvc,
+		rbacMiddleware: rbacMiddleware,
 	}
 }
 
@@ -103,25 +106,36 @@ func (h *InvoiceHandlers) CreateInvoice(c echo.Context) error {
 		UpdatedAt:      time.Now(),
 	}
 
-	// Calculate GST based on order details with null safety
-	if order.Quantity <= 0 || order.UnitPrice <= 0 {
-		return common.SendValidationError(c, "order_details",
-			"Invalid order quantity or unit price for invoice calculation")
+	// Validate quantity and unit price for overflow protection
+	if err := common.ValidateQuantityPrice(order.Quantity, order.UnitPrice); err != nil {
+		return common.SendValidationError(c, "order_details", err.Error())
 	}
 
-	totalAmount := float64(order.Quantity) * order.UnitPrice
-	invoice.TotalAmount = totalAmount
+	// Calculate total amount with overflow protection
+	totalAmount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+	if err != nil {
+		return common.SendValidationError(c, "total_amount", fmt.Sprintf("Amount calculation failed: %v", err))
+	}
 
 	// Apply GST calculation (assuming 18% GST for general goods)
 	gstRate := 18.0
 	invoice.GSTRate = &gstRate
 	invoice.TaxableAmount = &totalAmount
 
-	cgst := totalAmount * 0.09 // 9% CGST
-	sgst := totalAmount * 0.09 // 9% SGST
+	// Calculate CGST and SGST with overflow protection
+	cgst, err := common.CalculateGST(totalAmount, 9.0) // 9% CGST
+	if err != nil {
+		return common.SendServerError(c, fmt.Sprintf("CGST calculation failed: %v", err))
+	}
+
+	sgst, err := common.CalculateGST(totalAmount, 9.0) // 9% SGST
+	if err != nil {
+		return common.SendServerError(c, fmt.Sprintf("SGST calculation failed: %v", err))
+	}
+
 	totalGST := cgst + sgst
 	invoice.CGST = &cgst
-	invoice.SGST = nil
+	invoice.SGST = &sgst // FIX: Was nil, now correctly set to sgst
 	invoice.TotalAmount = totalAmount + totalGST
 
 	// Determine IGST for inter-state transactions (simplified logic)
@@ -168,6 +182,99 @@ func (h *InvoiceHandlers) GetInvoices(c echo.Context) error {
 		"invoices": invoices,
 		"limit":    limit,
 		"offset":   offset,
+	})
+}
+
+// BulkCreateInvoices handles POST /invoices/bulk-create
+func (h *InvoiceHandlers) BulkCreateInvoices(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return common.SendUnauthorizedError(c)
+	}
+
+	var req struct {
+		Invoices []struct {
+			OrderID        string  `json:"order_id"`
+			GSTIN          string  `json:"gstin"`
+			HSNSAC         string  `json:"hsn_sac"`
+			TaxableAmount  float64 `json:"taxable_amount"`
+			GSTRate        float64 `json:"gst_rate"`
+			CGST           float64 `json:"cgst"`
+			SGST           float64 `json:"sgst"`
+			IGST           float64 `json:"igst"`
+			TotalAmount    float64 `json:"total_amount"`
+		} `json:"invoices"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return common.SendClientError(c, "Invalid request format")
+	}
+
+	if len(req.Invoices) == 0 {
+		return common.SendClientError(c, "At least one invoice is required")
+	}
+
+	createdInvoices := []models.Invoice{}
+	failedOrders := []string{}
+
+	for _, invReq := range req.Invoices {
+		orderID, err := common.ValidateUUID(invReq.OrderID, "order_id")
+		if err != nil {
+			failedOrders = append(failedOrders, invReq.OrderID)
+			continue
+		}
+
+		// Check if invoice already exists for this order
+		existingInvoices, err := h.invoiceService.GetInvoicesByOrderID(ctx, tenantID, orderID)
+		if err == nil && len(existingInvoices) > 0 {
+			failedOrders = append(failedOrders, invReq.OrderID)
+			continue
+		}
+
+		// Create invoice
+		gstin := invReq.GSTIN
+		hsnSac := invReq.HSNSAC
+		gstRate := invReq.GSTRate
+		taxableAmount := invReq.TaxableAmount
+		cgst := invReq.CGST
+		sgst := invReq.SGST
+		igst := invReq.IGST
+
+		invoice := &models.Invoice{
+			ID:            uuid.New(),
+			TenantID:      tenantID,
+			OrderID:       orderID,
+			GSTIN:         &gstin,
+			HSNSAC:        &hsnSac,
+			TaxableAmount: &taxableAmount,
+			GSTRate:       &gstRate,
+			CGST:          &cgst,
+			SGST:          &sgst,
+			IGST:          &igst,
+			TotalAmount:   invReq.TotalAmount,
+			Status:        "unpaid",
+			IssuedDate:    time.Now(),
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+
+		if err := h.invoiceService.CreateInvoice(ctx, invoice); err != nil {
+			failedOrders = append(failedOrders, invReq.OrderID)
+			continue
+		}
+
+		createdInvoices = append(createdInvoices, *invoice)
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"message":         "Bulk invoice creation completed",
+		"created_count":   len(createdInvoices),
+		"failed_count":    len(failedOrders),
+		"total_count":     len(req.Invoices),
+		"created_invoices": createdInvoices,
+		"failed_orders":    failedOrders,
 	})
 }
 
@@ -424,11 +531,44 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 	pdf.Ln(6)
 
 	pdf.SetFont("Arial", "", 10)
-	pdf.Cell(0, 6, "Agromart Customer")
+	
+	// Get customer details from order
+	customerName := "Customer"
+	customerAddress := "Address not provided"
+	customerContact := "Contact not provided"
+	
+	// Try to get supplier or distributor details
+	if order.SupplierID != nil {
+		if supplier, err := h.supplierService.GetByID(ctx, tenantID, *order.SupplierID); err == nil && supplier != nil {
+			customerName = supplier.Name
+			if supplier.Address != nil && *supplier.Address != "" {
+				customerAddress = *supplier.Address
+			}
+			if supplier.ContactEmail != nil && *supplier.ContactEmail != "" {
+				customerContact = "Email: " + *supplier.ContactEmail
+			} else if supplier.ContactPhone != nil && *supplier.ContactPhone != "" {
+				customerContact = "Phone: " + *supplier.ContactPhone
+			}
+		}
+	} else if order.DistributorID != nil {
+		if distributor, err := h.distributorService.GetByID(ctx, tenantID, *order.DistributorID); err == nil && distributor != nil {
+			customerName = distributor.Name
+			if distributor.Address != nil && *distributor.Address != "" {
+				customerAddress = *distributor.Address
+			}
+			if distributor.ContactEmail != nil && *distributor.ContactEmail != "" {
+				customerContact = "Email: " + *distributor.ContactEmail
+			} else if distributor.ContactPhone != nil && *distributor.ContactPhone != "" {
+				customerContact = "Phone: " + *distributor.ContactPhone
+			}
+		}
+	}
+	
+	pdf.Cell(0, 6, customerName)
 	pdf.Ln(6)
-	pdf.Cell(0, 6, "Address: To be configured")
+	pdf.Cell(0, 6, customerAddress)
 	pdf.Ln(6)
-	pdf.Cell(0, 6, "Contact: support@agromart.com")
+	pdf.Cell(0, 6, customerContact)
 	pdf.Ln(10)
 
 	// Items table header

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Eye, Trash2 } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, CheckCircle, Package, Truck, Home, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,11 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 import { Order, Product, Warehouse, Supplier, Distributor } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
 
 export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'purchase' | 'sales'>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const queryClient = useQueryClient();
 
   const { data: orders, isLoading } = useQuery<{ orders: Order[] }>({
@@ -68,10 +70,35 @@ export default function OrdersPage() {
     },
   });
 
+  // Order status action mutations
+  const orderAction = useMutation({
+    mutationFn: async ({ orderId, action }: { orderId: string; action: string }) => {
+      await api.post(`/orders/${orderId}/${action}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.error?.message || `Failed to ${error.config?.url?.split('/').pop()} order`);
+    },
+  });
+
   const filteredOrders = orders?.orders?.filter(order => {
     const product = products?.products?.find(p => p.id === order.product_id);
     const matchesSearch = product?.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || order.order_type === filterType;
+    
+    // Apply advanced filters
+    if (advancedFilters.statuses && advancedFilters.statuses.length > 0) {
+      if (!advancedFilters.statuses.includes(order.status)) return false;
+    }
+    if (advancedFilters.start_date && order.order_date < advancedFilters.start_date) return false;
+    if (advancedFilters.end_date && order.order_date > advancedFilters.end_date) return false;
+    if (advancedFilters.min_price && (order.quantity * order.unit_price) < parseFloat(advancedFilters.min_price)) return false;
+    if (advancedFilters.max_price && (order.quantity * order.unit_price) > parseFloat(advancedFilters.max_price)) return false;
+    if (advancedFilters.min_quantity && order.quantity < parseInt(advancedFilters.min_quantity)) return false;
+    if (advancedFilters.max_quantity && order.quantity > parseInt(advancedFilters.max_quantity)) return false;
+    
     return matchesSearch && matchesType;
   }) || [];
 
@@ -140,25 +167,68 @@ export default function OrdersPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search orders..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+                className="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="all">All Orders</option>
+                <option value="purchase">Purchase Orders</option>
+                <option value="sales">Sales Orders</option>
+              </select>
+              <AdvancedFilters
+                config={{
+                  dateRange: {
+                    label: 'Order Date Range',
+                    startKey: 'start_date',
+                    endKey: 'end_date',
+                  },
+                  statuses: {
+                    label: 'Order Status',
+                    options: [
+                      { value: 'pending', label: 'Pending' },
+                      { value: 'approved', label: 'Approved' },
+                      { value: 'processing', label: 'Processing' },
+                      { value: 'shipped', label: 'Shipped' },
+                      { value: 'delivered', label: 'Delivered' },
+                      { value: 'cancelled', label: 'Cancelled' },
+                    ],
+                  },
+                  priceRange: {
+                    label: 'Order Total',
+                    minKey: 'min_price',
+                    maxKey: 'max_price',
+                  },
+                  quantityRange: {
+                    label: 'Quantity',
+                    minKey: 'min_quantity',
+                    maxKey: 'max_quantity',
+                  },
+                }}
+                activeFilters={advancedFilters}
+                onApply={setAdvancedFilters}
+                onReset={() => setAdvancedFilters({})}
               />
             </div>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="all">All Orders</option>
-              <option value="purchase">Purchase Orders</option>
-              <option value="sales">Sales Orders</option>
-            </select>
+            <ActiveFilterBadges
+              filters={advancedFilters}
+              onRemove={(key) => {
+                const newFilters = { ...advancedFilters };
+                delete newFilters[key];
+                setAdvancedFilters(newFilters);
+              }}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -205,21 +275,128 @@ export default function OrdersPage() {
                       </TableCell>
                       <TableCell>{formatDate(order.order_date)}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {/* Approve button - pending → approved */}
+                          {order.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="default"
+                              onClick={() => {
+                                if (confirm('Approve this order?')) {
+                                  orderAction.mutate({ orderId: order.id, action: 'approve' });
+                                }
+                              }}
+                              disabled={orderAction.isPending}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Approve
+                            </Button>
+                          )}
+                          
+                          {/* Process button - approved → processing */}
+                          {order.status === 'approved' && (
+                            <Button 
+                              size="sm" 
+                              variant="default"
+                              onClick={() => {
+                                if (confirm('Start processing this order?')) {
+                                  orderAction.mutate({ orderId: order.id, action: 'process' });
+                                }
+                              }}
+                              disabled={orderAction.isPending}
+                            >
+                              <Package className="h-3 w-3 mr-1" />
+                              Process
+                            </Button>
+                          )}
+                          
+                          {/* Receive button - processing → delivered (purchase orders) */}
+                          {order.status === 'processing' && order.order_type === 'purchase' && (
+                            <Button 
+                              size="sm" 
+                              variant="default"
+                              onClick={() => {
+                                if (confirm('Mark this order as received?')) {
+                                  orderAction.mutate({ orderId: order.id, action: 'receive' });
+                                }
+                              }}
+                              disabled={orderAction.isPending}
+                            >
+                              <Home className="h-3 w-3 mr-1" />
+                              Receive
+                            </Button>
+                          )}
+                          
+                          {/* Ship button - processing → shipped (sales orders) */}
+                          {order.status === 'processing' && order.order_type === 'sales' && (
+                            <Button 
+                              size="sm" 
+                              variant="default"
+                              onClick={() => {
+                                if (confirm('Mark this order as shipped?')) {
+                                  orderAction.mutate({ orderId: order.id, action: 'ship' });
+                                }
+                              }}
+                              disabled={orderAction.isPending}
+                            >
+                              <Truck className="h-3 w-3 mr-1" />
+                              Ship
+                            </Button>
+                          )}
+                          
+                          {/* Deliver button - shipped → delivered (sales orders) */}
+                          {order.status === 'shipped' && (
+                            <Button 
+                              size="sm" 
+                              variant="default"
+                              onClick={() => {
+                                if (confirm('Mark this order as delivered?')) {
+                                  orderAction.mutate({ orderId: order.id, action: 'deliver' });
+                                }
+                              }}
+                              disabled={orderAction.isPending}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Deliver
+                            </Button>
+                          )}
+                          
+                          {/* Cancel button - any non-terminal status → cancelled */}
+                          {!['delivered', 'cancelled'].includes(order.status) && (
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to cancel this order?')) {
+                                  orderAction.mutate({ orderId: order.id, action: 'cancel' });
+                                }
+                              }}
+                              disabled={orderAction.isPending}
+                            >
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Cancel
+                            </Button>
+                          )}
+                          
+                          {/* View button */}
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this order?')) {
-                                deleteOrder.mutate(order.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
+                          
+                          {/* Delete button - only for cancelled/delivered orders */}
+                          {['delivered', 'cancelled'].includes(order.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this order?')) {
+                                  deleteOrder.mutate(order.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

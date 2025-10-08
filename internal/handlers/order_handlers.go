@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"agromart2/internal/common"
+	"agromart2/internal/middleware"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -16,13 +17,15 @@ import (
 
 // OrderHandlers handles HTTP requests for orders
 type OrderHandlers struct {
-	orderService services.OrderServiceInterface
+	orderService   services.OrderServiceInterface
+	rbacMiddleware *middleware.RBACMiddleware
 }
 
 // NewOrderHandlers creates a new order handlers instance
-func NewOrderHandlers(orderService services.OrderServiceInterface) *OrderHandlers {
+func NewOrderHandlers(orderService services.OrderServiceInterface, rbacMiddleware *middleware.RBACMiddleware) *OrderHandlers {
 	return &OrderHandlers{
-		orderService: orderService,
+		orderService:   orderService,
+		rbacMiddleware: rbacMiddleware,
 	}
 }
 

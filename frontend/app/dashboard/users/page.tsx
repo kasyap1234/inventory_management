@@ -1,0 +1,801 @@
+'use client';
+
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import api from '@/lib/api';
+import { User, Role, Permission } from '@/types';
+import { formatDate } from '@/lib/utils';
+
+type TabType = 'users' | 'roles' | 'permissions';
+
+export default function UsersPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('users');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Users & Roles</h1>
+          <p className="text-gray-500 mt-1">Manage users, roles, and permissions</p>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`${
+              activeTab === 'users'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+          >
+            <UsersIcon className="h-5 w-5" />
+            Users
+          </button>
+          <button
+            onClick={() => setActiveTab('roles')}
+            className={`${
+              activeTab === 'roles'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+          >
+            <Shield className="h-5 w-5" />
+            Roles
+          </button>
+          <button
+            onClick={() => setActiveTab('permissions')}
+            className={`${
+              activeTab === 'permissions'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+          >
+            <Key className="h-5 w-5" />
+            Permissions
+          </button>
+        </nav>
+      </div>
+
+      {/* Search Bar */}
+      <div className="flex items-center gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder={`Search ${activeTab}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'users' && <UsersTab searchQuery={searchQuery} />}
+      {activeTab === 'roles' && <RolesTab searchQuery={searchQuery} />}
+      {activeTab === 'permissions' && <PermissionsTab searchQuery={searchQuery} />}
+    </div>
+  );
+}
+
+function UsersTab({ searchQuery }: { searchQuery: string }) {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [assigningRoles, setAssigningRoles] = useState<User | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: users, isLoading } = useQuery<{ users: User[] }>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await api.get('/users');
+      return response.data;
+    },
+  });
+
+  const { data: roles } = useQuery<{ roles: Role[] }>({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const response = await api.get('/roles');
+      return response.data;
+    },
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const filteredUsers = users?.users?.filter(user =>
+    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.last_name.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  return (
+    <>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add User
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          {isLoading ? (
+            <div className="text-center py-8">Loading users...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No users found. Add your first user to get started.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      {user.first_name} {user.last_name}
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
+                        {user.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(user.created_at)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAssigningRoles(user)}
+                        >
+                          <Shield className="h-4 w-4 mr-1" />
+                          Roles
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingUser(user)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this user?')) {
+                              deleteUser.mutate(user.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <UserFormDialog
+        open={isAddDialogOpen || !!editingUser}
+        onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) setEditingUser(null);
+        }}
+        user={editingUser}
+      />
+
+      <AssignRolesDialog
+        open={!!assigningRoles}
+        onOpenChange={(open) => {
+          if (!open) setAssigningRoles(null);
+        }}
+        user={assigningRoles}
+        roles={roles?.roles || []}
+      />
+    </>
+  );
+}
+
+function RolesTab({ searchQuery }: { searchQuery: string }) {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [managingPermissions, setManagingPermissions] = useState<Role | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data: roles, isLoading } = useQuery<{ roles: Role[] }>({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const response = await api.get('/roles');
+      return response.data;
+    },
+  });
+
+  const { data: permissions } = useQuery<{ permissions: Permission[] }>({
+    queryKey: ['permissions'],
+    queryFn: async () => {
+      const response = await api.get('/permissions');
+      return response.data;
+    },
+  });
+
+  const deleteRole = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/roles/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+    },
+  });
+
+  const filteredRoles = roles?.roles?.filter(role =>
+    role.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    role.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  return (
+    <>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Role
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          {isLoading ? (
+            <div className="text-center py-8">Loading roles...</div>
+          ) : filteredRoles.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No roles found. Add your first role to get started.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRoles.map((role) => (
+                  <TableRow key={role.id}>
+                    <TableCell className="font-medium">{role.name}</TableCell>
+                    <TableCell>{role.description || '-'}</TableCell>
+                    <TableCell>{formatDate(role.created_at)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setManagingPermissions(role)}
+                        >
+                          <Key className="h-4 w-4 mr-1" />
+                          Permissions
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingRole(role)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this role?')) {
+                              deleteRole.mutate(role.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <RoleFormDialog
+        open={isAddDialogOpen || !!editingRole}
+        onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) setEditingRole(null);
+        }}
+        role={editingRole}
+      />
+
+      <ManagePermissionsDialog
+        open={!!managingPermissions}
+        onOpenChange={(open) => {
+          if (!open) setManagingPermissions(null);
+        }}
+        role={managingPermissions}
+        permissions={permissions?.permissions || []}
+      />
+    </>
+  );
+}
+
+function PermissionsTab({ searchQuery }: { searchQuery: string }) {
+  const { data: permissions, isLoading } = useQuery<{ permissions: Permission[] }>({
+    queryKey: ['permissions'],
+    queryFn: async () => {
+      const response = await api.get('/permissions');
+      return response.data;
+    },
+  });
+
+  const filteredPermissions = permissions?.permissions?.filter(permission =>
+    permission.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    permission.resource.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    permission.action.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  // Group permissions by resource
+  const groupedPermissions = filteredPermissions.reduce((acc, permission) => {
+    if (!acc[permission.resource]) {
+      acc[permission.resource] = [];
+    }
+    acc[permission.resource].push(permission);
+    return acc;
+  }, {} as Record<string, Permission[]>);
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        {isLoading ? (
+          <div className="text-center py-8">Loading permissions...</div>
+        ) : filteredPermissions.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No permissions found.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedPermissions).map(([resource, perms]) => (
+              <div key={resource}>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 capitalize">
+                  {resource}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {perms.map((permission) => (
+                    <div
+                      key={permission.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <Badge variant="default">{permission.action}</Badge>
+                        <Key className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-gray-900">
+                        {permission.name}
+                      </p>
+                      {permission.description && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          {permission.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// User Form Dialog
+function UserFormDialog({ open, onOpenChange, user }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user?: User | null;
+}) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    email: user?.email || '',
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
+    password: '',
+    status: user?.status || 'active',
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      if (user) {
+        await api.put(`/users/${user.id}`, data);
+      } else {
+        await api.post('/users', data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      onOpenChange(false);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveMutation.mutate(formData);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{user ? 'Edit User' : 'Add User'}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">First Name *</label>
+              <Input
+                required
+                value={formData.first_name}
+                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Last Name *</label>
+              <Input
+                required
+                value={formData.last_name}
+                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Email *</label>
+            <Input
+              required
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+          </div>
+          {!user && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Password *</label>
+              <Input
+                required
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Minimum 8 characters"
+              />
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Status *</label>
+            <select
+              required
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Saving...' : 'Save User'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Role Form Dialog
+function RoleFormDialog({ open, onOpenChange, role }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  role?: Role | null;
+}) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    name: role?.name || '',
+    description: role?.description || '',
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      if (role) {
+        await api.put(`/roles/${role.id}`, data);
+      } else {
+        await api.post('/roles', data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      onOpenChange(false);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveMutation.mutate(formData);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{role ? 'Edit Role' : 'Add Role'}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Role Name *</label>
+            <Input
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Manager, Operator"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Description</label>
+            <Input
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Role description"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Saving...' : 'Save Role'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Assign Roles Dialog
+function AssignRolesDialog({ open, onOpenChange, user, roles }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: User | null;
+  roles: Role[];
+}) {
+  const queryClient = useQueryClient();
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch user's current roles
+  useQuery({
+    queryKey: ['user-roles', user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const response = await api.get(`/users/${user.id}/roles`);
+      setSelectedRoles(response.data.roles?.map((r: Role) => r.id) || []);
+      return response.data;
+    },
+    enabled: !!user && open,
+  });
+
+  const handleToggleRole = (roleId: string) => {
+    setSelectedRoles(prev =>
+      prev.includes(roleId)
+        ? prev.filter(id => id !== roleId)
+        : [...prev, roleId]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      await api.post(`/users/${user.id}/roles`, { role_ids: selectedRoles });
+      queryClient.invalidateQueries({ queryKey: ['user-roles', user.id] });
+      onOpenChange(false);
+    } catch (error) {
+      alert('Failed to assign roles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!user) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Assign Roles to {user.first_name} {user.last_name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-gray-500">
+            Select roles to assign to this user
+          </div>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {roles.map((role) => (
+              <label
+                key={role.id}
+                className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedRoles.includes(role.id)}
+                  onChange={() => handleToggleRole(role.id)}
+                  className="h-4 w-4 text-blue-600 rounded"
+                />
+                <div className="ml-3 flex-1">
+                  <div className="font-medium text-sm">{role.name}</div>
+                  {role.description && (
+                    <div className="text-xs text-gray-500">{role.description}</div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Roles'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Manage Permissions Dialog
+function ManagePermissionsDialog({ open, onOpenChange, role, permissions }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  role: Role | null;
+  permissions: Permission[];
+}) {
+  const queryClient = useQueryClient();
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch role's current permissions
+  useQuery({
+    queryKey: ['role-permissions', role?.id],
+    queryFn: async () => {
+      if (!role) return null;
+      const response = await api.get(`/roles/${role.id}/permissions`);
+      setSelectedPermissions(response.data.permissions?.map((p: Permission) => p.id) || []);
+      return response.data;
+    },
+    enabled: !!role && open,
+  });
+
+  const handleTogglePermission = (permissionId: string) => {
+    setSelectedPermissions(prev =>
+      prev.includes(permissionId)
+        ? prev.filter(id => id !== permissionId)
+        : [...prev, permissionId]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!role) return;
+    setLoading(true);
+    try {
+      await api.post(`/roles/${role.id}/permissions`, { permission_ids: selectedPermissions });
+      queryClient.invalidateQueries({ queryKey: ['role-permissions', role.id] });
+      onOpenChange(false);
+    } catch (error) {
+      alert('Failed to assign permissions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!role) return null;
+
+  // Group permissions by resource
+  const groupedPermissions = permissions.reduce((acc, permission) => {
+    if (!acc[permission.resource]) {
+      acc[permission.resource] = [];
+    }
+    acc[permission.resource].push(permission);
+    return acc;
+  }, {} as Record<string, Permission[]>);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Manage Permissions for {role.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-gray-500">
+            Select permissions to grant to this role
+          </div>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {Object.entries(groupedPermissions).map(([resource, perms]) => (
+              <div key={resource} className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-sm text-gray-900 mb-3 capitalize">
+                  {resource}
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {perms.map((permission) => (
+                    <label
+                      key={permission.id}
+                      className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedPermissions.includes(permission.id)}
+                        onChange={() => handleTogglePermission(permission.id)}
+                        className="h-4 w-4 text-blue-600 rounded"
+                      />
+                      <div className="ml-2 text-sm">
+                        <span className="font-medium">{permission.action}</span>
+                        {permission.description && (
+                          <span className="text-gray-500 ml-1">({permission.description})</span>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Permissions'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

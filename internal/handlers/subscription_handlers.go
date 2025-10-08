@@ -272,3 +272,27 @@ func (h *SubscriptionHandlers) GetAvailablePlans(c echo.Context) error {
 		"message":            "Available subscription plans retrieved successfully",
 	})
 }
+
+// DeleteSubscription handles DELETE /subscriptions/:id
+func (h *SubscriptionHandlers) DeleteSubscription(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	subscriptionID, err := h.validateUUID(c.Param("id"))
+	if err != nil {
+		return err
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	err = h.subscriptionService.Delete(ctx, tenantID, subscriptionID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Subscription deleted successfully",
+	})
+}

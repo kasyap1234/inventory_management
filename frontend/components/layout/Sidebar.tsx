@@ -15,13 +15,18 @@ import {
   Settings,
   LogOut,
   Sprout,
-  ChevronRight
+  ChevronRight,
+  BarChart3,
+  Bell,
+  Shield,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { name: 'Products', href: '/dashboard/products', icon: Package },
   { name: 'Categories', href: '/dashboard/categories', icon: FolderTree },
   { name: 'Inventory', href: '/dashboard/inventory', icon: Warehouse },
@@ -30,6 +35,9 @@ const navigation = [
   { name: 'Warehouses', href: '/dashboard/warehouses', icon: Building2 },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: Truck },
   { name: 'Distributors', href: '/dashboard/distributors', icon: Users },
+  { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
+  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+  { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: Shield },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -17,6 +17,8 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [isBulkPriceDialogOpen, setIsBulkPriceDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery<{ products: Product[] }>({
@@ -41,17 +43,74 @@ export default function ProductsPage() {
     product.barcode?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
+  const bulkDeleteProducts = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map(id => api.delete(`/products/${id}`)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setSelectedProducts([]);
+    },
+  });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedProducts(filteredProducts.map(p => p.id));
+    } else {
+      setSelectedProducts([]);
+    }
+  };
+
+  const handleSelectProduct = (productId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedProducts(prev => [...prev, productId]);
+    } else {
+      setSelectedProducts(prev => prev.filter(id => id !== productId));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (confirm(`Are you sure you want to delete ${selectedProducts.length} product(s)?`)) {
+      bulkDeleteProducts.mutate(selectedProducts);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Products</h1>
           <p className="text-gray-500 mt-1">Manage your product catalog</p>
+          {selectedProducts.length > 0 && (
+            <p className="text-blue-600 text-sm mt-1">
+              {selectedProducts.length} product(s) selected
+            </p>
+          )}
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedProducts.length > 0 && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsBulkPriceDialogOpen(true)}
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                Update Prices
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBulkDelete}
+              >
+                <Trash className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+            </>
+          )}
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Product
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -79,6 +138,14 @@ export default function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Barcode</TableHead>
                   <TableHead>Quantity</TableHead>
@@ -91,6 +158,14 @@ export default function ProductsPage() {
               <TableBody>
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.includes(product.id)}
+                        onChange={(e) => handleSelectProduct(product.id, e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>{product.barcode || '-'}</TableCell>
                     <TableCell>
@@ -140,6 +215,13 @@ export default function ProductsPage() {
           if (!open) setEditingProduct(null);
         }}
         product={editingProduct}
+      />
+
+      <BulkPriceUpdateDialog
+        open={isBulkPriceDialogOpen}
+        onOpenChange={setIsBulkPriceDialogOpen}
+        selectedProductIds={selectedProducts}
+        onSuccess={() => setSelectedProducts([])}
       />
     </div>
   );
@@ -268,6 +350,142 @@ function ProductFormDialog({ open, onOpenChange, product }: {
             </Button>
             <Button type="submit" disabled={saveMutation.isPending}>
               {saveMutation.isPending ? 'Saving...' : 'Save Product'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkPriceUpdateDialog({ open, onOpenChange, selectedProductIds, onSuccess }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedProductIds: string[];
+  onSuccess: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [updateType, setUpdateType] = useState<'percentage' | 'fixed'>('percentage');
+  const [value, setValue] = useState<number>(0);
+  const [isIncrease, setIsIncrease] = useState(true);
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async () => {
+      const adjustment = updateType === 'percentage'
+        ? { type: 'percentage', value: isIncrease ? value : -value }
+        : { type: 'fixed', value: isIncrease ? value : -value };
+      
+      await api.post('/products/bulk-price-update', {
+        product_ids: selectedProductIds,
+        adjustment,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      onOpenChange(false);
+      onSuccess();
+      setValue(0);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (value === 0) {
+      alert('Please enter a value');
+      return;
+    }
+    if (confirm(`This will update ${selectedProductIds.length} product(s). Continue?`)) {
+      bulkUpdateMutation.mutate();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Bulk Price Update</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Update Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={updateType === 'percentage'}
+                  onChange={() => setUpdateType('percentage')}
+                  className="mr-2"
+                />
+                Percentage
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={updateType === 'fixed'}
+                  onChange={() => setUpdateType('fixed')}
+                  className="mr-2"
+                />
+                Fixed Amount
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Adjustment Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={isIncrease}
+                  onChange={() => setIsIncrease(true)}
+                  className="mr-2"
+                />
+                Increase
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={!isIncrease}
+                  onChange={() => setIsIncrease(false)}
+                  className="mr-2"
+                />
+                Decrease
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              {updateType === 'percentage' ? 'Percentage (%)' : 'Amount (₹)'}
+            </label>
+            <Input
+              required
+              type="number"
+              step="0.01"
+              min="0"
+              value={value}
+              onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
+              placeholder={updateType === 'percentage' ? 'e.g., 10' : 'e.g., 50'}
+            />
+            <p className="text-xs text-gray-500">
+              {updateType === 'percentage'
+                ? `Prices will be ${isIncrease ? 'increased' : 'decreased'} by ${value}%`
+                : `Prices will be ${isIncrease ? 'increased' : 'decreased'} by ₹${value}`}
+            </p>
+          </div>
+
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>{selectedProductIds.length}</strong> product(s) will be updated
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={bulkUpdateMutation.isPending}>
+              {bulkUpdateMutation.isPending ? 'Updating...' : 'Update Prices'}
             </Button>
           </div>
         </form>

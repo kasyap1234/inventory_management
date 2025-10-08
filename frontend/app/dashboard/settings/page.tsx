@@ -65,13 +65,14 @@ export default function SettingsPage() {
   );
 }
 
-interface User {
+interface UserProfile {
+  id?: string;
   first_name?: string;
   last_name?: string;
   email?: string;
 }
 
-function ProfileSettings({ user }: { user: User }) {
+function ProfileSettings({ user }: { user: UserProfile }) {
   const { addToast } = useToast();
   const [formData, setFormData] = useState({
     first_name: user?.first_name || '',

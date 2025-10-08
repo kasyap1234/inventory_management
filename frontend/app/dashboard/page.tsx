@@ -2,60 +2,78 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Warehouse, ShoppingCart, FileText } from 'lucide-react';
+import { Package, Warehouse, ShoppingCart, FileText, DollarSign } from 'lucide-react';
+import { analyticsService, invoiceService, type AnalyticsDashboard, type LowStockItem } from '@/lib/services';
 import { formatCurrency } from '@/lib/utils';
+import { format, formatDistance } from 'date-fns';
 
-interface DashboardStats {
-  totalProducts: number;
-  totalInventoryValue: number;
-  pendingOrders: number;
-  unpaidInvoices: number;
-  lowStockProducts: number;
-  recentOrdersCount: number;
-}
+type InvoiceSummary = {
+  id: string;
+  invoice_number: string;
+  total_amount: number;
+  status: string;
+  due_date: string;
+};
+
+type UnpaidInvoicesResponse = {
+  invoices: InvoiceSummary[];
+  limit: number;
+  offset: number;
+};
 
 export default function DashboardPage() {
-  const { data: stats, isLoading } = useQuery<DashboardStats>({
-    queryKey: ['dashboard-stats'],
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsDashboard>({
+    queryKey: ['dashboard-analytics'],
+    queryFn: analyticsService.getDashboardAnalytics,
+  });
+
+  const { data: lowStock, isLoading: lowStockLoading } = useQuery<LowStockItem[]>({
+    queryKey: ['dashboard-low-stock'],
+    queryFn: () => analyticsService.getLowStockReport({ threshold: 10 }),
+  });
+
+  const { data: unpaidInvoices, isLoading: invoicesLoading } = useQuery<UnpaidInvoicesResponse>({
+    queryKey: ['dashboard-unpaid-invoices'],
     queryFn: async () => {
-      // In a real app, you'd have a dedicated dashboard stats endpoint
-      // For now, we'll use placeholder data
-      return {
-        totalProducts: 0,
-        totalInventoryValue: 0,
-        pendingOrders: 0,
-        unpaidInvoices: 0,
-        lowStockProducts: 0,
-        recentOrdersCount: 0,
-      };
+      const response = await invoiceService.getUnpaid();
+      return response.data;
     },
   });
 
+  const unpaidInvoiceItems: InvoiceSummary[] = Array.isArray(unpaidInvoices?.invoices)
+    ? unpaidInvoices.invoices
+    : [];
+
+  const lowStockItems: LowStockItem[] = lowStock ?? [];
+
+  const isLoading = analyticsLoading || lowStockLoading || invoicesLoading;
+
   const statCards = [
     {
-      title: 'Total Products',
-      value: stats?.totalProducts || 0,
-      icon: Package,
+      title: 'Total Sales',
+      value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
+      icon: DollarSign,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
+      helper: analytics?.lastUpdated,
     },
     {
       title: 'Inventory Value',
-      value: formatCurrency(stats?.totalInventoryValue || 0),
+      value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Pending Orders',
-      value: stats?.pendingOrders || 0,
+      title: 'Orders Processed',
+      value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
     },
     {
       title: 'Unpaid Invoices',
-      value: stats?.unpaidInvoices || 0,
+      value: unpaidInvoiceItems.length,
       icon: FileText,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
@@ -70,7 +88,7 @@ export default function DashboardPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
             Dashboard
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">Welcome back! Here's what's happening today.</p>
+          <p className="text-gray-600 mt-2 text-lg">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
         </div>
       </div>
 
@@ -98,10 +116,11 @@ export default function DashboardPage() {
                   stat.value
                 )}
               </div>
-              <p className="text-sm text-gray-500 flex items-center">
-                <span className="text-green-600 font-medium mr-1">+12%</span>
-                from last month
-              </p>
+              {stat.helper && !isLoading && (
+                <p className="text-sm text-gray-500">
+                  Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -114,12 +133,37 @@ export default function DashboardPage() {
             <CardTitle className="text-lg font-bold text-gray-900">Recent Activity</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500 text-center py-12">
+            {invoicesLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="h-14 bg-gray-200 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : unpaidInvoiceItems.length ? (
+              <div className="space-y-4">
+                {unpaidInvoiceItems.slice(0, 5).map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-200 transition-colors"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">Invoice #{invoice.invoice_number}</p>
+                      <p className="text-xs text-gray-500">
+                        Due {format(new Date(invoice.due_date), 'MMM dd, yyyy')} · Status: {invoice.status}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">{formatCurrency(invoice.total_amount || 0)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4 text-center py-12 text-gray-500">
                 <Warehouse className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                No recent activity yet
-              </p>
-            </div>
+                No unpaid invoices at the moment
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -128,12 +172,36 @@ export default function DashboardPage() {
             <CardTitle className="text-lg font-bold text-gray-900">Low Stock Alerts</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="space-y-4">
-              <p className="text-sm text-gray-500 text-center py-12">
+            {lowStockLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="h-14 bg-gray-200 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : lowStockItems.length > 0 ? (
+              <div className="space-y-4">
+                {lowStockItems.slice(0, 5).map((item) => (
+                  <div
+                    key={`${item.productId}-${item.warehouseId}`}
+                    className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-lg"
+                  >
+                    <div>
+                      <p className="font-semibold text-gray-900">{item.productName || 'Unnamed Product'}</p>
+                      <p className="text-xs text-gray-600">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-orange-600">{item.currentStock} units</p>
+                      <p className="text-xs text-gray-500">Threshold: {item.threshold}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4 text-center py-12 text-gray-500">
                 <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                 All items are well stocked
-              </p>
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
