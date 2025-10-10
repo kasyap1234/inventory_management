@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"text/template"
 	"time"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/resend/resend-go/v2"
 )
 
 // NotificationService handles all notification-related operations
@@ -72,14 +75,24 @@ type notificationService struct {
 	redisClient      *redis.Client
 	templates        map[string]*template.Template // Cached templates
 	httpClient       *http.Client
-	sendgridAPIKey   string
+	resendClient     *resend.Client
+	resendFromEmail  string
+	resendFromName   string
 	twilioAccountSID string
 	twilioAuthToken  string
 	twilioPhone      string
+	smtpHost         string
+	smtpPort         int
+	smtpUsername     string
+	smtpPassword     string
+	smtpFromEmail    string
+	smtpFromName     string
 }
 
+const defaultResendFromEmail = "onboarding@resend.dev"
+
 // NewNotificationService creates a new notification service with provider configurations
-func NewNotificationService(redisAddr, redisPassword string, redisDB int, sendgridAPIKey, twilioAccountSID, twilioAuthToken, twilioPhone string) NotificationService {
+func NewNotificationService(redisAddr, redisPassword string, redisDB int, resendAPIKey, resendFromEmail, resendFromName string, twilioAccountSID, twilioAuthToken, twilioPhone string, smtpHost string, smtpPort int, smtpUsername, smtpPassword, smtpFromEmail, smtpFromName string) NotificationService {
 	// Create Redis client for this service
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
@@ -91,14 +104,31 @@ func NewNotificationService(redisAddr, redisPassword string, redisDB int, sendgr
 		Timeout: 30 * time.Second,
 	}
 
+	var resendClient *resend.Client
+	if resendAPIKey != "" {
+		resendClient = resend.NewClient(resendAPIKey)
+	}
+
+	if smtpPort == 0 {
+		smtpPort = 587
+	}
+
 	return &notificationService{
 		redisClient:      redisClient,
 		templates:        make(map[string]*template.Template),
 		httpClient:       httpClient,
-		sendgridAPIKey:   sendgridAPIKey,
+		resendClient:     resendClient,
+		resendFromEmail:  resendFromEmail,
+		resendFromName:   resendFromName,
 		twilioAccountSID: twilioAccountSID,
 		twilioAuthToken:  twilioAuthToken,
 		twilioPhone:      twilioPhone,
+		smtpHost:         smtpHost,
+		smtpPort:         smtpPort,
+		smtpUsername:     smtpUsername,
+		smtpPassword:     smtpPassword,
+		smtpFromEmail:    smtpFromEmail,
+		smtpFromName:     smtpFromName,
 	}
 }
 
@@ -130,67 +160,139 @@ func (s *notificationService) SendNotification(ctx context.Context, tenantID uui
 	}
 }
 
-// SendEmail sends an email notification using SendGrid
+// SendEmail sends an email notification using configured providers (Resend preferred, SMTP fallback)
 func (s *notificationService) SendEmail(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string) error {
-	// Check if SendGrid is configured
-	if s.sendgridAPIKey == "" {
-		// Fallback to logging if no API key configured
-		log.Printf("[EMAIL] SendGrid API key not configured, logging only")
-		log.Printf("[EMAIL] Tenant=%s, To=%s, Subject=%s, Body=%s", tenantID.String(), recipient, subject, body)
-		return nil
+	log.Printf("[EMAIL] SendEmail invoked: tenant=%s recipient=%s subject=%q", tenantID.String(), recipient, subject)
+	var smtpErr error
+	if s.smtpHost != "" {
+		smtpErr = s.sendEmailViaSMTP(tenantID, recipient, subject, body)
+		if smtpErr == nil {
+			return nil
+		}
+		log.Printf("[EMAIL] SMTP send attempt failed for %s: %v", recipient, smtpErr)
 	}
 
-	fromEmail := "noreply@agromart.com"
-	fromName := "Agromart"
-
-	// Build SendGrid API request
-	emailData := map[string]interface{}{
-		"personalizations": []map[string]interface{}{
-			{
-				"to": []map[string]string{
-					{"email": recipient},
-				},
-				"subject": subject,
-			},
-		},
-		"from": map[string]string{
-			"email": fromEmail,
-			"name":  fromName,
-		},
-		"content": []map[string]string{
-			{
-				"type":  "text/html",
-				"value": body,
-			},
-		},
+	var resendErr error
+	if s.resendClient != nil {
+		resendErr = s.sendEmailViaResend(ctx, tenantID, recipient, subject, body)
+		if resendErr == nil {
+			if smtpErr != nil {
+				log.Printf("[EMAIL] Resend fallback succeeded for %s after SMTP failure", recipient)
+			}
+			return nil
+		}
+		log.Printf("[EMAIL] Resend send attempt failed for %s: %v", recipient, resendErr)
 	}
 
-	jsonData, err := json.Marshal(emailData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal email data: %v", err)
+	if smtpErr != nil && resendErr != nil {
+		return fmt.Errorf("smtp error: %v; resend error: %w", smtpErr, resendErr)
 	}
 
-	// Make SendGrid API call
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.sendgrid.com/v3/mail/send", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to create email request: %v", err)
+	if smtpErr != nil {
+		return smtpErr
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.sendgridAPIKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send email: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("SendGrid API error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	if resendErr != nil {
+		return resendErr
 	}
 
-	log.Printf("[EMAIL] Successfully sent email via SendGrid to %s for tenant %s", recipient, tenantID.String())
+	log.Printf("[EMAIL] No email provider configured; unable to send email to %s", recipient)
+	log.Printf("[EMAIL] Tenant=%s, Subject=%s, Body=%s", tenantID.String(), subject, body)
+	return fmt.Errorf("email provider is not configured")
+}
+
+func (s *notificationService) sendEmailViaResend(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string) error {
+	if s.resendClient == nil {
+		return fmt.Errorf("resend client not configured")
+	}
+
+	primaryFrom := s.resendFromEmail
+	primaryName := s.resendFromName
+	if primaryFrom == "" {
+		primaryFrom = defaultResendFromEmail
+		primaryName = ""
+	}
+
+	if err := s.sendEmailViaResendWithSender(ctx, tenantID, recipient, subject, body, primaryFrom, primaryName); err != nil {
+		if primaryFrom != defaultResendFromEmail {
+			log.Printf("[EMAIL] Resend send failed with configured sender %s: %v", primaryFrom, err)
+			if fallbackErr := s.sendEmailViaResendWithSender(ctx, tenantID, recipient, subject, body, defaultResendFromEmail, ""); fallbackErr == nil {
+				log.Printf("[EMAIL] Resend fallback succeeded for %s using default sender", recipient)
+				return nil
+			} else {
+				return fmt.Errorf("failed to send email via Resend (primary: %v, fallback: %w)", err, fallbackErr)
+			}
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (s *notificationService) sendEmailViaResendWithSender(ctx context.Context, tenantID uuid.UUID, recipient, subject, body, fromEmail, fromName string) error {
+	if fromEmail == "" {
+		return fmt.Errorf("resend from email not configured")
+	}
+
+	from := fromEmail
+	if fromName != "" {
+		from = fmt.Sprintf("%s <%s>", fromName, fromEmail)
+	}
+
+	log.Printf("[EMAIL] Attempting Resend send: tenant=%s from=%s to=%s subject=%q", tenantID.String(), fromEmail, recipient, subject)
+	params := &resend.SendEmailRequest{
+		From:    from,
+		To:      []string{recipient},
+		Subject: subject,
+		Html:    body,
+	}
+
+	if _, err := s.resendClient.Emails.SendWithContext(ctx, params); err != nil {
+		log.Printf("[EMAIL] Resend send failed: tenant=%s from=%s to=%s error=%v", tenantID.String(), fromEmail, recipient, err)
+		return fmt.Errorf("failed to send email via Resend: %w", err)
+	}
+
+	log.Printf("[EMAIL] Successfully sent email via Resend to %s for tenant %s (sender: %s)", recipient, tenantID.String(), fromEmail)
+	return nil
+}
+
+func (s *notificationService) sendEmailViaSMTP(tenantID uuid.UUID, recipient, subject, body string) error {
+	fromEmail := s.smtpFromEmail
+	if fromEmail == "" {
+		fromEmail = s.smtpUsername
+	}
+	if fromEmail == "" {
+		return fmt.Errorf("smtp sender email not configured")
+	}
+
+	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
+	fromHeader := fromEmail
+	if s.smtpFromName != "" {
+		fromHeader = fmt.Sprintf("%s <%s>", mime.QEncoding.Encode("utf-8", s.smtpFromName), fromEmail)
+	}
+
+	var msg bytes.Buffer
+	msg.WriteString(fmt.Sprintf("From: %s\r\n", fromHeader))
+	msg.WriteString(fmt.Sprintf("To: %s\r\n", recipient))
+	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", encodedSubject))
+	msg.WriteString("MIME-Version: 1.0\r\n")
+	msg.WriteString("Content-Type: text/html; charset=\"UTF-8\"\r\n")
+	msg.WriteString("\r\n")
+	msg.WriteString(body)
+
+	addr := fmt.Sprintf("%s:%d", s.smtpHost, s.smtpPort)
+
+	var auth smtp.Auth
+	if s.smtpUsername != "" {
+		auth = smtp.PlainAuth("", s.smtpUsername, s.smtpPassword, s.smtpHost)
+	}
+
+	log.Printf("[EMAIL] Attempting SMTP send: tenant=%s host=%s from=%s to=%s subject=%q", tenantID.String(), addr, fromEmail, recipient, subject)
+	if err := smtp.SendMail(addr, auth, fromEmail, []string{recipient}, msg.Bytes()); err != nil {
+		return fmt.Errorf("failed to send email via SMTP: %w", err)
+	}
+
+	log.Printf("[EMAIL] Successfully sent email via SMTP to %s for tenant %s", recipient, tenantID.String())
 	return nil
 }
 

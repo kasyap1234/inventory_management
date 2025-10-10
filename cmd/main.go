@@ -10,6 +10,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/random"
@@ -29,6 +30,11 @@ import (
 const version = "1.0.0"
 
 func main() {
+	// Load environment variables from .env if present
+	if err := godotenv.Load(); err != nil {
+		log.Printf("INFO: .env not found or could not be loaded: %v", err)
+	}
+
 	// Load Tally configuration
 	tallyConfig, err := config.LoadTallyConfig("config/tally.toml")
 	if err != nil {
@@ -158,19 +164,42 @@ func main() {
 	cacheSvc := caching.NewRedisCacheService(redisAddr, redisPassword, redisDB)
 
 	// Notification service configuration
-	sendgridAPIKey := os.Getenv("SENDGRID_API_KEY")
+	resendAPIKey := os.Getenv("RESEND_API_KEY")
+	resendFromEmail := os.Getenv("RESEND_FROM_EMAIL")
+	resendFromName := os.Getenv("RESEND_FROM_NAME")
 	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
 	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
 	twilioPhone := os.Getenv("TWILIO_PHONE_NUMBER")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := 587
+	if smtpPortStr := os.Getenv("SMTP_PORT"); smtpPortStr != "" {
+		if parsed, err := strconv.Atoi(smtpPortStr); err != nil {
+			log.Printf("WARNING: Invalid SMTP_PORT '%s', defaulting to %d", smtpPortStr, smtpPort)
+		} else {
+			smtpPort = parsed
+		}
+	}
+	smtpUsername := os.Getenv("SMTP_USERNAME")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	smtpFromEmail := os.Getenv("SMTP_FROM_EMAIL")
+	smtpFromName := os.Getenv("SMTP_FROM_NAME")
 
 	notificationService := services.NewNotificationService(
 		redisAddr,
 		redisPassword,
 		redisDB,
-		sendgridAPIKey,
+		resendAPIKey,
+		resendFromEmail,
+		resendFromName,
 		twilioAccountSID,
 		twilioAuthToken,
 		twilioPhone,
+		smtpHost,
+		smtpPort,
+		smtpUsername,
+		smtpPassword,
+		smtpFromEmail,
+		smtpFromName,
 	)
 
 	// Create services
@@ -205,8 +234,11 @@ func main() {
 	authHandlers := handlers.NewAuthHandlers(
 		authService,
 		userRepo,
+		tenantRepo,
 		roleRepo,
 		userRoleRepo,
+		rolePermissionRepo,
+		permissionRepo,
 		rbacMiddleware,
 		notificationService,
 		frontendURL,

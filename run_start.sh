@@ -11,6 +11,12 @@ NC='\033[0m' # No Color
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
+if [ -f ".env" ]; then
+    set -a
+    source ./.env
+    set +a
+fi
+
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Starting Agromart Application Stack  ${NC}"
 echo -e "${BLUE}========================================${NC}\n"
@@ -87,11 +93,11 @@ fi
 echo ""
 
 # Step 1: Start Docker services (PostgreSQL, Redis, MinIO)
-echo -e "${BLUE}Step 1: Starting infrastructure services (PostgreSQL, Redis, MinIO)...${NC}"
+echo -e "${BLUE}Step 1: Starting infrastructure services (PostgreSQL, Redis, MinIO, MailHog)...${NC}"
 if docker compose version >/dev/null 2>&1; then
-    docker compose up -d postgres redis minio
+    docker compose up -d postgres redis minio mailhog
 else
-    docker-compose up -d postgres redis minio
+    docker-compose up -d postgres redis minio mailhog
 fi
 
 if [ $? -ne 0 ]; then
@@ -105,6 +111,7 @@ echo -e "${GREEN}✓ Infrastructure services started${NC}\n"
 wait_for_service localhost 5440 "PostgreSQL"
 wait_for_service localhost 6379 "Redis"
 wait_for_service localhost 9003 "MinIO"
+wait_for_service localhost 1025 "MailHog SMTP"
 
 # Run database migrations
 echo -e "${BLUE}Running database migrations...${NC}"
@@ -122,24 +129,21 @@ fi
 echo -e "${BLUE}Step 2: Building and starting the backend...${NC}"
 
 # Set environment variables for the backend
-export PORT=8081
-export DATABASE_URL="postgresql://testuser:testpass@localhost:5440/testdb"
-export REDIS_URL="redis://localhost:6379"
-export JWT_SECRET="development_secret_key_not_for_production"
+export PORT="${PORT:-8081}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://testuser:testpass@localhost:5440/testdb}"
+export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
+export JWT_SECRET="${JWT_SECRET:-development_secret_key_not_for_production}"
 # Supabase credentials - load from .env if available
 export SUPABASE_URL="${SUPABASE_URL:-}"
 export SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
 
-# Build the backend if not already built
-if [ ! -f "./main" ]; then
-    echo -e "${YELLOW}Building backend...${NC}"
-    go build -o main cmd/main.go
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to build backend${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}✓ Backend built successfully${NC}"
+# Always (re)build the backend to pick up the latest code changes
+echo -e "${YELLOW}Building backend...${NC}"
+if ! go build -o main cmd/main.go; then
+    echo -e "${RED}Failed to build backend${NC}"
+    exit 1
 fi
+echo -e "${GREEN}✓ Backend built successfully${NC}"
 
 # Start the backend in the background
 echo -e "${YELLOW}Starting backend server on port 8081...${NC}"
@@ -192,6 +196,7 @@ echo -e "  PostgreSQL:        ${GREEN}localhost:5440${NC}"
 echo -e "  Redis:             ${GREEN}localhost:6379${NC}"
 echo -e "  MinIO Console:     ${GREEN}http://localhost:9004${NC}"
 echo -e "  MinIO API:         ${GREEN}http://localhost:9003${NC}"
+echo -e "  MailHog UI:        ${GREEN}http://localhost:8025${NC}"
 echo -e "  pgAdmin (optional):${GREEN}http://localhost:5050${NC}"
 echo -e "  Redis Commander:   ${GREEN}http://localhost:8082${NC}\n"
 

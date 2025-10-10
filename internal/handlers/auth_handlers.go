@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -26,8 +28,11 @@ import (
 type AuthHandlers struct {
 	authService         services.AuthService
 	userRepo            repositories.UserRepository
+	tenantRepo          repositories.TenantRepository
 	roleRepo            repositories.RoleRepository
 	userRoleRepo        repositories.UserRoleRepository
+	rolePermissionRepo  repositories.RolePermissionRepository
+	permissionRepo      repositories.PermissionRepository
 	rbacMiddleware      *middleware.RBACMiddleware
 	notificationService services.NotificationService
 	frontendBaseURL     string
@@ -37,8 +42,11 @@ type AuthHandlers struct {
 func NewAuthHandlers(
 	authService services.AuthService,
 	userRepo repositories.UserRepository,
+	tenantRepo repositories.TenantRepository,
 	roleRepo repositories.RoleRepository,
 	userRoleRepo repositories.UserRoleRepository,
+	rolePermissionRepo repositories.RolePermissionRepository,
+	permissionRepo repositories.PermissionRepository,
 	rbacMiddleware *middleware.RBACMiddleware,
 	notificationService services.NotificationService,
 	frontendBaseURL string,
@@ -46,8 +54,11 @@ func NewAuthHandlers(
 	return &AuthHandlers{
 		authService:         authService,
 		userRepo:            userRepo,
+		tenantRepo:          tenantRepo,
 		roleRepo:            roleRepo,
 		userRoleRepo:        userRoleRepo,
+		rolePermissionRepo:  rolePermissionRepo,
+		permissionRepo:      permissionRepo,
 		rbacMiddleware:      rbacMiddleware,
 		notificationService: notificationService,
 		frontendBaseURL:     frontendBaseURL,
@@ -252,12 +263,14 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 	}
 
 	// Assign default 'user' role to the new user
-	userRole, err := h.roleRepo.GetByName(ctx, tenantID, "user")
+	userRole, err := h.ensureTenantDefaults(ctx, tenantID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get default user role")
+		log.Printf("Failed to ensure default roles for tenant %s: %v", tenantID.String(), err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to prepare tenant permissions")
 	}
 
 	if userRole == nil {
+		log.Printf("Default user role missing for tenant %s", tenantID.String())
 		return echo.NewHTTPError(http.StatusInternalServerError, "Default user role not found")
 	}
 
@@ -574,23 +587,33 @@ func (h *AuthHandlers) getOrCreateTenantForSignup(ctx context.Context, email str
 	// For personal emails (gmail, yahoo, etc.), create individual tenant
 	// For business emails, could try to find existing tenant by domain
 
-	personalDomains := map[string]bool{
-		"gmail.com":      true,
-		"yahoo.com":      true,
-		"hotmail.com":    true,
-		"outlook.com":    true,
-		"icloud.com":     true,
-		"protonmail.com": true,
+	personalDomains := map[string]struct{}{
+		"gmail.com":      {},
+		"yahoo.com":      {},
+		"hotmail.com":    {},
+		"outlook.com":    {},
+		"icloud.com":     {},
+		"protonmail.com": {},
 	}
 
-	if personalDomains[domain] {
-		// Create individual tenant for personal email
-		return uuid.New(), nil
+	if _, isPersonal := personalDomains[domain]; isPersonal {
+		localPart := extractLocalPartFromEmail(email)
+		name := buildTenantName(localPart, "Personal Workspace")
+		return h.createTenant(ctx, name, localPart)
 	}
 
-	// For business domains, create a new tenant
-	// In production, you might want to check if tenant exists for this domain
-	return uuid.New(), nil
+	sanitizedDomain := sanitizeSubdomain(domain)
+	if tenant, err := h.tenantRepo.GetBySubdomain(ctx, sanitizedDomain); err == nil {
+		if _, ensureErr := h.ensureTenantDefaults(ctx, tenant.ID); ensureErr != nil {
+			return uuid.Nil, ensureErr
+		}
+		return tenant.ID, nil
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, err
+	}
+
+	name := buildTenantName(domain, "Business Workspace")
+	return h.createTenant(ctx, name, domain)
 }
 
 // extractDomainFromEmail extracts domain from email address
@@ -600,4 +623,172 @@ func extractDomainFromEmail(email string) string {
 		return ""
 	}
 	return strings.ToLower(parts[1])
+}
+
+func extractLocalPartFromEmail(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return ""
+	}
+	return parts[0]
+}
+
+func (h *AuthHandlers) createTenant(ctx context.Context, name, baseSubdomain string) (uuid.UUID, error) {
+	sanitizedBase := sanitizeSubdomain(baseSubdomain)
+	if sanitizedBase == "" {
+		sanitizedBase = "tenant"
+	}
+
+	displayName := strings.TrimSpace(name)
+	if displayName == "" {
+		displayName = "Agromart Tenant"
+	} else {
+		displayName = buildTenantName(displayName, "Agromart Tenant")
+	}
+
+	for i := 0; i < 5; i++ {
+		candidateSubdomain := sanitizedBase
+		if i > 0 {
+			candidateSubdomain = fmt.Sprintf("%s-%d", sanitizedBase, i)
+		}
+
+		tenant := &models.Tenant{
+			ID:        uuid.New(),
+			Name:      displayName,
+			Subdomain: candidateSubdomain,
+			License:   "",
+			Status:    "active",
+		}
+
+		if err := h.tenantRepo.Create(ctx, tenant); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				continue
+			}
+			return uuid.Nil, err
+		}
+
+		if _, err := h.ensureTenantDefaults(ctx, tenant.ID); err != nil {
+			return uuid.Nil, err
+		}
+
+		return tenant.ID, nil
+	}
+
+	uniqueSubdomain := fmt.Sprintf("%s-%s", sanitizedBase, uuid.New().String()[:8])
+	tenant := &models.Tenant{
+		ID:        uuid.New(),
+		Name:      displayName,
+		Subdomain: uniqueSubdomain,
+		License:   "",
+		Status:    "active",
+	}
+
+	if err := h.tenantRepo.Create(ctx, tenant); err != nil {
+		return uuid.Nil, err
+	}
+
+	if _, err := h.ensureTenantDefaults(ctx, tenant.ID); err != nil {
+		return uuid.Nil, err
+	}
+
+	return tenant.ID, nil
+}
+
+func (h *AuthHandlers) ensureTenantDefaults(ctx context.Context, tenantID uuid.UUID) (*models.Role, error) {
+	role, err := h.roleRepo.GetByName(ctx, tenantID, "user")
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+
+		description := "Regular user role"
+		role = &models.Role{
+			ID:          uuid.New(),
+			TenantID:    tenantID,
+			Name:        "user",
+			Description: &description,
+		}
+
+		if err := h.roleRepo.Create(ctx, role); err != nil {
+			return nil, err
+		}
+	}
+
+	if h.permissionRepo != nil && h.rolePermissionRepo != nil {
+		permissions, err := h.permissionRepo.List(ctx, 1000, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, permission := range permissions {
+			name := permission.Name
+			if !strings.HasPrefix(name, "read_") && !strings.HasPrefix(name, "categories:") {
+				continue
+			}
+
+			if err := h.rolePermissionRepo.Create(ctx, tenantID, &models.RolePermission{
+				RoleID:       role.ID,
+				PermissionID: permission.ID,
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return role, nil
+}
+
+func sanitizeSubdomain(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	lastWasHyphen := false
+
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+			lastWasHyphen = false
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			lastWasHyphen = false
+		case r == '-' || r == '_' || r == '.' || r == ' ':
+			if !lastWasHyphen {
+				builder.WriteRune('-')
+				lastWasHyphen = true
+			}
+		}
+	}
+
+	sanitized := strings.Trim(builder.String(), "-")
+	return sanitized
+}
+
+func buildTenantName(source string, fallback string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return fallback
+	}
+
+	parts := strings.FieldsFunc(source, func(r rune) bool {
+		return r == '.' || r == '-' || r == '_' || r == '@' || r == ' '
+	})
+
+	if len(parts) == 0 {
+		return fallback
+	}
+
+	for i, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		lower := strings.ToLower(part)
+		parts[i] = strings.ToUpper(lower[:1]) + lower[1:]
+	}
+
+	return strings.Join(parts, " ")
 }

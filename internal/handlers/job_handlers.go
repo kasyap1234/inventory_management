@@ -14,15 +14,15 @@ import (
 )
 
 type JobHandlers struct {
-	tallyExporter      *jobs.TallyExporter
-	tallyImporter      *jobs.TallyImporter
-	inventoryAlerts    *jobs.InventoryAlertService
-	analyticsRefresh   *jobs.AnalyticsRefreshService
-	analyticsService   *analytics.AnalyticsService
-	orderRepo          repositories.OrderRepository
-	invoiceRepo        repositories.InvoiceRepository
-	productRepo        repositories.ProductRepository
-	inventoryRepo      repositories.InventoryRepository
+	tallyExporter    *jobs.TallyExporter
+	tallyImporter    *jobs.TallyImporter
+	inventoryAlerts  *jobs.InventoryAlertService
+	analyticsRefresh *jobs.AnalyticsRefreshService
+	analyticsService *analytics.AnalyticsService
+	orderRepo        repositories.OrderRepository
+	invoiceRepo      repositories.InvoiceRepository
+	productRepo      repositories.ProductRepository
+	inventoryRepo    repositories.InventoryRepository
 }
 
 func NewJobHandlers(
@@ -104,7 +104,7 @@ func (h *JobHandlers) ExportOrders(c echo.Context) error {
 	}
 
 	req := &jobs.ExportRequest{
-		TenantID: tenantID,
+		TenantID:  tenantID,
 		StartDate: c.QueryParam("start_date"),
 		EndDate:   c.QueryParam("end_date"),
 		Format:    c.QueryParam("format"),
@@ -226,3 +226,40 @@ func (h *JobHandlers) GetAnalyticsData(c echo.Context) error {
 	return c.JSON(http.StatusOK, data)
 }
 
+// ListJobs returns a placeholder response until job dashboards are implemented
+func (h *JobHandlers) ListJobs(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Job listing API is currently not implemented",
+		"jobs":    []interface{}{},
+	})
+}
+
+// GetJob returns placeholder details for a specific job
+func (h *JobHandlers) GetJob(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Job detail API is currently not implemented",
+		"job_id":  c.Param("id"),
+	})
+}
+
+// RetryJob responds that retry is not available yet
+func (h *JobHandlers) RetryJob(c echo.Context) error {
+	return c.JSON(http.StatusNotImplemented, map[string]string{
+		"message": "Job retry is not implemented yet",
+	})
+}
+
+// CancelJob responds that cancel is not available yet
+func (h *JobHandlers) CancelJob(c echo.Context) error {
+	return c.JSON(http.StatusNotImplemented, map[string]string{
+		"message": "Job cancel is not implemented yet",
+	})
+}
+
+// GetJobStats returns placeholder statistics
+func (h *JobHandlers) GetJobStats(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Job statistics API is currently not implemented",
+		"stats":   map[string]int{"pending": 0, "completed": 0, "failed": 0},
+	})
+}
