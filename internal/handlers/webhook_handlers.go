@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
@@ -43,12 +44,21 @@ func NewWebhookHandlers(
 
 // verifyRazorpayWebhookSignature verifies the webhook signature
 func (h *WebhookHandlers) verifyRazorpayWebhookSignature(signature string, body []byte) bool {
+	trimmedSignature := strings.TrimSpace(signature)
+	if trimmedSignature == "" || h.webhookSecret == "" {
+		return false
+	}
+
 	hash := hmac.New(sha256.New, []byte(h.webhookSecret))
 	hash.Write(body)
-	expectedSignature := hex.EncodeToString(hash.Sum(nil))
+	expected := hash.Sum(nil)
 
-	// Use constant time comparison to prevent timing attacks
-	return hmac.Equal([]byte(signature), []byte(expectedSignature))
+	provided, err := hex.DecodeString(trimmedSignature)
+	if err != nil {
+		return false
+	}
+
+	return hmac.Equal(provided, expected)
 }
 
 // RazorpayWebhook handles POST /webhooks/razorpay
@@ -150,7 +160,7 @@ func (h *WebhookHandlers) handleSubscriptionHalted(event *services.WebhookEvent)
 func (h *WebhookHandlers) handleEvent(event *services.WebhookEvent, status string) error {
 	// Extract Razorpay subscription ID from event data
 	var razorpayID string
-	
+
 	// Check for subscription_id in different possible locations
 	if subID, ok := event.Data["subscription_id"].(string); ok {
 		razorpayID = subID
@@ -161,7 +171,7 @@ func (h *WebhookHandlers) handleEvent(event *services.WebhookEvent, status strin
 			}
 		}
 	}
-	
+
 	if razorpayID == "" {
 		return nil // Skip if no subscription ID found
 	}
@@ -196,6 +206,6 @@ func (h *WebhookHandlers) findSubscriptionByRazorpayID(ctx context.Context, razo
 	if err != nil {
 		return nil, uuid.Nil, fmt.Errorf("subscription not found for Razorpay ID %s: %v", razorpayID, err)
 	}
-	
+
 	return subscription, subscription.TenantID, nil
 }

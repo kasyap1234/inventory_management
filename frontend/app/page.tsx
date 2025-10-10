@@ -3,14 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { tokenStorage } from '@/lib/security';
+
 export default function Home() {
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
-      if (token) {
+      if (tokenStorage.hasAccessToken()) {
         router.push('/dashboard');
       } else {
         router.push('/login');

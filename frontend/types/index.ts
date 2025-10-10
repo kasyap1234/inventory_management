@@ -132,6 +132,8 @@ export interface AuthResponse {
   access_token: string;
   refresh_token: string;
   user: User;
+  mfa_required?: boolean;
+  mfa_token?: string;
 }
 
 export interface LoginCredentials {
@@ -146,6 +148,22 @@ export interface SignupData {
   last_name: string;
   tenant_name: string;
   subdomain: string;
+}
+
+export interface SignupResponse {
+  user: User;
+  message: string;
+  verification_required: boolean;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+  confirm_password: string;
 }
 
 export interface Role {

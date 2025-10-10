@@ -19,6 +19,7 @@ export default function OrdersPage() {
   const [filterType, setFilterType] = useState<'all' | 'purchase' | 'sales'>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
   const { data: orders, isLoading } = useQuery<{ orders: Order[] }>({
@@ -67,6 +68,7 @@ export default function OrdersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setSelectedOrders([]);
     },
   });
 
@@ -77,9 +79,38 @@ export default function OrdersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setSelectedOrders([]);
     },
     onError: (error: any) => {
       alert(error.response?.data?.error?.message || `Failed to ${error.config?.url?.split('/').pop()} order`);
+    },
+  });
+
+  const bulkOrderAction = useMutation({
+    mutationFn: async ({ action, eligibleOrderIds }: { action: string; eligibleOrderIds: string[] }) => {
+      for (const id of eligibleOrderIds) {
+        await api.post(`/orders/${id}/${action}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setSelectedOrders([]);
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.error?.message || 'Bulk action failed');
+    },
+  });
+
+  const bulkDeleteOrders = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => api.delete(`/orders/${id}`)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setSelectedOrders([]);
+    },
+    onError: () => {
+      alert('Failed to delete selected orders');
     },
   });
 
@@ -111,17 +142,149 @@ export default function OrdersPage() {
     }
   };
 
+  const selectedOrderDetails = filteredOrders.filter((order) => selectedOrders.includes(order.id));
+
+  const getEligibleOrderIds = (action: string) => {
+    return selectedOrderDetails
+      .filter((order) => {
+        switch (action) {
+          case 'approve':
+            return order.status === 'pending';
+          case 'process':
+            return order.status === 'approved';
+          case 'receive':
+            return order.status === 'processing' && order.order_type === 'purchase';
+          case 'ship':
+            return order.status === 'processing' && order.order_type === 'sales';
+          case 'deliver':
+            return order.status === 'shipped';
+          case 'cancel':
+            return !['delivered', 'cancelled'].includes(order.status);
+          default:
+            return false;
+        }
+      })
+      .map((order) => order.id);
+  };
+
+  const handleBulkAction = (action: string) => {
+    const eligibleOrderIds = getEligibleOrderIds(action);
+    if (eligibleOrderIds.length === 0) {
+      alert('No selected orders are eligible for this action');
+      return;
+    }
+    if (confirm(`Apply ${action} to ${eligibleOrderIds.length} order(s)?`)) {
+      bulkOrderAction.mutate({ action, eligibleOrderIds });
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const deletableIds = selectedOrderDetails
+      .filter((order) => ['delivered', 'cancelled'].includes(order.status))
+      .map((order) => order.id);
+
+    if (deletableIds.length === 0) {
+      alert('Only delivered or cancelled orders can be deleted');
+      return;
+    }
+
+    if (confirm(`Delete ${deletableIds.length} order(s)?`)) {
+      bulkDeleteOrders.mutate(deletableIds);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedOrders(filteredOrders.map((order) => order.id));
+    } else {
+      setSelectedOrders([]);
+    }
+  };
+
+  const handleSelectOrder = (orderId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedOrders((prev) => [...prev, orderId]);
+    } else {
+      setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
           <p className="text-gray-500 mt-1">Manage purchase and sales orders</p>
+          {selectedOrders.length > 0 && (
+            <p className="text-sm text-blue-600 mt-1">{selectedOrders.length} order(s) selected</p>
+          )}
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Order
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedOrders.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('approve')}
+                disabled={bulkOrderAction.isPending}
+              >
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('process')}
+                disabled={bulkOrderAction.isPending}
+              >
+                Process
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('receive')}
+                disabled={bulkOrderAction.isPending}
+              >
+                Receive
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('ship')}
+                disabled={bulkOrderAction.isPending}
+              >
+                Ship
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkAction('deliver')}
+                disabled={bulkOrderAction.isPending}
+              >
+                Deliver
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleBulkAction('cancel')}
+                disabled={bulkOrderAction.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteOrders.isPending}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Order
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -242,6 +405,14 @@ export default function OrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrders.length > 0 && selectedOrders.length === filteredOrders.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Order Type</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Quantity</TableHead>
@@ -259,6 +430,14 @@ export default function OrdersPage() {
 
                   return (
                     <TableRow key={order.id}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(order.id)}
+                          onChange={(e) => handleSelectOrder(order.id, e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                      </TableCell>
                       <TableCell>
                         <Badge variant={order.order_type === 'purchase' ? 'default' : 'success'}>
                           {order.order_type}

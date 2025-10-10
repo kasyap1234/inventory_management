@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"agromart2/internal/common"
 	"agromart2/internal/models"
@@ -88,10 +89,10 @@ func (h *NotificationHandlers) CreateWebhookSubscription(c echo.Context) error {
 	}
 
 	subscription := &models.WebhookSubscription{
-		Name:        req.Name,
+		Name:        strings.TrimSpace(req.Name),
 		Description: req.Description,
-		URL:         req.URL,
-		Secret:      req.Secret,
+		URL:         strings.TrimSpace(req.URL),
+		Secret:      strings.TrimSpace(req.Secret),
 		Events:      req.Events,
 		IsActive:    req.IsActive,
 	}
@@ -120,6 +121,70 @@ func (h *NotificationHandlers) ListWebhookSubscriptions(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"webhook_subscriptions": subscriptions,
 	})
+}
+
+// UpdateWebhookSubscription updates an existing webhook subscription
+func (h *NotificationHandlers) UpdateWebhookSubscription(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	subscriptionID := c.Param("id")
+	if strings.TrimSpace(subscriptionID) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Subscription ID is required")
+	}
+
+	existing, err := h.notificationSvc.GetWebhookSubscription(ctx, tenantID, subscriptionID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+
+	var req struct {
+		Name        *string  `json:"name"`
+		Description *string  `json:"description"`
+		URL         *string  `json:"url"`
+		Secret      *string  `json:"secret"`
+		Events      []string `json:"events"`
+		IsActive    *bool    `json:"is_active"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if req.Name != nil {
+		existing.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.Description != nil {
+		existing.Description = req.Description
+	}
+	if req.URL != nil {
+		trimmed := strings.TrimSpace(*req.URL)
+		if trimmed != "" {
+			existing.URL = trimmed
+		}
+	}
+	if req.Secret != nil {
+		trimmed := strings.TrimSpace(*req.Secret)
+		if trimmed != "" {
+			existing.Secret = trimmed
+		}
+	}
+	if len(req.Events) > 0 {
+		existing.Events = req.Events
+	}
+	if req.IsActive != nil {
+		existing.IsActive = *req.IsActive
+	}
+
+	if err := h.notificationSvc.UpdateWebhookSubscription(ctx, tenantID, existing); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, existing)
 }
 
 // DeleteWebhookSubscription deletes a webhook subscription
@@ -155,12 +220,12 @@ func (h *NotificationHandlers) CreateTemplate(c echo.Context) error {
 	}
 
 	var req struct {
-		Type        string                 `json:"type" validate:"required"`
-		EventType   string                 `json:"event_type" validate:"required"`
-		Subject     *string                `json:"subject"`
-		BodyTemplate string                `json:"body_template" validate:"required"`
-		Variables   map[string]interface{} `json:"variables"`
-		IsActive    bool                   `json:"is_active"`
+		Type         string                 `json:"type" validate:"required"`
+		EventType    string                 `json:"event_type" validate:"required"`
+		Subject      *string                `json:"subject"`
+		BodyTemplate string                 `json:"body_template" validate:"required"`
+		Variables    map[string]interface{} `json:"variables"`
+		IsActive     bool                   `json:"is_active"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -273,9 +338,9 @@ func (h *NotificationHandlers) UpdateAlertConfig(c echo.Context) error {
 	}
 
 	var req struct {
-		AlertType        models.AlertType        `json:"alert_type" validate:"required"`
-		Config           map[string]interface{}  `json:"config" validate:"required"`
-		Enabled          bool                   `json:"enabled"`
+		AlertType            models.AlertType          `json:"alert_type" validate:"required"`
+		Config               map[string]interface{}    `json:"config" validate:"required"`
+		Enabled              bool                      `json:"enabled"`
 		NotificationChannels []models.NotificationType `json:"notification_channels"`
 	}
 
@@ -284,9 +349,9 @@ func (h *NotificationHandlers) UpdateAlertConfig(c echo.Context) error {
 	}
 
 	config := &models.AlertConfig{
-		AlertType:         req.AlertType,
-		Config:           req.Config,
-		Enabled:          req.Enabled,
+		AlertType: req.AlertType,
+		Config:    req.Config,
+		Enabled:   req.Enabled,
 	}
 
 	if err := h.notificationSvc.UpdateAlertConfig(ctx, tenantID, config); err != nil {
@@ -349,7 +414,7 @@ func (h *NotificationHandlers) RenderTemplate(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"template_id":    req.TemplateID,
+		"template_id":   req.TemplateID,
 		"rendered_body": rendered,
 		"subject":       template.Subject,
 	})

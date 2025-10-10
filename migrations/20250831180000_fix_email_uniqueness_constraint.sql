@@ -8,7 +8,18 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
 DROP INDEX IF EXISTS idx_users_email;
 
 -- Add tenant-scoped unique constraint on (tenant_id, email)
-ALTER TABLE users ADD CONSTRAINT users_tenant_email_unique UNIQUE (tenant_id, email);
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'users_tenant_email_unique'
+          AND conrelid = 'users'::regclass
+    ) THEN
+        ALTER TABLE users ADD CONSTRAINT users_tenant_email_unique UNIQUE (tenant_id, email);
+    END IF;
+END
+$$;
 
 -- Ensure the composite index exists for performance
 CREATE INDEX IF NOT EXISTS idx_users_tenant_email ON users (tenant_id, email);

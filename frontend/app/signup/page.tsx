@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { ArrowRight, TrendingUp, Users, BarChart3, CheckCircle2 } from 'lucide-react';
+import { AxiosError } from 'axios';
+import { PasswordStrengthMeter } from '@/components/password-strength-meter';
+import { evaluatePasswordStrength } from '@/lib/password';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -17,10 +20,18 @@ export default function SignupPage() {
     tenant_name: '',
     subdomain: '',
   });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const { signup } = useAuth();
+
+  const passwordStrength = useMemo(() => evaluatePasswordStrength(formData.password), [formData.password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!passwordStrength.isAcceptable) {
+      setPasswordError('Password is too weak. Follow the suggestions to create a stronger password.');
+      return;
+    }
+    setPasswordError(null);
     signup.mutate(formData);
   };
 
@@ -29,6 +40,9 @@ export default function SignupPage() {
       ...prev,
       [e.target.name]: e.target.value
     }));
+    if (e.target.name === 'password') {
+      setPasswordError(null);
+    }
   };
 
   const features = [
@@ -114,7 +128,11 @@ export default function SignupPage() {
                     
                     required
                   />
-                  <p className="text-xs text-gray-500">Must be at least 6 characters</p>
+                  <PasswordStrengthMeter password={formData.password} />
+                  <p className="text-xs text-gray-500">Use at least 12 characters with numbers, symbols, and mixed case letters.</p>
+                  {passwordError && (
+                    <p className="text-xs text-red-600">{passwordError}</p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -153,18 +171,24 @@ export default function SignupPage() {
                 </div>
                 
                 {signup.isError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in flex items-start gap-2">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
-                    Failed to create account. Please try again.
+                    <span>
+                      {(
+                        (signup.error as AxiosError<{ error?: { message?: string } }> | undefined)?.response?.data?.error?.message ??
+                        (signup.error as AxiosError<{ message?: string }> | undefined)?.response?.data?.message ??
+                        'Failed to create account. Please try again.'
+                      )}
+                    </span>
                   </div>
                 )}
                 
                 <Button
                   type="submit"
                   className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
-                  disabled={signup.isPending}
+                  disabled={signup.isPending || !passwordStrength.isAcceptable}
                 >
                   {signup.isPending ? (
                     <span className="flex items-center justify-center gap-2">

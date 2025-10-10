@@ -1,0 +1,146 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ShieldCheck, MailCheck, Loader2, MailWarning } from 'lucide-react';
+
+type VerificationState = 'idle' | 'verifying' | 'success' | 'error';
+
+export default function VerifyEmailPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token') ?? '';
+  const email = searchParams.get('email') ?? '';
+
+  const [state, setState] = useState<VerificationState>(token ? 'verifying' : 'idle');
+  const [message, setMessage] = useState<string>('');
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    let cancelled = false;
+    const verify = async () => {
+      try {
+        setState('verifying');
+        const response = await api.post<{ message: string }>('/auth/verify', { token });
+        if (!cancelled) {
+          setMessage(response.data?.message ?? 'Email verified successfully.');
+          setState('success');
+        }
+      } catch {
+        if (!cancelled) {
+          setMessage('The verification link is invalid or has expired.');
+          setState('error');
+        }
+      }
+    };
+
+    verify();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const header = useMemo(() => {
+    switch (state) {
+      case 'verifying':
+        return { title: 'Verifying your email...', description: 'Please wait a moment while we confirm your account.' };
+      case 'success':
+        return { title: 'Your email is verified!', description: 'You can now sign in and start using Agromart.' };
+      case 'error':
+        return { title: 'We could not verify your email', description: 'The verification link may have expired. Request a new one below.' };
+      default:
+        return { title: 'Check your inbox', description: 'We sent you a verification link. Click it to activate your account.' };
+    }
+  }, [state]);
+
+  const icon = useMemo(() => {
+    switch (state) {
+      case 'verifying':
+        return <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />;
+      case 'success':
+        return <ShieldCheck className="h-12 w-12 text-green-500" />;
+      case 'error':
+        return <MailWarning className="h-12 w-12 text-red-500" />;
+      default:
+        return <MailCheck className="h-12 w-12 text-blue-600" />;
+    }
+  }, [state]);
+
+  return (
+    <div className="flex min-h-screen">
+      <div className="flex flex-1 items-center justify-center p-8 bg-white">
+        <div className="w-full max-w-xl animate-fade-in text-center space-y-6">
+          <div className="flex justify-center">{icon}</div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{header.title}</h1>
+            <p className="text-gray-600">{header.description}</p>
+            {state === 'idle' && email && (
+              <p className="text-sm text-gray-500 mt-2">
+                Verification email sent to <span className="font-semibold">{email}</span>.
+              </p>
+            )}
+          </div>
+
+          <Card className="shadow-xl">
+            <CardContent className="p-8 space-y-4">
+              {state === 'success' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-700">{message}</p>
+                  <Button asChild className="w-full h-11 btn-modern gradient-blue text-white">
+                    <Link href="/login">Proceed to sign in</Link>
+                  </Button>
+                </div>
+              )}
+
+              {state === 'error' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-700">{message}</p>
+                  <Button asChild variant="outline" className="w-full h-11">
+                    <Link href="/forgot-password">Request new verification link</Link>
+                  </Button>
+                </div>
+              )}
+
+              {state === 'idle' && (
+                <div className="space-y-3 text-sm text-gray-600">
+                  <p>Didn&apos;t receive the email?</p>
+                  <ul className="text-left list-disc list-inside space-y-1">
+                    <li>Check your spam or promotions folder.</li>
+                    <li>Make sure you entered the correct email address.</li>
+                    <li>Request another link after a few minutes.</li>
+                  </ul>
+                </div>
+              )}
+
+              {state === 'verifying' && (
+                <div className="text-sm text-gray-600">Please wait while we verify the token...</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <p className="text-sm text-gray-600">
+            Need assistance?{' '}
+            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+              Contact support
+            </Link>
+          </p>
+        </div>
+      </div>
+
+      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
+        <div className="max-w-md space-y-6 animate-slide-in text-white">
+          <h2 className="text-4xl font-bold leading-tight">Secure access for your team</h2>
+          <p className="text-lg text-white/90">
+            Email verification keeps your organization safe. Finish this step to explore the full Agromart platform.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

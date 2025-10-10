@@ -2,14 +2,16 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"agromart2/internal/common"
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
+	"github.com/google/uuid"
 )
 
 // OrderServiceInterface defines the interface for order service operations
@@ -38,7 +40,7 @@ type OrderFilters struct {
 }
 
 type orderService struct {
-	orderRepo       repositories.OrderRepository
+	orderRepo        repositories.OrderRepository
 	inventoryRepo    repositories.InventoryRepository
 	inventoryService InventoryService
 }
@@ -56,7 +58,7 @@ var validOrderStatusTransitions = map[string][]string{
 // NewOrderService creates a new order service instance
 func NewOrderService(orderRepo repositories.OrderRepository, inventoryRepo repositories.InventoryRepository, inventoryService InventoryService) OrderServiceInterface {
 	return &orderService{
-		orderRepo:       orderRepo,
+		orderRepo:        orderRepo,
 		inventoryRepo:    inventoryRepo,
 		inventoryService: inventoryService,
 	}
@@ -80,7 +82,7 @@ func (s *orderService) ValidateStatusTransition(currentStatus, newStatus string)
 		}
 	}
 
-	return fmt.Errorf("invalid status transition from '%s' to '%s'. Allowed transitions: %v", 
+	return fmt.Errorf("invalid status transition from '%s' to '%s'. Allowed transitions: %v",
 		currentStatus, newStatus, allowedTransitions)
 }
 
@@ -150,9 +152,13 @@ func (s *orderService) CreateOrder(ctx context.Context, tenantID uuid.UUID, orde
 		// For sales orders, check if sufficient inventory exists
 		inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
 		if err != nil {
+			if errors.Is(err, repositories.ErrInventoryNotFound) {
+				return common.SecureErrorMessage("inventory validation",
+					fmt.Errorf("insufficient inventory available for sales order"))
+			}
 			return common.SecureErrorMessage("check inventory availability", err)
 		}
-		if inventory == nil || inventory.Quantity < order.Quantity {
+		if inventory.Quantity < order.Quantity {
 			return common.SecureErrorMessage("inventory validation",
 				fmt.Errorf("insufficient inventory available for sales order"))
 		}
@@ -209,9 +215,13 @@ func (s *orderService) UpdateOrder(ctx context.Context, tenantID uuid.UUID, orde
 			additionalQuantity := order.Quantity - existingOrder.Quantity
 			inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
 			if err != nil {
+				if errors.Is(err, repositories.ErrInventoryNotFound) {
+					return common.SecureErrorMessage("inventory validation",
+						fmt.Errorf("insufficient additional inventory"))
+				}
 				return common.SecureErrorMessage("check updated inventory", err)
 			}
-			if inventory == nil || inventory.Quantity < additionalQuantity {
+			if inventory.Quantity < additionalQuantity {
 				return common.SecureErrorMessage("inventory validation",
 					fmt.Errorf("insufficient additional inventory"))
 			}
@@ -253,17 +263,22 @@ func (s *orderService) GetOrderAnalytics(ctx context.Context, tenantID uuid.UUID
 	}
 
 	for _, order := range orders {
-		totalValue += float64(order.Quantity) * order.UnitPrice
+		value, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: skipping order %s in analytics due to overflow: %v", order.ID, err)
+			continue
+		}
+		totalValue += value
 		statusCounts[order.Status]++
 	}
 
 	return map[string]interface{}{
-		"total_orders": totalOrders,
-		"total_value": totalValue,
+		"total_orders":     totalOrders,
+		"total_value":      totalValue,
 		"status_breakdown": statusCounts,
 		"period": map[string]string{
 			"start_date": startDate.Format("2006-01-02"),
-			"end_date": endDate.Format("2006-01-02"),
+			"end_date":   endDate.Format("2006-01-02"),
 		},
 	}, nil
 }
@@ -362,9 +377,12 @@ func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.
 	// Reserve inventory with additional validation
 	inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
 	if err != nil {
+		if errors.Is(err, repositories.ErrInventoryNotFound) {
+			return common.SecureErrorMessage("inventory validation", fmt.Errorf("insufficient inventory"))
+		}
 		return common.SecureErrorMessage("retrieve inventory for processing", err)
 	}
-	if inventory == nil || inventory.Quantity < order.Quantity {
+	if inventory.Quantity < order.Quantity {
 		return common.SecureErrorMessage("inventory validation", fmt.Errorf("insufficient inventory"))
 	}
 
@@ -410,12 +428,11 @@ func (s *orderService) ReceiveOrder(ctx context.Context, tenantID, orderID uuid.
 		return err
 	}
 
-		// Add quantity to inventory using AdjustStock (handles existing or new)
+	// Add quantity to inventory using AdjustStock (handles existing or new)
 	err = s.inventoryService.AdjustStock(ctx, tenantID, order.WarehouseID, order.ProductID, order.Quantity)
 	if err != nil {
 		return fmt.Errorf("failed to update inventory: %w", err)
-}
-
+	}
 
 	order.Status = "delivered"
 	order.UpdatedAt = time.Now()
@@ -486,10 +503,13 @@ func (s *orderService) CancelOrder(ctx context.Context, tenantID, orderID uuid.U
 	// Restore inventory if order was processing with validation
 	if order.Status == "processing" || order.Status == "approved" {
 		inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
-		if err == nil && inventory != nil {
-			// Prevent inventory overflow
+		if err != nil {
+			if !errors.Is(err, repositories.ErrInventoryNotFound) {
+				return common.SecureErrorMessage("retrieve inventory for cancellation", err)
+			}
+		} else {
 			newQuantity := inventory.Quantity + order.Quantity
-			if newQuantity < inventory.Quantity { // Overflow check
+			if newQuantity < inventory.Quantity {
 				return common.SecureErrorMessage("inventory restoration", fmt.Errorf("inventory would overflow"))
 			}
 			inventory.Quantity = newQuantity

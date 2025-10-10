@@ -2,12 +2,15 @@ package analytics
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
-	"agromart2/internal/repositories"
 	"agromart2/internal/caching"
+	"agromart2/internal/common"
+	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,7 +39,7 @@ type AnalyticsData struct {
 
 // SalesTrend represents sales data over time
 type SalesTrend struct {
-	Date     time.Time
+	Date        time.Time
 	SalesAmount float64
 	OrderCount  int
 }
@@ -55,12 +58,12 @@ type SearchAnalytics struct {
 
 // SearchUsageStats represents aggregated search usage statistics
 type SearchUsageStats struct {
-	TenantID         uuid.UUID
-	TotalSearches    int
-	AvgResponseTime  float64
-	TopSearchTerms   []SearchTermFrequency
-	PeakUsageTimes   []TimeUsage
-	DateRange        struct {
+	TenantID        uuid.UUID
+	TotalSearches   int
+	AvgResponseTime float64
+	TopSearchTerms  []SearchTermFrequency
+	PeakUsageTimes  []TimeUsage
+	DateRange       struct {
 		Start time.Time
 		End   time.Time
 	}
@@ -78,6 +81,17 @@ type TimeUsage struct {
 	Count int
 }
 
+const (
+	defaultAnalyticsCacheTTL        = 15 * time.Minute
+	salesTrendCacheTTL              = 10 * time.Minute
+	gstTotalsCacheTTL               = 15 * time.Minute
+	productSalesCacheTTL            = 15 * time.Minute
+	lowStockCacheTTL                = 5 * time.Minute
+	inventoryValuationCacheTTL      = 15 * time.Minute
+	revenueByCategoryCacheTTL       = 15 * time.Minute
+	orderStatusDistributionCacheTTL = 5 * time.Minute
+)
+
 func NewAnalyticsService(orderRepo repositories.OrderRepository, invoiceRepo repositories.InvoiceRepository, inventoryRepo repositories.InventoryRepository, productRepo repositories.ProductRepository, cacheService caching.CacheService, db *pgxpool.Pool) *AnalyticsService {
 	return &AnalyticsService{
 		orderRepo:     orderRepo,
@@ -90,13 +104,18 @@ func NewAnalyticsService(orderRepo repositories.OrderRepository, invoiceRepo rep
 }
 
 func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantID uuid.UUID) (*AnalyticsData, error) {
-	data := &AnalyticsData{
-		TenantID:    tenantID,
-		LastUpdated: time.Now(),
+	cached, err := a.getCachedTenantAnalytics(ctx, tenantID)
+	if err != nil {
+		log.Printf("Failed to read cached analytics for tenant %s: %v", tenantID.String(), err)
+	} else if cached != nil {
+		return cached, nil
 	}
 
-	// Calculate total sales from invoices
-	invoices, err := a.invoiceRepo.List(ctx, tenantID, 10000, 0) // Get all, should paginate in production
+	data := &AnalyticsData{
+		TenantID: tenantID,
+	}
+
+	invoices, err := a.invoiceRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		log.Printf("Failed to get invoices for analytics: %v", err)
 		return data, err
@@ -121,8 +140,7 @@ func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantI
 	data.GSTCollected = gstCollected
 	data.OrderCount = len(invoices)
 
-	// Calculate total stock value
-	inventories, err := a.inventoryRepo.List(ctx, tenantID, 10000, 0) // Get all
+	inventories, err := a.inventoryRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		log.Printf("Failed to get inventories for analytics: %v", err)
 		return data, err
@@ -131,42 +149,58 @@ func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantI
 	var totalStockValue float64
 	lowStockCount := 0
 	for _, inv := range inventories {
-		if inv.Quantity < 10 { // Low stock threshold
+		if inv.Quantity < 10 {
 			lowStockCount++
 		}
 
-		// Get product price to calculate stock value
 		product, err := a.productRepo.GetByID(ctx, tenantID, inv.ProductID)
 		if err != nil {
 			log.Printf("Failed to get product %s: %v", inv.ProductID.String(), err)
 			continue
 		}
-		totalStockValue += float64(inv.Quantity) * product.UnitPrice
+		value, err := common.SafeMultiplyMonetary(float64(inv.Quantity), product.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing stock value for product %s: %v", inv.ProductID.String(), err)
+			continue
+		}
+		totalStockValue += value
 	}
 
 	data.TotalStockValue = totalStockValue
 	data.LowStockItemsCount = lowStockCount
+	data.LastUpdated = time.Now()
+
+	a.cacheTenantAnalytics(ctx, data)
 
 	return data, nil
 }
 
 func (a *AnalyticsService) GetSalesTrends(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]SalesTrend, error) {
+	cacheKey := a.salesTrendsCacheKey(tenantID, startDate, endDate)
+	var cached []SalesTrend
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached sales trends for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return cached, nil
+	}
+
 	orders, err := a.orderRepo.GetOrdersByTenantAndDateRange(ctx, tenantID, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 
-	// Group by date
 	trends := make(map[string]*SalesTrend)
-
 	for _, order := range orders {
 		dateStr := order.OrderDate.Format("2006-01-02")
 		if trends[dateStr] == nil {
-			trends[dateStr] = &SalesTrend{
-				Date: order.OrderDate,
-			}
+			trends[dateStr] = &SalesTrend{Date: order.OrderDate}
 		}
-		trends[dateStr].SalesAmount += float64(order.Quantity) * order.UnitPrice
+		amount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing sales trend for order %s: %v", order.ID, err)
+		} else {
+			trends[dateStr].SalesAmount += amount
+		}
 		trends[dateStr].OrderCount++
 	}
 
@@ -175,19 +209,29 @@ func (a *AnalyticsService) GetSalesTrends(ctx context.Context, tenantID uuid.UUI
 		result = append(result, *trend)
 	}
 
+	a.setCachedJSON(ctx, cacheKey, result, salesTrendCacheTTL)
+
 	return result, nil
 }
 
 func (a *AnalyticsService) CalculateGSTTotals(ctx context.Context, tenantID uuid.UUID) (map[string]float64, error) {
+	cacheKey := a.gstTotalsCacheKey(tenantID)
+	var cached map[string]float64
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached GST totals for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return cached, nil
+	}
+
 	invoices, err := a.invoiceRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	totals := map[string]float64{
-		"cgst": 0,
-		"sgst": 0,
-		"igst": 0,
+		"cgst":  0,
+		"sgst":  0,
+		"igst":  0,
 		"total": 0,
 	}
 
@@ -206,6 +250,8 @@ func (a *AnalyticsService) CalculateGSTTotals(ctx context.Context, tenantID uuid
 		}
 	}
 
+	a.setCachedJSON(ctx, cacheKey, totals, gstTotalsCacheTTL)
+
 	return totals, nil
 }
 
@@ -215,10 +261,10 @@ func (a *AnalyticsService) RecordSearchUsage(ctx context.Context, tenantID uuid.
 		INSERT INTO search_analytics (tenant_id, entity_type, search_term, filter_count, result_count, user_id, response_time_ms, timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
 	`
-	
-	_, err := a.db.Exec(ctx, query, 
+
+	_, err := a.db.Exec(ctx, query,
 		tenantID, entityType, searchTerm, filterCount, resultCount, userID, responseTimeMs)
-	
+
 	if err != nil {
 		log.Printf("Failed to persist search analytics: %v", err)
 		// Don't fail the operation, just log the error
@@ -250,7 +296,7 @@ func (a *AnalyticsService) GetSearchAnalytics(ctx context.Context, tenantID uuid
 		FROM search_analytics
 		WHERE tenant_id = $1 AND timestamp BETWEEN $2 AND $3
 	`
-	
+
 	err := a.db.QueryRow(ctx, countQuery, tenantID, startDate, endDate).
 		Scan(&stats.TotalSearches, &stats.AvgResponseTime)
 	if err != nil {
@@ -268,7 +314,7 @@ func (a *AnalyticsService) GetSearchAnalytics(ctx context.Context, tenantID uuid
 		ORDER BY frequency DESC
 		LIMIT 10
 	`
-	
+
 	rows, err := a.db.Query(ctx, termsQuery, tenantID, startDate, endDate)
 	if err != nil {
 		log.Printf("Failed to get top search terms: %v", err)
@@ -291,7 +337,7 @@ func (a *AnalyticsService) GetSearchAnalytics(ctx context.Context, tenantID uuid
 		ORDER BY count DESC
 		LIMIT 5
 	`
-	
+
 	usageRows, err := a.db.Query(ctx, usageQuery, tenantID, startDate, endDate)
 	if err != nil {
 		log.Printf("Failed to get peak usage times: %v", err)
@@ -311,15 +357,15 @@ func (a *AnalyticsService) GetSearchAnalytics(ctx context.Context, tenantID uuid
 // TrackBulkOperationUsage tracks bulk operation usage by persisting to database
 func (a *AnalyticsService) TrackBulkOperationUsage(ctx context.Context, tenantID uuid.UUID, operationType string, totalItems int, successCount int, userID uuid.UUID, processingTimeMs int64) error {
 	failureCount := totalItems - successCount
-	
+
 	query := `
 		INSERT INTO bulk_operation_analytics (tenant_id, operation_type, total_items, success_count, failure_count, user_id, processing_time_ms, timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
 	`
-	
+
 	_, err := a.db.Exec(ctx, query,
 		tenantID, operationType, totalItems, successCount, failureCount, userID, processingTimeMs)
-	
+
 	if err != nil {
 		log.Printf("Failed to persist bulk operation analytics: %v", err)
 		// Don't fail the operation, just log the error
@@ -337,7 +383,7 @@ func (a *AnalyticsService) GetPopularSearchTerms(ctx context.Context, tenantID u
 	if limit <= 0 {
 		limit = 10
 	}
-	
+
 	query := `
 		SELECT search_term, COUNT(*) as frequency
 		FROM search_analytics
@@ -348,7 +394,7 @@ func (a *AnalyticsService) GetPopularSearchTerms(ctx context.Context, tenantID u
 		ORDER BY frequency DESC
 		LIMIT $2
 	`
-	
+
 	rows, err := a.db.Query(ctx, query, tenantID, limit)
 	if err != nil {
 		log.Printf("Failed to get popular search terms: %v", err)
@@ -414,10 +460,10 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 		FROM search_analytics
 		WHERE tenant_id = $1 AND timestamp > NOW() - INTERVAL '30 days'
 	`
-	
+
 	var avgResponseTime float64
 	var totalSearches, successfulSearches, zeroResultSearches int64
-	
+
 	err := a.db.QueryRow(ctx, basicQuery, tenantID).
 		Scan(&avgResponseTime, &totalSearches, &successfulSearches, &zeroResultSearches)
 	if err != nil {
@@ -429,7 +475,7 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 	metrics["total_searches"] = totalSearches
 	metrics["successful_searches"] = successfulSearches
 	metrics["failed_searches"] = totalSearches - successfulSearches
-	
+
 	var zeroResultPct float64
 	if totalSearches > 0 {
 		zeroResultPct = float64(zeroResultSearches) / float64(totalSearches) * 100
@@ -445,7 +491,7 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 		ORDER BY count DESC
 		LIMIT 1
 	`
-	
+
 	var mostPopularEntity string
 	var entityCount int64
 	err = a.db.QueryRow(ctx, entityQuery, tenantID).
@@ -465,7 +511,7 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 		ORDER BY count DESC
 		LIMIT 1
 	`
-	
+
 	var peakHour int
 	var peakCount int64
 	err = a.db.QueryRow(ctx, peakQuery, tenantID).
@@ -486,10 +532,22 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 func (a *AnalyticsService) InvalidateTenantAnalyticsCache(ctx context.Context, tenantID uuid.UUID) error {
 	log.Printf("Invalidating analytics cache for tenant %s", tenantID.String())
 
-	// Use cache service to invalidate by pattern or specific key
-	// Since we want to invalidate only analytics, we can delete the specific key
-	cacheKey := fmt.Sprintf("agromart:analytics:%s", tenantID.String())
-	return a.cacheService.Delete(ctx, cacheKey)
+	keys := []string{
+		fmt.Sprintf("agromart:analytics:%s:dashboard", tenantID.String()),
+		a.gstTotalsCacheKey(tenantID),
+		a.inventoryValuationCacheKey(tenantID),
+		a.revenueByCategoryCacheKey(tenantID),
+		a.orderStatusDistributionCacheKey(tenantID),
+	}
+
+	var firstErr error
+	for _, key := range keys {
+		if err := a.cacheService.Delete(ctx, key); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return firstErr
 }
 
 // ProductSales represents product sales statistics
@@ -510,22 +568,27 @@ func (a *AnalyticsService) GetTopSellingProducts(ctx context.Context, tenantID u
 		limit = 100 // Cap at 100
 	}
 
-	// Query orders and aggregate by product
-	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0) // Get all orders for calculation
+	cacheKey := a.topProductsCacheKey(tenantID, limit)
+	var cached []ProductSales
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached top products for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return cached, nil
+	}
+
+	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
 
-	// Aggregate sales by product
 	productSalesMap := make(map[uuid.UUID]*ProductSales)
 
 	for _, order := range orders {
 		if order.Status == "cancelled" {
-			continue // Skip cancelled orders
+			continue
 		}
 
 		if _, exists := productSalesMap[order.ProductID]; !exists {
-			// Fetch product details
 			product, err := a.productRepo.GetByID(ctx, tenantID, order.ProductID)
 			if err != nil {
 				log.Printf("Failed to get product %s: %v", order.ProductID.String(), err)
@@ -535,25 +598,25 @@ func (a *AnalyticsService) GetTopSellingProducts(ctx context.Context, tenantID u
 			productSalesMap[order.ProductID] = &ProductSales{
 				ProductID:   order.ProductID,
 				ProductName: product.Name,
-				TotalSales:  0,
-				UnitsSold:   0,
-				OrderCount:  0,
 			}
 		}
 
 		sales := productSalesMap[order.ProductID]
-		sales.TotalSales += float64(order.Quantity) * order.UnitPrice
+		amount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing sales for product %s: %v", order.ProductID.String(), err)
+			continue
+		}
+		sales.TotalSales += amount
 		sales.UnitsSold += order.Quantity
 		sales.OrderCount++
 	}
 
-	// Convert map to slice and sort by total sales
 	var productSales []ProductSales
 	for _, ps := range productSalesMap {
 		productSales = append(productSales, *ps)
 	}
 
-	// Sort by total sales descending
 	for i := 0; i < len(productSales); i++ {
 		for j := i + 1; j < len(productSales); j++ {
 			if productSales[j].TotalSales > productSales[i].TotalSales {
@@ -562,10 +625,11 @@ func (a *AnalyticsService) GetTopSellingProducts(ctx context.Context, tenantID u
 		}
 	}
 
-	// Return top N products
 	if len(productSales) > limit {
 		productSales = productSales[:limit]
 	}
+
+	a.setCachedJSON(ctx, cacheKey, productSales, productSalesCacheTTL)
 
 	log.Printf("Retrieved top %d selling products for tenant %s", len(productSales), tenantID.String())
 	return productSales, nil
@@ -588,7 +652,14 @@ func (a *AnalyticsService) GetLowStockReport(ctx context.Context, tenantID uuid.
 		threshold = 10 // Default threshold
 	}
 
-	// Get all inventory items
+	cacheKey := a.lowStockCacheKey(tenantID, threshold)
+	var cached []LowStockItem
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached low stock report for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return cached, nil
+	}
+
 	inventories, err := a.inventoryRepo.List(ctx, tenantID, 100000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch inventories: %w", err)
@@ -598,17 +669,20 @@ func (a *AnalyticsService) GetLowStockReport(ctx context.Context, tenantID uuid.
 
 	for _, inv := range inventories {
 		if inv.Quantity >= threshold {
-			continue // Skip items above threshold
+			continue
 		}
 
-		// Fetch product details
 		product, err := a.productRepo.GetByID(ctx, tenantID, inv.ProductID)
 		if err != nil {
 			log.Printf("Failed to get product %s: %v", inv.ProductID.String(), err)
 			continue
 		}
 
-		stockValue := float64(inv.Quantity) * product.UnitPrice
+		stockValue, err := common.SafeMultiplyMonetary(float64(inv.Quantity), product.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing stock value for low stock product %s: %v", inv.ProductID.String(), err)
+			continue
+		}
 
 		lowStockItems = append(lowStockItems, LowStockItem{
 			ProductID:    inv.ProductID,
@@ -621,7 +695,6 @@ func (a *AnalyticsService) GetLowStockReport(ctx context.Context, tenantID uuid.
 		})
 	}
 
-	// Sort by current stock ascending (most critical first)
 	for i := 0; i < len(lowStockItems); i++ {
 		for j := i + 1; j < len(lowStockItems); j++ {
 			if lowStockItems[j].CurrentStock < lowStockItems[i].CurrentStock {
@@ -629,6 +702,8 @@ func (a *AnalyticsService) GetLowStockReport(ctx context.Context, tenantID uuid.
 			}
 		}
 	}
+
+	a.setCachedJSON(ctx, cacheKey, lowStockItems, lowStockCacheTTL)
 
 	log.Printf("Generated low stock report for tenant %s: %d items below threshold %d",
 		tenantID.String(), len(lowStockItems), threshold)
@@ -638,17 +713,25 @@ func (a *AnalyticsService) GetLowStockReport(ctx context.Context, tenantID uuid.
 
 // InventoryValuation represents the total valuation of inventory
 type InventoryValuation struct {
-	TenantID       uuid.UUID              `json:"tenant_id"`
-	TotalValue     float64                `json:"total_value"`
-	TotalItems     int                    `json:"total_items"`
-	TotalQuantity  int                    `json:"total_quantity"`
-	ByWarehouse    map[string]float64     `json:"by_warehouse"`
-	ByCategory     map[string]float64     `json:"by_category"`
-	LastCalculated time.Time              `json:"last_calculated"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	TotalValue     float64            `json:"total_value"`
+	TotalItems     int                `json:"total_items"`
+	TotalQuantity  int                `json:"total_quantity"`
+	ByWarehouse    map[string]float64 `json:"by_warehouse"`
+	ByCategory     map[string]float64 `json:"by_category"`
+	LastCalculated time.Time          `json:"last_calculated"`
 }
 
 // CalculateInventoryValuation calculates the total value of inventory
 func (a *AnalyticsService) CalculateInventoryValuation(ctx context.Context, tenantID uuid.UUID) (*InventoryValuation, error) {
+	cacheKey := a.inventoryValuationCacheKey(tenantID)
+	var cached InventoryValuation
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached inventory valuation for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return &cached, nil
+	}
+
 	valuation := &InventoryValuation{
 		TenantID:       tenantID,
 		TotalValue:     0,
@@ -673,7 +756,11 @@ func (a *AnalyticsService) CalculateInventoryValuation(ctx context.Context, tena
 			continue
 		}
 
-		itemValue := float64(inv.Quantity) * product.UnitPrice
+		itemValue, err := common.SafeMultiplyMonetary(float64(inv.Quantity), product.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing valuation for product %s: %v", product.ID.String(), err)
+			continue
+		}
 		valuation.TotalValue += itemValue
 		valuation.TotalItems++
 		valuation.TotalQuantity += inv.Quantity
@@ -689,6 +776,8 @@ func (a *AnalyticsService) CalculateInventoryValuation(ctx context.Context, tena
 		}
 	}
 
+	a.setCachedJSON(ctx, cacheKey, valuation, inventoryValuationCacheTTL)
+
 	log.Printf("Calculated inventory valuation for tenant %s: Total value: %.2f, Items: %d",
 		tenantID.String(), valuation.TotalValue, valuation.TotalItems)
 
@@ -697,9 +786,16 @@ func (a *AnalyticsService) CalculateInventoryValuation(ctx context.Context, tena
 
 // GetRevenueByCategory calculates revenue breakdown by product category
 func (a *AnalyticsService) GetRevenueByCategory(ctx context.Context, tenantID uuid.UUID) (map[string]float64, error) {
+	cacheKey := a.revenueByCategoryCacheKey(tenantID)
+	var cached map[string]float64
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached revenue by category for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return cached, nil
+	}
+
 	revenueByCategory := make(map[string]float64)
 
-	// Get all orders
 	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
@@ -707,19 +803,21 @@ func (a *AnalyticsService) GetRevenueByCategory(ctx context.Context, tenantID uu
 
 	for _, order := range orders {
 		if order.Status == "cancelled" {
-			continue // Skip cancelled orders
+			continue
 		}
 
-		// Fetch product details
 		product, err := a.productRepo.GetByID(ctx, tenantID, order.ProductID)
 		if err != nil {
 			log.Printf("Failed to get product %s: %v", order.ProductID.String(), err)
 			continue
 		}
 
-		revenue := float64(order.Quantity) * order.UnitPrice
+		revenue, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing revenue for order %s: %v", order.ID, err)
+			continue
+		}
 
-		// Group by category
 		if product.CategoryID != nil {
 			categoryKey := product.CategoryID.String()
 			revenueByCategory[categoryKey] += revenue
@@ -727,6 +825,8 @@ func (a *AnalyticsService) GetRevenueByCategory(ctx context.Context, tenantID uu
 			revenueByCategory["uncategorized"] += revenue
 		}
 	}
+
+	a.setCachedJSON(ctx, cacheKey, revenueByCategory, revenueByCategoryCacheTTL)
 
 	log.Printf("Calculated revenue by category for tenant %s: %d categories",
 		tenantID.String(), len(revenueByCategory))
@@ -736,26 +836,33 @@ func (a *AnalyticsService) GetRevenueByCategory(ctx context.Context, tenantID uu
 
 // GetOrderStatusDistribution returns the count of orders by status
 func (a *AnalyticsService) GetOrderStatusDistribution(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
-	distribution := make(map[string]int)
+	cacheKey := a.orderStatusDistributionCacheKey(tenantID)
+	var cached map[string]int
+	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
+		log.Printf("Failed to read cached order status distribution for tenant %s: %v", tenantID.String(), err)
+	} else if found {
+		return cached, nil
+	}
 
-	// Initialize with common statuses
-	distribution["pending"] = 0
-	distribution["approved"] = 0
-	distribution["processing"] = 0
-	distribution["shipped"] = 0
-	distribution["delivered"] = 0
-	distribution["cancelled"] = 0
+	distribution := map[string]int{
+		"pending":    0,
+		"approved":   0,
+		"processing": 0,
+		"shipped":    0,
+		"delivered":  0,
+		"cancelled":  0,
+	}
 
-	// Get all orders
 	orders, err := a.orderRepo.List(ctx, tenantID, 100000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
 
-	// Count orders by status
 	for _, order := range orders {
 		distribution[order.Status]++
 	}
+
+	a.setCachedJSON(ctx, cacheKey, distribution, orderStatusDistributionCacheTTL)
 
 	log.Printf("Calculated order status distribution for tenant %s: %d total orders",
 		tenantID.String(), len(orders))
@@ -767,31 +874,212 @@ func (a *AnalyticsService) GetOrderStatusDistribution(ctx context.Context, tenan
 func (a *AnalyticsService) RefreshTenantAnalytics(ctx context.Context, tenantID uuid.UUID) error {
 	log.Printf("Starting analytics refresh for tenant %s", tenantID.String())
 
-	// Calculate fresh analytics
-	data, err := a.CalculateTenantAnalytics(ctx, tenantID)
-	if err != nil {
+	if err := a.InvalidateTenantAnalyticsCache(ctx, tenantID); err != nil {
+		log.Printf("Failed to invalidate analytics cache for tenant %s: %v", tenantID.String(), err)
+	}
+
+	if _, err := a.CalculateTenantAnalytics(ctx, tenantID); err != nil {
 		return fmt.Errorf("failed to calculate tenant analytics: %w", err)
-	}
-
-	// Convert AnalyticsData to map for caching
-	analyticsMap := map[string]interface{}{
-		"tenant_id":            data.TenantID,
-		"total_sales":          data.TotalSales,
-		"total_stock_value":    data.TotalStockValue,
-		"gst_collected":        data.GSTCollected,
-		"order_count":          data.OrderCount,
-		"low_stock_items_count": data.LowStockItemsCount,
-		"last_updated":         data.LastUpdated,
-	}
-
-	// Cache the results
-	cacheDuration := 15 * time.Minute // Cache for 15 minutes
-
-	if err := a.cacheService.SetTenantAnalytics(ctx, tenantID, analyticsMap, cacheDuration); err != nil {
-		log.Printf("Failed to cache analytics for tenant %s: %v", tenantID.String(), err)
-		// Don't fail the operation if caching fails
 	}
 
 	log.Printf("Analytics refresh completed for tenant %s", tenantID.String())
 	return nil
+}
+
+func (a *AnalyticsService) getCachedTenantAnalytics(ctx context.Context, tenantID uuid.UUID) (*AnalyticsData, error) {
+	cached, err := a.cacheService.GetTenantAnalytics(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if cached == nil {
+		return nil, nil
+	}
+
+	data, err := analyticsDataFromCacheMap(cached)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (a *AnalyticsService) cacheTenantAnalytics(ctx context.Context, data *AnalyticsData) {
+	if data == nil {
+		return
+	}
+
+	payload := map[string]interface{}{
+		"tenant_id":             data.TenantID.String(),
+		"total_sales":           data.TotalSales,
+		"total_stock_value":     data.TotalStockValue,
+		"gst_collected":         data.GSTCollected,
+		"order_count":           data.OrderCount,
+		"low_stock_items_count": data.LowStockItemsCount,
+		"last_updated":          data.LastUpdated.Format(time.RFC3339),
+	}
+
+	if err := a.cacheService.SetTenantAnalytics(ctx, data.TenantID, payload, defaultAnalyticsCacheTTL); err != nil {
+		log.Printf("Failed to cache analytics for tenant %s: %v", data.TenantID.String(), err)
+	}
+}
+
+func analyticsDataFromCacheMap(payload map[string]interface{}) (*AnalyticsData, error) {
+	tenantStr, ok := payload["tenant_id"].(string)
+	if !ok || tenantStr == "" {
+		return nil, fmt.Errorf("invalid tenant_id in analytics cache")
+	}
+
+	tenantID, err := uuid.Parse(tenantStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid tenant_id in analytics cache: %w", err)
+	}
+
+	data := &AnalyticsData{
+		TenantID:           tenantID,
+		TotalSales:         floatFromInterface(payload["total_sales"]),
+		TotalStockValue:    floatFromInterface(payload["total_stock_value"]),
+		GSTCollected:       floatFromInterface(payload["gst_collected"]),
+		OrderCount:         intFromInterface(payload["order_count"]),
+		LowStockItemsCount: intFromInterface(payload["low_stock_items_count"]),
+		LastUpdated:        time.Now(),
+	}
+
+	if ts, ok := payload["last_updated"].(string); ok && ts != "" {
+		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+			data.LastUpdated = parsed
+		}
+	}
+
+	return data, nil
+}
+
+func floatFromInterface(value interface{}) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case uint:
+		return float64(v)
+	case uint32:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	case json.Number:
+		if f, err := v.Float64(); err == nil {
+			return f
+		}
+	case string:
+		if v == "" {
+			return 0
+		}
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+
+	return 0
+}
+
+func intFromInterface(value interface{}) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case uint:
+		return int(v)
+	case uint32:
+		return int(v)
+	case uint64:
+		return int(v)
+	case float32:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return int(i)
+		}
+		if f, err := v.Float64(); err == nil {
+			return int(f)
+		}
+	case string:
+		if v == "" {
+			return 0
+		}
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return int(f)
+		}
+	default:
+		return int(floatFromInterface(v))
+	}
+
+	return 0
+}
+
+func (a *AnalyticsService) getCachedJSON(ctx context.Context, key string, dest interface{}) (bool, error) {
+	cached, err := a.cacheService.GetString(ctx, key)
+	if err != nil {
+		return false, err
+	}
+	if cached == "" {
+		return false, nil
+	}
+
+	if err := json.Unmarshal([]byte(cached), dest); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (a *AnalyticsService) setCachedJSON(ctx context.Context, key string, value interface{}, ttl time.Duration) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		log.Printf("Failed to marshal analytics cache payload for key %s: %v", key, err)
+		return
+	}
+
+	if err := a.cacheService.SetString(ctx, key, string(data), ttl); err != nil {
+		log.Printf("Failed to cache analytics payload for key %s: %v", key, err)
+	}
+}
+
+func (a *AnalyticsService) salesTrendsCacheKey(tenantID uuid.UUID, startDate, endDate time.Time) string {
+	return fmt.Sprintf("agromart:analytics:%s:sales_trends:%s:%s", tenantID.String(), startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+}
+
+func (a *AnalyticsService) gstTotalsCacheKey(tenantID uuid.UUID) string {
+	return fmt.Sprintf("agromart:analytics:%s:gst_totals", tenantID.String())
+}
+
+func (a *AnalyticsService) topProductsCacheKey(tenantID uuid.UUID, limit int) string {
+	return fmt.Sprintf("agromart:analytics:%s:top_products:%d", tenantID.String(), limit)
+}
+
+func (a *AnalyticsService) lowStockCacheKey(tenantID uuid.UUID, threshold int) string {
+	return fmt.Sprintf("agromart:analytics:%s:low_stock:%d", tenantID.String(), threshold)
+}
+
+func (a *AnalyticsService) inventoryValuationCacheKey(tenantID uuid.UUID) string {
+	return fmt.Sprintf("agromart:analytics:%s:inventory_valuation", tenantID.String())
+}
+
+func (a *AnalyticsService) revenueByCategoryCacheKey(tenantID uuid.UUID) string {
+	return fmt.Sprintf("agromart:analytics:%s:revenue_by_category", tenantID.String())
+}
+
+func (a *AnalyticsService) orderStatusDistributionCacheKey(tenantID uuid.UUID) string {
+	return fmt.Sprintf("agromart:analytics:%s:order_status_distribution", tenantID.String())
 }

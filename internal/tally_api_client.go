@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"agromart2/internal/common"
 	"agromart2/internal/config"
 	"agromart2/internal/models"
 )
@@ -67,10 +68,10 @@ func (c *TallyAPIClient) ExportInvoice(ctx context.Context, invoice *models.Invo
 	endpoint := "/api/invoices"
 
 	payload := map[string]interface{}{
-		"document_type": "Invoice",
-		"party":         "Customer", // Using static value since invoice doesn't have customer name
-		"date":          invoice.IssuedDate.Format("2006-01-02"),
-		"total_amount":  invoice.TotalAmount,
+		"document_type":  "Invoice",
+		"party":          "Customer", // Using static value since invoice doesn't have customer name
+		"date":           invoice.IssuedDate.Format("2006-01-02"),
+		"total_amount":   invoice.TotalAmount,
 		"invoice_number": invoice.InvoiceNumber,
 	}
 
@@ -95,14 +96,19 @@ func (c *TallyAPIClient) ExportInvoice(ctx context.Context, invoice *models.Invo
 func (c *TallyAPIClient) ExportOrder(ctx context.Context, order *models.Order) error {
 	endpoint := "/api/orders"
 
+	totalAmount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+	if err != nil {
+		return fmt.Errorf("failed to calculate order total for tally export: %w", err)
+	}
+
 	payload := map[string]interface{}{
-		"document_type":     "Order",
-		"party":            "Party", // Using static value since order doesn't have customer name
-		"date":             order.OrderDate.Format("2006-01-02"),
-		"total_amount":     float64(order.Quantity) * order.UnitPrice,
-		"quantity":         order.Quantity,
-		"unit_price":       order.UnitPrice,
-		"order_type":       order.OrderType,
+		"document_type": "Order",
+		"party":         "Party", // Using static value since order doesn't have customer name
+		"date":          order.OrderDate.Format("2006-01-02"),
+		"total_amount":  totalAmount,
+		"quantity":      order.Quantity,
+		"unit_price":    order.UnitPrice,
+		"order_type":    order.OrderType,
 	}
 
 	resp, err := c.makeRequest(ctx, "POST", endpoint, payload)

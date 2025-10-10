@@ -2,14 +2,18 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"agromart2/internal/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrInventoryNotFound = errors.New("inventory not found")
 
 type InventoryRepository interface {
 	Create(ctx context.Context, inventory *models.Inventory) error
@@ -19,6 +23,7 @@ type InventoryRepository interface {
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Inventory, error)
 	GetByWarehouseAndProduct(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) (*models.Inventory, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.InventorySearchFilter) ([]*models.Inventory, error)
+	GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error)
 }
 
 type inventoryRepo struct {
@@ -62,6 +67,9 @@ func (r *inventoryRepo) GetByWarehouseAndProduct(ctx context.Context, tenantID, 
 	`
 	err := r.db.QueryRow(ctx, query, tenantID, warehouseID, productID).Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInventoryNotFound
+		}
 		return nil, err
 	}
 	return inventory, nil
@@ -105,6 +113,31 @@ func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 		}
 		inventories = append(inventories, inventory)
 	}
+	return inventories, nil
+}
+
+func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	query := `
+		SELECT id, tenant_id, warehouse_id, product_id, quantity, last_updated
+		FROM inventory
+		WHERE tenant_id = $1 AND product_id = $2
+	`
+
+	rows, err := r.db.Query(ctx, query, tenantID, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var inventories []*models.Inventory
+	for rows.Next() {
+		inventory := &models.Inventory{}
+		if err := rows.Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated); err != nil {
+			return nil, err
+		}
+		inventories = append(inventories, inventory)
+	}
+
 	return inventories, nil
 }
 

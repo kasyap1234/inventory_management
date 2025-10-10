@@ -26,7 +26,7 @@ A comprehensive inventory management system built with Go backend and Next.js fr
 
 **Frontend Language**: TypeScript
 **Framework**: Next.js 15.5.4
-**Package Manager**: npm
+**Package Manager**: Bun (v1.2.20)
 
 ## Dependencies
 
@@ -68,14 +68,14 @@ go build -o main cmd/main.go
 ```bash
 # Install dependencies
 cd frontend
-npm install
+bun install
 
 # Development mode
-npm run dev
+bun run dev
 
 # Production build
-npm run build
-npm start
+bun run build
+bun run start
 ```
 
 ### Full Stack Deployment

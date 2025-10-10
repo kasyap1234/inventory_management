@@ -32,15 +32,15 @@ func NewProductHandlers(productService services.ProductService, rbacMiddleware *
 
 // validateProduct validates product data
 func (h *ProductHandlers) validateProduct(req *struct {
-	Name           string   `json:"name"`
-	CategoryID     *string  `json:"category_id"`
-	BatchNumber    *string  `json:"batch_number"`
-	ExpiryDate     *string  `json:"expiry_date"`
-	Quantity       int      `json:"quantity"`
-	UnitPrice      float64  `json:"unit_price"`
-	Barcode        *string  `json:"barcode"`
-	UnitOfMeasure  *string  `json:"unit_of_measure"`
-	Description    *string  `json:"description"`
+	Name          string  `json:"name"`
+	CategoryID    *string `json:"category_id"`
+	BatchNumber   *string `json:"batch_number"`
+	ExpiryDate    *string `json:"expiry_date"`
+	Quantity      int     `json:"quantity"`
+	UnitPrice     float64 `json:"unit_price"`
+	Barcode       *string `json:"barcode"`
+	UnitOfMeasure *string `json:"unit_of_measure"`
+	Description   *string `json:"description"`
 }) error {
 	if strings.TrimSpace(req.Name) == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Product name is required")
@@ -109,15 +109,15 @@ func (h *ProductHandlers) CreateProduct(c echo.Context) error {
 	}
 
 	var req struct {
-		Name           string   `json:"name"`
-		CategoryID     *string  `json:"category_id"`
-		BatchNumber    *string  `json:"batch_number"`
-		ExpiryDate     *string  `json:"expiry_date"`
-		Quantity       int      `json:"quantity"`
-		UnitPrice      float64  `json:"unit_price"`
-		Barcode        *string  `json:"barcode"`
-		UnitOfMeasure  *string  `json:"unit_of_measure"`
-		Description    *string  `json:"description"`
+		Name          string  `json:"name"`
+		CategoryID    *string `json:"category_id"`
+		BatchNumber   *string `json:"batch_number"`
+		ExpiryDate    *string `json:"expiry_date"`
+		Quantity      int     `json:"quantity"`
+		UnitPrice     float64 `json:"unit_price"`
+		Barcode       *string `json:"barcode"`
+		UnitOfMeasure *string `json:"unit_of_measure"`
+		Description   *string `json:"description"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -173,8 +173,8 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-	limit := 10  // default
-	offset := 0  // default
+	limit := 10 // default
+	offset := 0 // default
 
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
 		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
@@ -264,7 +264,7 @@ func (h *ProductHandlers) BulkPriceUpdate(c echo.Context) error {
 
 		// Update product price
 		product.UnitPrice = newPrice
-		if err := h.productService.Update(ctx, tenantID, productID, product); err != nil {
+		if err := h.productService.Update(ctx, tenantID, product); err != nil {
 			log.Printf("Failed to update product %s: %v", productID, err)
 			continue
 		}
@@ -299,7 +299,6 @@ func (h *ProductHandlers) GetProductByID(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, product)
 
-
 }
 
 // GetProduct handles GET /products/:id (alias for GetProductByID)
@@ -322,15 +321,15 @@ func (h *ProductHandlers) UpdateProduct(c echo.Context) error {
 	}
 
 	var req struct {
-		Name           string   `json:"name"`
-		CategoryID     *string  `json:"category_id"`
-		BatchNumber    *string  `json:"batch_number"`
-		ExpiryDate     *string  `json:"expiry_date"`
-		Quantity       int      `json:"quantity"`
-		UnitPrice      float64  `json:"unit_price"`
-		Barcode        *string  `json:"barcode"`
-		UnitOfMeasure  *string  `json:"unit_of_measure"`
-		Description    *string  `json:"description"`
+		Name          string  `json:"name"`
+		CategoryID    *string `json:"category_id"`
+		BatchNumber   *string `json:"batch_number"`
+		ExpiryDate    *string `json:"expiry_date"`
+		Quantity      int     `json:"quantity"`
+		UnitPrice     float64 `json:"unit_price"`
+		Barcode       *string `json:"barcode"`
+		UnitOfMeasure *string `json:"unit_of_measure"`
+		Description   *string `json:"description"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -467,7 +466,7 @@ func (h *ProductHandlers) GetProductAnalytics(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"analytics":    analytics,
+		"analytics":   analytics,
 		"description": "Category distribution of products",
 	})
 }
@@ -563,8 +562,8 @@ func (h *ProductHandlers) GetProductImages(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"images":   images,
-		"count":    len(images),
+		"images":     images,
+		"count":      len(images),
 		"product_id": productID,
 	})
 }
@@ -597,7 +596,7 @@ func (h *ProductHandlers) GetProductImageURL(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
-		"url":     url,
+		"url":        url,
 		"expires_in": expiry.String(),
 	})
 }
@@ -625,6 +624,7 @@ func (h *ProductHandlers) DeleteProductImage(c echo.Context) error {
 		"message": "Image deleted successfully",
 	})
 }
+
 // BulkUpdateProducts handles POST /products/bulk/update
 func (h *ProductHandlers) BulkUpdateProducts(c echo.Context) error {
 	ctx := c.Request().Context()

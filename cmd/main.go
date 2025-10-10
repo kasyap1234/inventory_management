@@ -21,7 +21,9 @@ import (
 	"agromart2/internal/jobs"
 	"agromart2/internal/middleware"
 	"agromart2/internal/repositories"
+	"agromart2/internal/security"
 	"agromart2/internal/services"
+	"agromart2/internal/validation"
 )
 
 const version = "1.0.0"
@@ -52,17 +54,37 @@ func main() {
 	poolConfig.MaxConnIdleTime = 5 * time.Minute   // Close idle connections after 5 min
 	poolConfig.HealthCheckPeriod = 1 * time.Minute // Health check interval
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+	var pool *pgxpool.Pool
+	maxDBAttempts := 5
+	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
+		cancel()
+		if err != nil {
+			log.Printf("Database connection attempt %d/%d failed: %v", attempt, maxDBAttempts, err)
+			time.Sleep(time.Duration(attempt) * time.Second)
+			continue
+		}
+
+		pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pingErr := pool.Ping(pingCtx)
+		pingCancel()
+		if pingErr != nil {
+			log.Printf("Database ping attempt %d/%d failed: %v", attempt, maxDBAttempts, pingErr)
+			pool.Close()
+			pool = nil
+			time.Sleep(time.Duration(attempt) * time.Second)
+			continue
+		}
+
+		log.Printf("Database connection established on attempt %d", attempt)
+		break
+	}
+
+	if pool == nil {
+		log.Fatalf("Failed to establish database connection after %d attempts", maxDBAttempts)
 	}
 	defer pool.Close()
-
-	// Verify database connection
-	if err := pool.Ping(context.Background()); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
-	}
-	log.Println("Database connection pool initialized successfully")
 
 	// JWT configuration
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -95,6 +117,19 @@ func main() {
 		useSSL = true
 	}
 
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+
+	enforceHTTPS := os.Getenv("ENFORCE_HTTPS") == "true"
+
+	csrfSecret := os.Getenv("CSRF_SECRET")
+	if csrfSecret == "" {
+		log.Printf("WARNING: CSRF_SECRET is not configured; generating ephemeral secret (tokens will reset on restart)")
+	}
+	csrfManager := security.NewCSRFTokenManager(csrfSecret, 2*time.Hour)
+
 	// Initialize MinIO service
 	minioSvc, err := services.NewMinioService(minioEndpoint, minioAccessKey, minioSecretKey, useSSL)
 	if err != nil {
@@ -117,9 +152,26 @@ func main() {
 	orderRepo := repositories.NewOrderRepo(pool)
 	invoiceRepo := repositories.NewInvoiceRepo(pool)
 	productImageRepo := repositories.NewProductImageRepo(pool)
+	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
 
 	// Create cache service
 	cacheSvc := caching.NewRedisCacheService(redisAddr, redisPassword, redisDB)
+
+	// Notification service configuration
+	sendgridAPIKey := os.Getenv("SENDGRID_API_KEY")
+	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
+	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
+	twilioPhone := os.Getenv("TWILIO_PHONE_NUMBER")
+
+	notificationService := services.NewNotificationService(
+		redisAddr,
+		redisPassword,
+		redisDB,
+		sendgridAPIKey,
+		twilioAccountSID,
+		twilioAuthToken,
+		twilioPhone,
+	)
 
 	// Create services
 	// Create analytics service
@@ -156,6 +208,8 @@ func main() {
 		roleRepo,
 		userRoleRepo,
 		rbacMiddleware,
+		notificationService,
+		frontendURL,
 	)
 	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware)
 	tenantHandlers := handlers.NewTenantHandlers(tenantService, rbacMiddleware)
@@ -164,25 +218,40 @@ func main() {
 		services.NewWarehouseService(warehouseRepo),
 		rbacMiddleware,
 	)
+	distributorService := services.NewDistributorService(distributorRepo)
 	distributorHandlers := handlers.NewDistributorHandlers(
-		services.NewDistributorService(distributorRepo),
+		distributorService,
 		rbacMiddleware,
 	)
+	supplierService := services.NewSupplierService(supplierRepo)
 	supplierHandlers := handlers.NewSupplierHandlers(
-		services.NewSupplierService(supplierRepo),
+		supplierService,
 		rbacMiddleware,
 	)
 	inventoryService := services.NewInventoryService(inventoryRepo, productRepo, cacheSvc)
+	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
 
 	orderSvc := services.NewOrderService(orderRepo, inventoryRepo, inventoryService)
 
 	invoiceSvc := services.NewInvoiceService(invoiceRepo, orderRepo, analyticsSvc, pool)
 	inventoryHandlers := handlers.NewInventoryHandlers(
 		inventoryService,
+		auditLogsService,
 		rbacMiddleware,
 	)
 	orderHandlers := handlers.NewOrderHandlers(orderSvc, rbacMiddleware)
-	invoiceHandlers := handlers.NewInvoiceHandlers(invoiceSvc, orderSvc, productSvc, minioSvc, rbacMiddleware)
+	invoiceHandlers := handlers.NewInvoiceHandlers(
+		invoiceSvc,
+		orderSvc,
+		productSvc,
+		minioSvc,
+		rbacMiddleware,
+		supplierService,
+		distributorService,
+	)
+
+	tallyExporter := jobs.NewTallyExporter(invoiceRepo, orderRepo, productRepo, tallyConfig)
+	tallyImporter := jobs.NewTallyImporter(orderRepo, invoiceRepo, tallyConfig)
 
 	jobHandlers := handlers.NewJobHandlers(
 		tallyExporter,
@@ -198,33 +267,23 @@ func main() {
 
 	// Create subscription, notification, and audit log handlers
 	subscriptionRepo := repositories.NewSubscriptionRepo(pool)
-	razorpayService := services.NewRazorpayService(os.Getenv("RAZORPAY_KEY_ID"), os.Getenv("RAZORPAY_KEY_SECRET"))
+	razorpayKeyID := os.Getenv("RAZORPAY_KEY_ID")
+	razorpayKeySecret := os.Getenv("RAZORPAY_KEY_SECRET")
+	razorpayWebhookSecret := os.Getenv("RAZORPAY_WEBHOOK_SECRET")
+	if razorpayWebhookSecret == "" {
+		log.Printf("WARNING: RAZORPAY_WEBHOOK_SECRET is not configured; Razorpay webhooks will be rejected")
+	}
+	razorpayService := services.NewRazorpayService(razorpayKeyID, razorpayKeySecret, razorpayWebhookSecret)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
 	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, rbacMiddleware)
 
-	// Notification service configuration
-	sendgridAPIKey := os.Getenv("SENDGRID_API_KEY")
-	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
-	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
-	twilioPhone := os.Getenv("TWILIO_PHONE_NUMBER")
-
-	notificationService := services.NewNotificationService(
-		redisAddr,
-		redisPassword,
-		redisDB,
-		sendgridAPIKey,
-		twilioAccountSID,
-		twilioAuthToken,
-		twilioPhone,
-	)
 	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
 
-	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
-	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
 	auditLogsHandlers := handlers.NewAuditLogsHandlers(auditLogsService, rbacMiddleware)
 
 	// Create analytics handlers
 	analyticsHandlers := handlers.NewAnalyticsHandlers(analyticsSvc, rbacMiddleware)
+	securityHandlers := handlers.NewSecurityHandlers(csrfManager)
 
 	// Create Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -234,9 +293,7 @@ func main() {
 	})
 	defer asynqClient.Close()
 
-	// Create tally services and handlers
-	tallyExporter := jobs.NewTallyExporter(invoiceRepo, orderRepo, productRepo, tallyConfig)
-	tallyImporter := jobs.NewTallyImporter(orderRepo, invoiceRepo, tallyConfig)
+	// Create tally handlers
 	tallyHandlers := handlers.NewTallyHandlers(tallyExporter, tallyImporter, asynqClient)
 
 	// Create Asynq server
@@ -258,8 +315,18 @@ func main() {
 
 	// Create Echo instance with optimized settings
 	e := echo.New()
+	e.Validator = validation.NewValidator()
+	e.HTTPErrorHandler = handlers.HTTPErrorHandler
 	e.HideBanner = true
 	e.HidePort = false
+
+	e.Pre(middleware.EnforceHTTPS(enforceHTTPS))
+
+	csrfSkipPaths := map[string]struct{}{
+		"/v1/security/csrf":     {},
+		"/v1/webhooks/razorpay": {},
+	}
+	e.Use(middleware.CSRFProtection(csrfManager, csrfSkipPaths))
 
 	// Performance middleware
 	perfMiddleware := middleware.NewPerformanceMiddleware()
@@ -276,6 +343,7 @@ func main() {
 
 	// Request ID for tracing
 	e.Use(echoMiddleware.RequestID())
+	e.Use(middleware.SecurityHeaders())
 
 	// Version middleware
 	versionMiddleware := middleware.NewVersionMiddleware()
@@ -302,11 +370,17 @@ func main() {
 	v1.GET("/docs/guide", handlers.DocumentationGuideHandler)
 	v1.GET("/docs/spec", handlers.DocumentationSpecHandler)
 
+	// Security utilities
+	v1.GET("/security/csrf", securityHandlers.GetCSRFToken)
+
 	// Authentication routes (no JWT required for signup/login)
 	auth := v1.Group("/auth")
 	auth.POST("/signup", authHandlers.Signup)
 	auth.POST("/login", authHandlers.Login)
 	auth.POST("/refresh", authHandlers.Refresh)
+	auth.POST("/password/forgot", authHandlers.ForgotPassword)
+	auth.POST("/password/reset", authHandlers.ResetPassword)
+	auth.POST("/verify", authHandlers.VerifyEmail)
 
 	// Protected routes (require JWT and RBAC)
 	protected := v1.Group("")
@@ -325,6 +399,7 @@ func main() {
 
 	// Tenant routes
 	protected.GET("/tenants", tenantHandlers.ListTenants)
+	protected.POST("/tenants", tenantHandlers.CreateTenant)
 	protected.GET("/tenants/:id", tenantHandlers.GetTenant)
 	protected.PUT("/tenants/:id", tenantHandlers.UpdateTenant)
 	protected.DELETE("/tenants/:id", tenantHandlers.DeleteTenant)
@@ -373,7 +448,9 @@ func main() {
 
 	protected.GET("/inventory", inventoryHandlers.ListInventories)
 	protected.POST("/inventory", inventoryHandlers.CreateInventory)
+	protected.POST("/inventory/adjust", inventoryHandlers.AdjustStock)
 	protected.GET("/inventory/:id", inventoryHandlers.GetInventory)
+	protected.GET("/inventory/:id/history", inventoryHandlers.GetInventoryHistory)
 	protected.PUT("/inventory/:id", inventoryHandlers.UpdateInventory)
 	protected.DELETE("/inventory/:id", inventoryHandlers.DeleteInventory)
 	protected.GET("/inventory/search", inventoryHandlers.SearchInventories)
@@ -429,6 +506,10 @@ func main() {
 	protected.GET("/notifications/:id", notificationHandlers.GetNotification)
 	protected.PUT("/notifications/:id/read", notificationHandlers.MarkNotificationAsRead)
 	protected.DELETE("/notifications/:id", notificationHandlers.DeleteNotification)
+	protected.GET("/webhooks/subscriptions", notificationHandlers.ListWebhookSubscriptions)
+	protected.POST("/webhooks/subscriptions", notificationHandlers.CreateWebhookSubscription)
+	protected.PUT("/webhooks/subscriptions/:id", notificationHandlers.UpdateWebhookSubscription)
+	protected.DELETE("/webhooks/subscriptions/:id", notificationHandlers.DeleteWebhookSubscription)
 
 	// Job management routes
 	protected.GET("/jobs", jobHandlers.ListJobs)

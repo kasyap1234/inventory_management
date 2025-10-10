@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"agromart2/internal/models"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"agromart2/internal/models"
 )
 
 type CacheService interface {
@@ -74,35 +74,42 @@ func NewRedisCacheService(addr, password string, db int) CacheService {
 		DB:       db,
 
 		// Connection timeouts (prevent hanging connections)
-		DialTimeout:  5 * time.Second,  // Maximum time to establish connection
-		ReadTimeout:  3 * time.Second,  // Maximum time to read response
-		WriteTimeout: 3 * time.Second,  // Maximum time to write request
+		DialTimeout:  5 * time.Second, // Maximum time to establish connection
+		ReadTimeout:  3 * time.Second, // Maximum time to read response
+		WriteTimeout: 3 * time.Second, // Maximum time to write request
 
 		// Connection pool settings (optimize resource usage)
-		PoolSize:     50,               // Maximum number of socket connections
-		MinIdleConns: 10,               // Minimum idle connections to maintain
-		PoolTimeout:  4 * time.Second,  // Maximum time to wait for connection from pool
+		PoolSize:     50,              // Maximum number of socket connections
+		MinIdleConns: 10,              // Minimum idle connections to maintain
+		PoolTimeout:  4 * time.Second, // Maximum time to wait for connection from pool
 
 		// Retry configuration (handle transient failures)
-		MaxRetries:      3,                     // Retry failed commands up to 3 times
-		MinRetryBackoff: 8 * time.Millisecond,  // Minimum backoff between retries
+		MaxRetries:      3,                      // Retry failed commands up to 3 times
+		MinRetryBackoff: 8 * time.Millisecond,   // Minimum backoff between retries
 		MaxRetryBackoff: 512 * time.Millisecond, // Maximum backoff between retries
 
-		// Health check and cleanup
-		IdleTimeout:        5 * time.Minute, // Close idle connections after 5 minutes
-		IdleCheckFrequency: 1 * time.Minute, // Check for idle connections every minute
+		// Connection lifetime and cleanup
+		ConnMaxIdleTime: 5 * time.Minute,  // Close idle connections after 5 minutes
+		ConnMaxLifetime: 30 * time.Minute, // Recycle connections every 30 minutes
 	})
 
-	// Test initial connectivity with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	const maxAttempts = 5
+	var pingErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pingErr = client.Ping(ctx).Err()
+		cancel()
+		if pingErr == nil {
+			log.Printf("INFO: Redis connection established on attempt %d", attempt)
+			log.Printf("INFO: Redis pool configured: PoolSize=%d, MinIdleConns=%d", 50, 10)
+			break
+		}
+		log.Printf("WARN: Redis ping attempt %d/%d failed: %v (address: %s)", attempt, maxAttempts, pingErr, parsedAddr)
+		time.Sleep(time.Duration(attempt) * time.Second)
+	}
 
-	if pingErr := client.Ping(ctx).Err(); pingErr != nil {
-		log.Printf("WARN: Redis ping failed on initialization: %v (address: %s)", pingErr, parsedAddr)
-		log.Printf("WARN: Redis commands may fail until connection is established")
-	} else {
-		log.Printf("INFO: Redis connection established successfully")
-		log.Printf("INFO: Redis pool configured: PoolSize=%d, MinIdleConns=%d", 50, 10)
+	if pingErr != nil {
+		log.Printf("WARN: Redis commands may fail until connection is established: %v", pingErr)
 	}
 
 	return &redisCacheService{client: client}
@@ -202,7 +209,7 @@ func (r *redisCacheService) DeleteCategory(ctx context.Context, tenantID, catego
 }
 
 func (r *redisCacheService) GetTenantAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]interface{}, error) {
-	key := fmt.Sprintf("agromart:analytics:%s", tenantID.String())
+	key := fmt.Sprintf("agromart:analytics:%s:dashboard", tenantID.String())
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
 		if err == redis.Nil {
@@ -219,7 +226,7 @@ func (r *redisCacheService) GetTenantAnalytics(ctx context.Context, tenantID uui
 }
 
 func (r *redisCacheService) SetTenantAnalytics(ctx context.Context, tenantID uuid.UUID, analytics map[string]interface{}, ttl time.Duration) error {
-	key := fmt.Sprintf("agromart:analytics:%s", tenantID.String())
+	key := fmt.Sprintf("agromart:analytics:%s:dashboard", tenantID.String())
 	data, err := json.Marshal(analytics)
 	if err != nil {
 		return err

@@ -57,6 +57,7 @@ type NotificationService interface {
 	UpdateWebhookSubscription(ctx context.Context, tenantID uuid.UUID, subscription *models.WebhookSubscription) error
 	DeleteWebhookSubscription(ctx context.Context, tenantID uuid.UUID, subscriptionID string) error
 	ListWebhookSubscriptions(ctx context.Context, tenantID uuid.UUID) ([]*models.WebhookSubscription, error)
+	GetWebhookSubscription(ctx context.Context, tenantID uuid.UUID, subscriptionID string) (*models.WebhookSubscription, error)
 
 	// Alert configuration
 	UpdateAlertConfig(ctx context.Context, tenantID uuid.UUID, config *models.AlertConfig) error
@@ -138,7 +139,7 @@ func (s *notificationService) SendEmail(ctx context.Context, tenantID uuid.UUID,
 		log.Printf("[EMAIL] Tenant=%s, To=%s, Subject=%s, Body=%s", tenantID.String(), recipient, subject, body)
 		return nil
 	}
-	
+
 	fromEmail := "noreply@agromart.com"
 	fromName := "Agromart"
 
@@ -202,16 +203,16 @@ func (s *notificationService) SendSMS(ctx context.Context, tenantID uuid.UUID, r
 		log.Printf("[SMS] Tenant=%s, To=%s, Message=%s", tenantID.String(), recipient, message)
 		return nil
 	}
-	
+
 	twilioPhoneNumber := s.twilioPhone
 	if twilioPhoneNumber == "" {
 		twilioPhoneNumber = "+1234567890" // Default
 	}
 
 	// Build Twilio API request using application/x-www-form-urlencoded
-	formData := fmt.Sprintf("To=%s&From=%s&Body=%s", 
-		url.QueryEscape(recipient), 
-		url.QueryEscape(twilioPhoneNumber), 
+	formData := fmt.Sprintf("To=%s&From=%s&Body=%s",
+		url.QueryEscape(recipient),
+		url.QueryEscape(twilioPhoneNumber),
 		url.QueryEscape(message))
 
 	twilioURL := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", s.twilioAccountSID)
@@ -463,7 +464,7 @@ func (s *notificationService) CreateWebhookSubscription(ctx context.Context, ten
 		return fmt.Errorf("failed to marshal webhook subscription: %v", err)
 	}
 
-	return s.redisClient.Set(ctx, cacheKey, data, time.Hour).Err()
+	return s.redisClient.Set(ctx, cacheKey, data, 0).Err()
 }
 
 func (s *notificationService) UpdateWebhookSubscription(ctx context.Context, tenantID uuid.UUID, subscription *models.WebhookSubscription) error {
@@ -475,7 +476,7 @@ func (s *notificationService) UpdateWebhookSubscription(ctx context.Context, ten
 		return fmt.Errorf("failed to marshal webhook subscription: %v", err)
 	}
 
-	return s.redisClient.Set(ctx, cacheKey, data, time.Hour).Err()
+	return s.redisClient.Set(ctx, cacheKey, data, 0).Err()
 }
 
 func (s *notificationService) DeleteWebhookSubscription(ctx context.Context, tenantID uuid.UUID, subscriptionID string) error {
@@ -484,9 +485,38 @@ func (s *notificationService) DeleteWebhookSubscription(ctx context.Context, ten
 }
 
 func (s *notificationService) ListWebhookSubscriptions(ctx context.Context, tenantID uuid.UUID) ([]*models.WebhookSubscription, error) {
-	// In production, this would query the database
-	// For now, return empty slice as placeholder
-	return []*models.WebhookSubscription{}, nil
+	pattern := fmt.Sprintf("webhook_subscription:%s:*", tenantID.String())
+	iter := s.redisClient.Scan(ctx, 0, pattern, 0).Iterator()
+
+	subscriptions := []*models.WebhookSubscription{}
+
+	for iter.Next(ctx) {
+		key := iter.Val()
+		data, err := s.redisClient.Get(ctx, key).Bytes()
+		if err != nil {
+			if err == redis.Nil {
+				continue
+			}
+			return nil, fmt.Errorf("failed to load webhook subscription: %v", err)
+		}
+
+		var subscription models.WebhookSubscription
+		if err := json.Unmarshal(data, &subscription); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal webhook subscription: %v", err)
+		}
+
+		subscriptions = append(subscriptions, &subscription)
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan webhook subscriptions: %v", err)
+	}
+
+	return subscriptions, nil
+}
+
+func (s *notificationService) GetWebhookSubscription(ctx context.Context, tenantID uuid.UUID, subscriptionID string) (*models.WebhookSubscription, error) {
+	return s.getWebhookSubscription(ctx, tenantID, subscriptionID)
 }
 
 // Alert configuration methods
@@ -588,7 +618,7 @@ func (s *notificationService) updateWebhookSubscription(ctx context.Context, ten
 		return fmt.Errorf("failed to marshal webhook subscription: %v", err)
 	}
 
-	return s.redisClient.Set(ctx, cacheKey, data, time.Hour).Err()
+	return s.redisClient.Set(ctx, cacheKey, data, 0).Err()
 }
 
 // generateWebhookSignature generates HMAC-SHA256 signature for webhook payload
@@ -602,7 +632,7 @@ func generateWebhookSignature(payload []byte, secret string) string {
 func (s *notificationService) ListNotifications(ctx context.Context, tenantID uuid.UUID, notificationType, eventType, status string) ([]*models.Notification, error) {
 	// Build cache key based on filters
 	cacheKey := fmt.Sprintf("notifications:%s:%s:%s:%s", tenantID.String(), notificationType, eventType, status)
-	
+
 	// Try to get from cache
 	data, err := s.redisClient.Get(ctx, cacheKey).Bytes()
 	if err == nil {
@@ -615,19 +645,19 @@ func (s *notificationService) ListNotifications(ctx context.Context, tenantID uu
 	// In production, this would query the database with filters
 	// For now, return empty slice
 	notifications := []*models.Notification{}
-	
+
 	// Cache the result
 	if cachedData, marshalErr := json.Marshal(notifications); marshalErr == nil {
 		s.redisClient.Set(ctx, cacheKey, cachedData, 5*time.Minute)
 	}
-	
+
 	return notifications, nil
 }
 
 // GetNotification retrieves a specific notification by ID
 func (s *notificationService) GetNotification(ctx context.Context, tenantID uuid.UUID, notificationID string) (*models.Notification, error) {
 	cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
-	
+
 	// Try cache first
 	data, err := s.redisClient.Get(ctx, cacheKey).Bytes()
 	if err != nil {
@@ -641,14 +671,14 @@ func (s *notificationService) GetNotification(ctx context.Context, tenantID uuid
 	if err := json.Unmarshal(data, &notification); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal notification: %v", err)
 	}
-	
+
 	return &notification, nil
 }
 
 // MarkAsRead marks a notification as read
 func (s *notificationService) MarkAsRead(ctx context.Context, tenantID uuid.UUID, notificationID string) error {
 	cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
-	
+
 	// Get the notification
 	data, err := s.redisClient.Get(ctx, cacheKey).Bytes()
 	if err != nil {
@@ -662,23 +692,23 @@ func (s *notificationService) MarkAsRead(ctx context.Context, tenantID uuid.UUID
 	if err := json.Unmarshal(data, &notification); err != nil {
 		return fmt.Errorf("failed to unmarshal notification: %v", err)
 	}
-	
+
 	// Mark as read (in production, update database)
 	// For now, just log it
 	log.Printf("Marking notification %s as read for tenant %s", notificationID, tenantID.String())
-	
+
 	return nil
 }
 
 // DeleteNotification deletes a notification
 func (s *notificationService) DeleteNotification(ctx context.Context, tenantID uuid.UUID, notificationID string) error {
 	cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
-	
+
 	// Delete from cache (in production, also delete from database)
 	if err := s.redisClient.Del(ctx, cacheKey).Err(); err != nil {
 		return fmt.Errorf("failed to delete notification: %v", err)
 	}
-	
+
 	log.Printf("Deleted notification %s for tenant %s", notificationID, tenantID.String())
 	return nil
 }

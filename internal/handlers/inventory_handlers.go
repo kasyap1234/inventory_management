@@ -1,25 +1,32 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
+	"strings"
+
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 )
 
 // InventoryHandlers handles inventory-related HTTP requests
 type InventoryHandlers struct {
 	inventoryService services.InventoryService
+	auditLogsService services.AuditLogsService
 	rbacMiddleware   *middleware.RBACMiddleware
 }
 
 // NewInventoryHandlers creates a new inventory handlers instance
-func NewInventoryHandlers(inventoryService services.InventoryService, rbacMiddleware *middleware.RBACMiddleware) *InventoryHandlers {
+func NewInventoryHandlers(inventoryService services.InventoryService, auditLogsService services.AuditLogsService, rbacMiddleware *middleware.RBACMiddleware) *InventoryHandlers {
 	return &InventoryHandlers{
 		inventoryService: inventoryService,
+		auditLogsService: auditLogsService,
 		rbacMiddleware:   rbacMiddleware,
 	}
 }
@@ -281,9 +288,10 @@ func (h *InventoryHandlers) DeleteInventory(c echo.Context) error {
 
 // AdjustStockRequest represents stock adjustment request
 type AdjustStockRequest struct {
-	WarehouseID     uuid.UUID `json:"warehouse_id" validate:"required"`
-	ProductID       uuid.UUID `json:"product_id" validate:"required"`
-	QuantityChange  int       `json:"quantity_change" validate:"required"`
+	WarehouseID    uuid.UUID `json:"warehouse_id" validate:"required"`
+	ProductID      uuid.UUID `json:"product_id" validate:"required"`
+	QuantityChange int       `json:"quantity_change" validate:"required"`
+	Reason         string    `json:"reason" validate:"required"`
 }
 
 // AdjustStock handles stock adjustments
@@ -303,18 +311,122 @@ func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
 	}
 
-	// Get tenant ID from context
+	if strings.TrimSpace(req.Reason) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Adjustment reason is required")
+	}
+
+	if req.QuantityChange == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Quantity change must be non-zero")
+	}
+
+	req.Reason = common.SanitizeHTMLElement(strings.TrimSpace(req.Reason))
+
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var oldInventory *models.Inventory
+	existing, err := h.inventoryService.GetByWarehouseAndProduct(ctx, tenantID, req.WarehouseID, req.ProductID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load inventory")
+	}
+	if err == nil {
+		oldInventory = existing
 	}
 
 	if err := h.inventoryService.AdjustStock(ctx, tenantID, req.WarehouseID, req.ProductID, req.QuantityChange); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"message": "Stock adjusted successfully",
+	updatedInventory, err := h.inventoryService.GetByWarehouseAndProduct(ctx, tenantID, req.WarehouseID, req.ProductID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch updated inventory")
+	}
+
+	var changedBy *uuid.UUID
+	if userID, ok := common.GetUserIDFromContext(ctx); ok {
+		changedBy = &userID
+	}
+
+	oldValues := models.JSONB(nil)
+	if oldInventory != nil {
+		oldValues = models.JSONB{
+			"quantity":     oldInventory.Quantity,
+			"warehouse_id": oldInventory.WarehouseID.String(),
+			"product_id":   oldInventory.ProductID.String(),
+		}
+	}
+
+	newValues := models.JSONB{
+		"quantity":        updatedInventory.Quantity,
+		"warehouse_id":    updatedInventory.WarehouseID.String(),
+		"product_id":      updatedInventory.ProductID.String(),
+		"quantity_change": req.QuantityChange,
+		"reason":          req.Reason,
+	}
+
+	if h.auditLogsService != nil {
+		if logErr := h.auditLogsService.LogActivity(ctx, tenantID, "inventory", updatedInventory.ID.String(), models.ActionUpdate, changedBy, oldValues, newValues); logErr != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to record inventory adjustment")
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":   "Stock adjusted successfully",
+		"inventory": updatedInventory,
+	})
+}
+
+// GetInventoryHistory returns audit history for an inventory record
+func (h *InventoryHandlers) GetInventoryHistory(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventories:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
+
+	ctx := c.Request().Context()
+
+	inventoryIDStr := c.Param("id")
+	inventoryID, err := common.ValidateUUID(inventoryIDStr, "inventory_id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	if _, err := h.inventoryService.GetByID(ctx, tenantID, inventoryID); err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Inventory not found")
+	}
+
+	limit := 20
+	if limitParam := c.QueryParam("limit"); limitParam != "" {
+		if parsed, parseErr := strconv.Atoi(limitParam); parseErr == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset := 0
+	if offsetParam := c.QueryParam("offset"); offsetParam != "" {
+		if parsed, parseErr := strconv.Atoi(offsetParam); parseErr == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	history, err := h.auditLogsService.GetEntityHistory(ctx, tenantID, "inventory", inventoryID.String(), limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load inventory history")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"history": history,
+		"limit":   limit,
+		"offset":  offset,
 	})
 }
 
@@ -357,16 +469,16 @@ func (h *InventoryHandlers) CheckAvailability(c echo.Context) error {
 	if err != nil {
 		// If not found, assume no stock
 		return c.JSON(http.StatusOK, map[string]interface{}{
-			"available": false,
-			"requested": req.Quantity,
+			"available":          false,
+			"requested":          req.Quantity,
 			"available_quantity": 0,
 		})
 	}
 
 	available := inventory.Quantity >= req.Quantity
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"available": available,
-		"requested": req.Quantity,
+		"available":          available,
+		"requested":          req.Quantity,
 		"available_quantity": inventory.Quantity,
 	})
 }
@@ -384,10 +496,10 @@ func (h *InventoryHandlers) TransferStock(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	type TransferRequest struct {
-		ProductID        uuid.UUID `json:"product_id" validate:"required"`
-		FromWarehouseID  uuid.UUID `json:"from_warehouse_id" validate:"required"`
-		ToWarehouseID    uuid.UUID `json:"to_warehouse_id" validate:"required"`
-		Quantity         int       `json:"quantity" validate:"required,min=1"`
+		ProductID       uuid.UUID `json:"product_id" validate:"required"`
+		FromWarehouseID uuid.UUID `json:"from_warehouse_id" validate:"required"`
+		ToWarehouseID   uuid.UUID `json:"to_warehouse_id" validate:"required"`
+		Quantity        int       `json:"quantity" validate:"required,min=1"`
 	}
 
 	var req TransferRequest

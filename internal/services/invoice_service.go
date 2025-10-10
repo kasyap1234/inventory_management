@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"agromart2/internal/analytics"
@@ -35,30 +36,30 @@ type InvoiceServiceInterface interface {
 
 // InvoiceAnalytics holds invoice analytics data
 type InvoiceAnalytics struct {
-	TotalInvoices        int
-	UnpaidInvoices      int
-	PaidInvoices        int
-	OverdueInvoices     int
-	TotalInvoiceAmount  float64
-	TotalGSTCollected   float64
-	AvgInvoiceValue     float64
+	TotalInvoices         int
+	UnpaidInvoices        int
+	PaidInvoices          int
+	OverdueInvoices       int
+	TotalInvoiceAmount    float64
+	TotalGSTCollected     float64
+	AvgInvoiceValue       float64
 	PaymentCollectionRate float64
 }
 
 type invoiceService struct {
-	invoiceRepo repositories.InvoiceRepository
-	orderRepo   repositories.OrderRepository
+	invoiceRepo  repositories.InvoiceRepository
+	orderRepo    repositories.OrderRepository
 	analyticsSvc *analytics.AnalyticsService
-	db          *pgxpool.Pool
+	db           *pgxpool.Pool
 }
 
 // NewInvoiceService creates a new invoice service
 func NewInvoiceService(invoiceRepo repositories.InvoiceRepository, orderRepo repositories.OrderRepository, analyticsSvc *analytics.AnalyticsService, db *pgxpool.Pool) InvoiceServiceInterface {
 	return &invoiceService{
-		invoiceRepo: invoiceRepo,
-		orderRepo:   orderRepo,
+		invoiceRepo:  invoiceRepo,
+		orderRepo:    orderRepo,
 		analyticsSvc: analyticsSvc,
-		db:          db,
+		db:           db,
 	}
 }
 
@@ -192,10 +193,10 @@ func (s *invoiceService) DeleteInvoice(ctx context.Context, tenantID, invoiceID 
 func (s *invoiceService) isValidStatusTransition(currentStatus, newStatus string) bool {
 	// Define valid status transitions
 	validTransitions := map[string][]string{
-		"unpaid":     {"paid", "overdue", "cancelled"},
-		"paid":       {}, // Cannot transition from paid
-		"overdue":    {"paid", "cancelled"},
-		"cancelled":  {}, // Cannot transition from cancelled
+		"unpaid":    {"paid", "overdue", "cancelled"},
+		"paid":      {}, // Cannot transition from paid
+		"overdue":   {"paid", "cancelled"},
+		"cancelled": {}, // Cannot transition from cancelled
 	}
 
 	allowed, exists := validTransitions[currentStatus]
@@ -217,9 +218,9 @@ func (s *invoiceService) isValidStatusTransition(currentStatus, newStatus string
 func (s *invoiceService) UpdateInvoiceStatus(ctx context.Context, tenantID, invoiceID uuid.UUID, status string) error {
 	// Validate status
 	validStatuses := map[string]bool{
-		"unpaid":   true,
-		"paid":     true,
-		"overdue":  true,
+		"unpaid":    true,
+		"paid":      true,
+		"overdue":   true,
 		"cancelled": true,
 	}
 
@@ -368,9 +369,9 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 	}
 
 	// Calculate totals with overflow protection
-	taxableAmount := float64(order.Quantity) * order.UnitPrice
-	if taxableAmount < 0 {
-		return common.SecureErrorMessage("taxable amount calculation", fmt.Errorf("negative taxable amount"))
+	taxableAmount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+	if err != nil {
+		return common.SecureErrorMessage("taxable amount calculation", err)
 	}
 
 	// Apply GST calculation with standard Indian GST rate (18%)
@@ -379,6 +380,9 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 
 	// Calculate total with overflow protection
 	totalAmount := taxableAmount + cgst + sgst + igst
+	if math.IsInf(totalAmount, 0) || math.IsNaN(totalAmount) {
+		return common.SecureErrorMessage("total amount calculation", fmt.Errorf("calculated invoice total is invalid"))
+	}
 
 	// Generate invoice number
 	issuedDate := time.Now()
@@ -405,22 +409,22 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 
 	// Create invoice with GST details
 	invoice := &models.Invoice{
-		ID:             uuid.New(),
-		TenantID:       tenantID,
-		OrderID:        orderID,
-		InvoiceNumber:  invoiceNumber,
-		HSNSAC:         hsnSac, // HSN/SAC code from product (currently placeholder)
-		TaxableAmount:  &taxableAmount,
-		GSTRate:        &gstRate,
-		CGST:           &cgst,
-		SGST:           &sgst,
-		IGST:           &igst,
-		TotalAmount:    totalAmount,
-		Status:         "unpaid",
-		IssuedDate:     issuedDate,
-		DueDate:        dueDate,
-		CreatedAt:      issuedDate,
-		UpdatedAt:      issuedDate,
+		ID:            uuid.New(),
+		TenantID:      tenantID,
+		OrderID:       orderID,
+		InvoiceNumber: invoiceNumber,
+		HSNSAC:        hsnSac, // HSN/SAC code from product (currently placeholder)
+		TaxableAmount: &taxableAmount,
+		GSTRate:       &gstRate,
+		CGST:          &cgst,
+		SGST:          &sgst,
+		IGST:          &igst,
+		TotalAmount:   totalAmount,
+		Status:        "unpaid",
+		IssuedDate:    issuedDate,
+		DueDate:       dueDate,
+		CreatedAt:     issuedDate,
+		UpdatedAt:     issuedDate,
 	}
 
 	return s.CreateInvoice(ctx, invoice)

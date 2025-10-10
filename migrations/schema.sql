@@ -1,6 +1,6 @@
 -- Schema for agromart2 testing
 
-CREATE TABLE tenants (
+CREATE TABLE IF NOT EXISTS tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   subdomain VARCHAR(100) NOT NULL UNIQUE,
@@ -10,9 +10,9 @@ CREATE TABLE tenants (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_tenants_subdomain ON tenants (subdomain);
+CREATE INDEX IF NOT EXISTS idx_tenants_subdomain ON tenants (subdomain);
 
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name VARCHAR(100) NOT NULL,
@@ -22,9 +22,9 @@ CREATE TABLE categories (
   UNIQUE (tenant_id, name)
 );
 
-CREATE INDEX idx_categories_tenant_name ON categories (tenant_id, name);
+CREATE INDEX IF NOT EXISTS idx_categories_tenant_name ON categories (tenant_id, name);
 
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   category_id UUID REFERENCES categories(id),
@@ -40,5 +40,5 @@ CREATE TABLE products (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_products_tenant_barcode ON products (tenant_id, barcode);
-CREATE INDEX idx_products_tenant_category ON products (tenant_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_products_tenant_barcode ON products (tenant_id, barcode);
+CREATE INDEX IF NOT EXISTS idx_products_tenant_category ON products (tenant_id, category_id);

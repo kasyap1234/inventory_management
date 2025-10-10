@@ -60,6 +60,11 @@ func (m *MockInventoryRepository) AdvancedSearch(ctx context.Context, tenantID u
 	return args.Get(0).([]*models.Inventory), args.Error(1)
 }
 
+func (m *MockInventoryRepository) GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	args := m.Called(ctx, tenantID, productID)
+	return args.Get(0).([]*models.Inventory), args.Error(1)
+}
+
 // MockProductRepository mocks the ProductRepository interface for testing
 type MockProductRepository struct {
 	mock.Mock

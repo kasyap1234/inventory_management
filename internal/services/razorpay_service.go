@@ -3,10 +3,14 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -22,10 +26,11 @@ type RazorpayService interface {
 }
 
 type razorpayService struct {
-	apiKey    string
-	apiSecret string
-	baseURL   string
-	http      *http.Client
+	apiKey        string
+	apiSecret     string
+	webhookSecret string
+	baseURL       string
+	http          *http.Client
 }
 
 // Plan configurations
@@ -37,20 +42,20 @@ type PlanDetails struct {
 }
 
 type CreateSubscriptionRequest struct {
-	PlanID        string  `json:"plan_id"`
-	CustomerEmail string  `json:"customer_email"`
-	StartAt       int64   `json:"start_at,omitempty"`
-	EndAt         int64   `json:"end_at,omitempty"`
-	Quantity      int     `json:"quantity,omitempty"`
-	OfferID       string  `json:"offer_id,omitempty"`
+	PlanID        string `json:"plan_id"`
+	CustomerEmail string `json:"customer_email"`
+	StartAt       int64  `json:"start_at,omitempty"`
+	EndAt         int64  `json:"end_at,omitempty"`
+	Quantity      int    `json:"quantity,omitempty"`
+	OfferID       string `json:"offer_id,omitempty"`
 }
 
 type CreateSubscriptionResponse struct {
-	ID       string `json:"id"`
-	Entity   string `json:"entity"`
-	Status   string `json:"status"`
-	StartAt  int64  `json:"start_at"`
-	EndAt    int64  `json:"end_at"`
+	ID      string `json:"id"`
+	Entity  string `json:"entity"`
+	Status  string `json:"status"`
+	StartAt int64  `json:"start_at"`
+	EndAt   int64  `json:"end_at"`
 }
 
 type CancelSubscriptionResponse struct {
@@ -81,12 +86,13 @@ type WebhookEvent struct {
 }
 
 // NewRazorpayService creates a new Razorpay service instance
-func NewRazorpayService(apiKey, apiSecret string) RazorpayService {
+func NewRazorpayService(apiKey, apiSecret, webhookSecret string) RazorpayService {
 	return &razorpayService{
-		apiKey:    apiKey,
-		apiSecret: apiSecret,
-		baseURL:   "https://api.razorpay.com/v1", // Razorpay API base URL
-		http:      &http.Client{},
+		apiKey:        apiKey,
+		apiSecret:     apiSecret,
+		webhookSecret: webhookSecret,
+		baseURL:       "https://api.razorpay.com/v1", // Razorpay API base URL
+		http:          &http.Client{},
 	}
 }
 
@@ -177,16 +183,32 @@ func (s *razorpayService) UpdateSubscription(ctx context.Context, subscriptionID
 
 // WebhookVerify verifies webhook signature (HMAC)
 func (s *razorpayService) WebhookVerify(ctx context.Context, rawData []byte, signature string) (*WebhookEvent, error) {
-	// Razorpay webhook signature verification using HMAC-SHA256
-	// The signature is computed as: HMAC-SHA256(webhook_secret, webhook_body)
-	
+	trimmedSignature := strings.TrimSpace(signature)
+	if trimmedSignature == "" {
+		return nil, fmt.Errorf("missing webhook signature")
+	}
+	if s.webhookSecret == "" {
+		return nil, fmt.Errorf("razorpay webhook secret is not configured")
+	}
+
+	mac := hmac.New(sha256.New, []byte(s.webhookSecret))
+	mac.Write(rawData)
+	expected := mac.Sum(nil)
+
+	provided, err := hex.DecodeString(trimmedSignature)
+	if err != nil {
+		return nil, fmt.Errorf("invalid webhook signature format: %w", err)
+	}
+
+	if !hmac.Equal(provided, expected) {
+		return nil, fmt.Errorf("invalid webhook signature")
+	}
+
 	var event WebhookEvent
 	if err := json.Unmarshal(rawData, &event); err != nil {
 		return nil, fmt.Errorf("failed to parse webhook data: %v", err)
 	}
 
-	// For now, returning the event without strict verification
-	// In production, implement proper HMAC verification with webhook secret
 	return &event, nil
 }
 

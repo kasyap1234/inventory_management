@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,6 +36,12 @@ type inventoryService struct {
 	cacheService  caching.CacheService
 }
 
+func (s *inventoryService) invalidateTenantCache(ctx context.Context, tenantID uuid.UUID) {
+	if err := s.cacheService.InvalidateTenantCache(ctx, tenantID); err != nil {
+		fmt.Printf("Failed to invalidate tenant cache %s: %v\n", tenantID.String(), err)
+	}
+}
+
 func NewInventoryService(inventoryRepo repositories.InventoryRepository, productRepo repositories.ProductRepository, cacheService caching.CacheService) InventoryService {
 	return &inventoryService{
 		inventoryRepo: inventoryRepo,
@@ -66,6 +73,8 @@ func (s *inventoryService) Update(ctx context.Context, tenantID uuid.UUID, inven
 		fmt.Printf("Failed to invalidate cache for inventory %s-%s: %v\n", inventory.WarehouseID.String(), inventory.ProductID.String(), cacheErr)
 	}
 
+	s.invalidateTenantCache(ctx, tenantID)
+
 	return nil
 }
 
@@ -80,23 +89,33 @@ func (s *inventoryService) List(ctx context.Context, tenantID uuid.UUID, limit, 
 func (s *inventoryService) Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error {
 	fromInventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, fromWarehouseID, productID)
 	if err != nil {
+		if errors.Is(err, repositories.ErrInventoryNotFound) {
+			return fmt.Errorf("source inventory not found for warehouse %s", fromWarehouseID.String())
+		}
 		return err
 	}
 	if fromInventory.Quantity < quantity {
-		return err // Insufficient stock
+		return fmt.Errorf("insufficient stock in warehouse %s: available %d, requested %d", fromWarehouseID.String(), fromInventory.Quantity, quantity)
 	}
+
 	toInventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, toWarehouseID, productID)
 	if err != nil {
-		// Create new inventory if not exists
-		toInventory = &models.Inventory{
-			TenantID:    tenantID,
-			WarehouseID: toWarehouseID,
-			ProductID:   productID,
-			Quantity:    0,
+		if errors.Is(err, repositories.ErrInventoryNotFound) {
+			toInventory = &models.Inventory{
+				ID:          uuid.New(),
+				TenantID:    tenantID,
+				WarehouseID: toWarehouseID,
+				ProductID:   productID,
+				Quantity:    0,
+			}
+			if createErr := s.inventoryRepo.Create(ctx, toInventory); createErr != nil {
+				return createErr
+			}
+		} else {
+			return err
 		}
-		toInventory.ID = uuid.New()
-		s.inventoryRepo.Create(ctx, toInventory)
 	}
+
 	fromInventory.Quantity -= quantity
 	toInventory.Quantity += quantity
 
@@ -115,22 +134,26 @@ func (s *inventoryService) Transfer(ctx context.Context, tenantID, productID, fr
 		fmt.Printf("Failed to invalidate cache for destination inventory %s-%s: %v\n", toWarehouseID.String(), productID.String(), cacheErr)
 	}
 
+	s.invalidateTenantCache(ctx, tenantID)
+
 	return nil
 }
 
 func (s *inventoryService) AdjustStock(ctx context.Context, tenantID, warehouseID, productID uuid.UUID, quantityChange int) error {
 	inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, warehouseID, productID)
 	if err != nil {
-		// Assume warehouse and product exist
-		inventory = &models.Inventory{
-			TenantID:    tenantID,
-			WarehouseID: warehouseID,
-			ProductID:   productID,
-			Quantity:    0,
-		}
-		inventory.ID = uuid.New()
-		err := s.inventoryRepo.Create(ctx, inventory)
-		if err != nil {
+		if errors.Is(err, repositories.ErrInventoryNotFound) {
+			inventory = &models.Inventory{
+				ID:          uuid.New(),
+				TenantID:    tenantID,
+				WarehouseID: warehouseID,
+				ProductID:   productID,
+				Quantity:    0,
+			}
+			if createErr := s.inventoryRepo.Create(ctx, inventory); createErr != nil {
+				return createErr
+			}
+		} else {
 			return err
 		}
 	}
@@ -148,6 +171,8 @@ func (s *inventoryService) AdjustStock(ctx context.Context, tenantID, warehouseI
 	if cacheErr := s.cacheService.DeleteInventory(ctx, tenantID, warehouseID, productID); cacheErr != nil {
 		fmt.Printf("Failed to invalidate cache for adjusted inventory %s-%s: %v\n", warehouseID.String(), productID.String(), cacheErr)
 	}
+
+	s.invalidateTenantCache(ctx, tenantID)
 
 	return nil
 }
@@ -178,6 +203,9 @@ func (s *inventoryService) GetByWarehouseAndProduct(ctx context.Context, tenantI
 	// Cache miss - get from database
 	inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, warehouseID, productID)
 	if err != nil {
+		if errors.Is(err, repositories.ErrInventoryNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -204,33 +232,47 @@ func (s *inventoryService) BulkAdjustStock(ctx context.Context, tenantID uuid.UU
 	}
 
 	result := &models.BulkOperationResult{
-		OperationID:   fmt.Sprintf("bulk_adjust_stock_%d", time.Now().UnixNano()),
-		Status:       "processing",
-		TotalItems:    len(bulkAdjust.Adjustments),
-		StartTime:     time.Now(),
-		Progress:      0,
-		Errors:        []models.BulkOperationError{},
-		Items:         []models.BulkOperationItem{},
+		OperationID: fmt.Sprintf("bulk_adjust_stock_%d", time.Now().UnixNano()),
+		Status:      "processing",
+		TotalItems:  len(bulkAdjust.Adjustments),
+		StartTime:   time.Now(),
+		Progress:    0,
+		Errors:      []models.BulkOperationError{},
+		Items:       []models.BulkOperationItem{},
 	}
 
 	totalItems := len(bulkAdjust.Adjustments)
 
 	for i, adjustment := range bulkAdjust.Adjustments {
-		// Get existing inventory or create new one
 		inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, adjustment.WarehouseID, adjustment.ProductID)
 		if err != nil {
-			// Create new inventory record if it doesn't exist
-			inventory = &models.Inventory{
-				TenantID:    tenantID,
-				WarehouseID: adjustment.WarehouseID,
-				ProductID:   adjustment.ProductID,
-				Quantity:    0,
-			}
-			inventory.ID = uuid.New()
-			err = s.inventoryRepo.Create(ctx, inventory)
-			if err != nil {
+			if errors.Is(err, repositories.ErrInventoryNotFound) {
+				inventory = &models.Inventory{
+					ID:          uuid.New(),
+					TenantID:    tenantID,
+					WarehouseID: adjustment.WarehouseID,
+					ProductID:   adjustment.ProductID,
+					Quantity:    0,
+				}
+				if createErr := s.inventoryRepo.Create(ctx, inventory); createErr != nil {
+					result.FailedItems++
+					errorMsg := fmt.Sprintf("Failed to create inventory record: %v", createErr)
+					result.Errors = append(result.Errors, models.BulkOperationError{
+						ItemIndex: i,
+						ItemID:    fmt.Sprintf("%s-%s", adjustment.WarehouseID.String(), adjustment.ProductID.String()),
+						Error:     errorMsg,
+					})
+					result.Items = append(result.Items, models.BulkOperationItem{
+						ItemIndex: i,
+						ItemID:    fmt.Sprintf("%s-%s", adjustment.WarehouseID.String(), adjustment.ProductID.String()),
+						Status:    "failed",
+						Error:     &errorMsg,
+					})
+					continue
+				}
+			} else {
 				result.FailedItems++
-				errorMsg := fmt.Sprintf("Failed to create inventory record: %v", err)
+				errorMsg := fmt.Sprintf("Failed to load inventory: %v", err)
 				result.Errors = append(result.Errors, models.BulkOperationError{
 					ItemIndex: i,
 					ItemID:    fmt.Sprintf("%s-%s", adjustment.WarehouseID.String(), adjustment.ProductID.String()),
@@ -310,6 +352,8 @@ func (s *inventoryService) BulkAdjustStock(ctx context.Context, tenantID uuid.UU
 	result.CompletionTime = &time.Time{}
 	*result.CompletionTime = time.Now()
 
+	s.invalidateTenantCache(ctx, tenantID)
+
 	return result, nil
 }
 
@@ -324,23 +368,38 @@ func (s *inventoryService) BulkTransferStock(ctx context.Context, tenantID uuid.
 	}
 
 	result := &models.BulkOperationResult{
-		OperationID:   fmt.Sprintf("bulk_transfer_stock_%d", time.Now().UnixNano()),
-		Status:       "processing",
-		TotalItems:    len(bulkTransfer.Transfers),
-		StartTime:     time.Now(),
-		Progress:      0,
-		Errors:        []models.BulkOperationError{},
-		Items:         []models.BulkOperationItem{},
+		OperationID: fmt.Sprintf("bulk_transfer_stock_%d", time.Now().UnixNano()),
+		Status:      "processing",
+		TotalItems:  len(bulkTransfer.Transfers),
+		StartTime:   time.Now(),
+		Progress:    0,
+		Errors:      []models.BulkOperationError{},
+		Items:       []models.BulkOperationItem{},
 	}
 
 	totalItems := len(bulkTransfer.Transfers)
 
 	for i, transfer := range bulkTransfer.Transfers {
-		// Check if source warehouse has enough stock
 		fromInventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, transfer.FromWarehouseID, transfer.ProductID)
 		if err != nil {
+			if errors.Is(err, repositories.ErrInventoryNotFound) {
+				result.FailedItems++
+				errorMsg := "Source inventory not found"
+				result.Errors = append(result.Errors, models.BulkOperationError{
+					ItemIndex: i,
+					ItemID:    fmt.Sprintf("%s-%s", transfer.FromWarehouseID.String(), transfer.ProductID.String()),
+					Error:     errorMsg,
+				})
+				result.Items = append(result.Items, models.BulkOperationItem{
+					ItemIndex: i,
+					ItemID:    fmt.Sprintf("%s-%s", transfer.FromWarehouseID.String(), transfer.ProductID.String()),
+					Status:    "failed",
+					Error:     &errorMsg,
+				})
+				continue
+			}
 			result.FailedItems++
-			errorMsg := fmt.Sprintf("Source inventory not found: %v", err)
+			errorMsg := fmt.Sprintf("Failed to load source inventory: %v", err)
 			result.Errors = append(result.Errors, models.BulkOperationError{
 				ItemIndex: i,
 				ItemID:    fmt.Sprintf("%s-%s", transfer.FromWarehouseID.String(), transfer.ProductID.String()),
@@ -373,21 +432,35 @@ func (s *inventoryService) BulkTransferStock(ctx context.Context, tenantID uuid.
 			continue
 		}
 
-		// Get or create destination inventory
 		toInventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, transfer.ToWarehouseID, transfer.ProductID)
 		if err != nil {
-			// Create new inventory record
-			toInventory = &models.Inventory{
-				TenantID:    tenantID,
-				WarehouseID: transfer.ToWarehouseID,
-				ProductID:   transfer.ProductID,
-				Quantity:    0,
-			}
-			toInventory.ID = uuid.New()
-			err = s.inventoryRepo.Create(ctx, toInventory)
-			if err != nil {
+			if errors.Is(err, repositories.ErrInventoryNotFound) {
+				toInventory = &models.Inventory{
+					ID:          uuid.New(),
+					TenantID:    tenantID,
+					WarehouseID: transfer.ToWarehouseID,
+					ProductID:   transfer.ProductID,
+					Quantity:    0,
+				}
+				if createErr := s.inventoryRepo.Create(ctx, toInventory); createErr != nil {
+					result.FailedItems++
+					errorMsg := fmt.Sprintf("Failed to create destination inventory record: %v", createErr)
+					result.Errors = append(result.Errors, models.BulkOperationError{
+						ItemIndex: i,
+						ItemID:    fmt.Sprintf("%s-%s", transfer.ToWarehouseID.String(), transfer.ProductID.String()),
+						Error:     errorMsg,
+					})
+					result.Items = append(result.Items, models.BulkOperationItem{
+						ItemIndex: i,
+						ItemID:    fmt.Sprintf("%s-%s", transfer.ToWarehouseID.String(), transfer.ProductID.String()),
+						Status:    "failed",
+						Error:     &errorMsg,
+					})
+					continue
+				}
+			} else {
 				result.FailedItems++
-				errorMsg := "Failed to create destination inventory record"
+				errorMsg := fmt.Sprintf("Failed to load destination inventory: %v", err)
 				result.Errors = append(result.Errors, models.BulkOperationError{
 					ItemIndex: i,
 					ItemID:    fmt.Sprintf("%s-%s", transfer.ToWarehouseID.String(), transfer.ProductID.String()),
@@ -450,6 +523,8 @@ func (s *inventoryService) BulkTransferStock(ctx context.Context, tenantID uuid.
 	}
 	result.CompletionTime = &time.Time{}
 	*result.CompletionTime = time.Now()
+
+	s.invalidateTenantCache(ctx, tenantID)
 
 	return result, nil
 }

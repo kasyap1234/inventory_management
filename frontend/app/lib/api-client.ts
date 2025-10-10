@@ -1,6 +1,8 @@
 // Optimized API client with request batching and caching
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
+import { csrfTokenManager, tokenStorage } from '@/lib/security';
+
 // Request queue for batching
 interface QueuedRequest {
   config: AxiosRequestConfig;
@@ -25,12 +27,22 @@ class APIClient {
 
     // Request interceptor
     this.client.interceptors.request.use(
-      (config) => {
-        // Add auth token if available
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      async (config) => {
+        const headers = config.headers ?? {};
+        const token = tokenStorage.getAccessToken();
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          headers.Authorization = `Bearer ${token}`;
         }
+
+        const method = config.method?.toLowerCase();
+        if (method && !['get', 'head', 'options'].includes(method)) {
+          const csrfToken = await csrfTokenManager.getToken();
+          if (csrfToken) {
+            headers['X-CSRF-Token'] = csrfToken;
+          }
+        }
+
+        config.headers = headers;
         return config;
       },
       (error) => Promise.reject(error)
@@ -43,7 +55,8 @@ class APIClient {
         if (error.response?.status === 401) {
           // Handle token refresh or redirect to login
           if (typeof window !== 'undefined') {
-            localStorage.removeItem('token');
+            tokenStorage.clear();
+            csrfTokenManager.clearToken();
             window.location.href = '/login';
           }
         }
@@ -102,7 +115,7 @@ class APIClient {
 }
 
 // Create singleton instance
-const apiBaseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/v1';
+const apiBaseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/v1';
 export const apiClient = new APIClient(apiBaseURL);
 
 // Export for convenience

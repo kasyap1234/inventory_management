@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS search_analytics (
 );
 
 -- Create indexes for search_analytics
-CREATE INDEX idx_search_analytics_tenant_id ON search_analytics(tenant_id);
-CREATE INDEX idx_search_analytics_entity_type ON search_analytics(entity_type);
-CREATE INDEX idx_search_analytics_timestamp ON search_analytics(timestamp);
-CREATE INDEX idx_search_analytics_search_term ON search_analytics(search_term);
+CREATE INDEX IF NOT EXISTS idx_search_analytics_tenant_id ON search_analytics(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_search_analytics_entity_type ON search_analytics(entity_type);
+CREATE INDEX IF NOT EXISTS idx_search_analytics_timestamp ON search_analytics(timestamp);
+CREATE INDEX IF NOT EXISTS idx_search_analytics_search_term ON search_analytics(search_term);
 
 -- Create bulk_operation_analytics table for tracking bulk operations
 CREATE TABLE IF NOT EXISTS bulk_operation_analytics (
@@ -37,9 +37,9 @@ CREATE TABLE IF NOT EXISTS bulk_operation_analytics (
 );
 
 -- Create indexes for bulk_operation_analytics
-CREATE INDEX idx_bulk_operation_analytics_tenant_id ON bulk_operation_analytics(tenant_id);
-CREATE INDEX idx_bulk_operation_analytics_operation_type ON bulk_operation_analytics(operation_type);
-CREATE INDEX idx_bulk_operation_analytics_timestamp ON bulk_operation_analytics(timestamp);
+CREATE INDEX IF NOT EXISTS idx_bulk_operation_analytics_tenant_id ON bulk_operation_analytics(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bulk_operation_analytics_operation_type ON bulk_operation_analytics(operation_type);
+CREATE INDEX IF NOT EXISTS idx_bulk_operation_analytics_timestamp ON bulk_operation_analytics(timestamp);
 
 -- Create tenant_analytics_cache table for caching aggregated analytics
 CREATE TABLE IF NOT EXISTS tenant_analytics_cache (
@@ -55,9 +55,9 @@ CREATE TABLE IF NOT EXISTS tenant_analytics_cache (
 );
 
 -- Create indexes for tenant_analytics_cache
-CREATE INDEX idx_tenant_analytics_cache_tenant_id ON tenant_analytics_cache(tenant_id);
-CREATE INDEX idx_tenant_analytics_cache_metric_type ON tenant_analytics_cache(metric_type);
-CREATE INDEX idx_tenant_analytics_cache_expires_at ON tenant_analytics_cache(expires_at);
+CREATE INDEX IF NOT EXISTS idx_tenant_analytics_cache_tenant_id ON tenant_analytics_cache(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_analytics_cache_metric_type ON tenant_analytics_cache(metric_type);
+CREATE INDEX IF NOT EXISTS idx_tenant_analytics_cache_expires_at ON tenant_analytics_cache(expires_at);
 
 -- Add comments for documentation
 COMMENT ON TABLE search_analytics IS 'Tracks all search operations across the application for analytics';

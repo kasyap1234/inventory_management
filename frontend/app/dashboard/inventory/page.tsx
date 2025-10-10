@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
 import api from '@/lib/api';
 import { Inventory, Product, Warehouse } from '@/types';
 import { formatDateTime } from '@/lib/utils';
@@ -18,11 +19,21 @@ interface InventoryWithDetails extends Inventory {
   warehouse?: Warehouse;
 }
 
+type InventoryHistoryEntry = {
+  id: string;
+  action: string;
+  created_at: string;
+  new_values?: Record<string, any>;
+  old_values?: Record<string, any>;
+  changed_by?: string | null;
+};
+
 export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingInventory, setEditingInventory] = useState<Inventory | null>(null);
   const [adjustingInventory, setAdjustingInventory] = useState<Inventory | null>(null);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const queryClient = useQueryClient();
 
   const { data: inventory, isLoading } = useQuery<{ inventory: InventoryWithDetails[] }>({
@@ -50,10 +61,54 @@ export default function InventoryPage() {
   });
 
   const filteredInventory = inventory?.inventory?.filter(item => {
-    const productName = products?.products?.find(p => p.id === item.product_id)?.name || '';
-    const warehouseName = warehouses?.warehouses?.find(w => w.id === item.warehouse_id)?.name || '';
+    const product = products?.products?.find(p => p.id === item.product_id);
+    const warehouse = warehouses?.warehouses?.find(w => w.id === item.warehouse_id);
+    const productName = product?.name || '';
+    const warehouseName = warehouse?.name || '';
     const query = searchQuery.toLowerCase();
-    return productName.toLowerCase().includes(query) || warehouseName.toLowerCase().includes(query);
+
+    const matchesSearch =
+      productName.toLowerCase().includes(query) ||
+      warehouseName.toLowerCase().includes(query);
+
+    if (!matchesSearch) {
+      return false;
+    }
+
+    if (advancedFilters.warehouse_id && item.warehouse_id !== advancedFilters.warehouse_id) {
+      return false;
+    }
+
+    if (advancedFilters.product_id && item.product_id !== advancedFilters.product_id) {
+      return false;
+    }
+
+    if (advancedFilters.min_quantity) {
+      const minQuantity = parseInt(advancedFilters.min_quantity, 10);
+      if (!Number.isNaN(minQuantity) && item.quantity < minQuantity) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.max_quantity) {
+      const maxQuantity = parseInt(advancedFilters.max_quantity, 10);
+      if (!Number.isNaN(maxQuantity) && item.quantity > maxQuantity) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.statuses && advancedFilters.statuses.length > 0) {
+      const status = item.quantity === 0
+        ? 'out_of_stock'
+        : item.quantity < 10
+          ? 'low_stock'
+          : 'in_stock';
+      if (!advancedFilters.statuses.includes(status)) {
+        return false;
+      }
+    }
+
+    return true;
   }) || [];
 
   return (
@@ -118,6 +173,50 @@ export default function InventoryPage() {
                 className="pl-10"
               />
             </div>
+            <AdvancedFilters
+              config={{
+                statuses: {
+                  label: 'Stock Status',
+                  options: [
+                    { value: 'in_stock', label: 'In Stock' },
+                    { value: 'low_stock', label: 'Low Stock' },
+                    { value: 'out_of_stock', label: 'Out of Stock' },
+                  ],
+                },
+                quantityRange: {
+                  label: 'Quantity',
+                  minKey: 'min_quantity',
+                  maxKey: 'max_quantity',
+                },
+                customFilters: [
+                  {
+                    key: 'warehouse_id',
+                    label: 'Warehouse',
+                    type: 'select',
+                    options: (warehouses?.warehouses || []).map((wh) => ({ value: wh.id, label: wh.name })),
+                  },
+                  {
+                    key: 'product_id',
+                    label: 'Product',
+                    type: 'select',
+                    options: (products?.products || []).map((prod) => ({ value: prod.id, label: prod.name })),
+                  },
+                ],
+              }}
+              activeFilters={advancedFilters}
+              onApply={setAdvancedFilters}
+              onReset={() => setAdvancedFilters({})}
+            />
+          </div>
+          <div className="mt-4">
+            <ActiveFilterBadges
+              filters={advancedFilters}
+              onRemove={(key) => {
+                const next = { ...advancedFilters };
+                delete next[key];
+                setAdvancedFilters(next);
+              }}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -343,16 +442,31 @@ function StockAdjustmentDialog({
   const [adjustment, setAdjustment] = useState(0);
   const [reason, setReason] = useState('');
 
+  const historyQuery = useQuery<{ history: InventoryHistoryEntry[] }>({
+    queryKey: ['inventory-history', inventory?.id],
+    queryFn: async () => {
+      if (!inventory) return { history: [] };
+      const response = await api.get(`/inventory/${inventory.id}/history?limit=25`);
+      return response.data;
+    },
+    enabled: open && !!inventory,
+  });
+
   const adjustMutation = useMutation({
     mutationFn: async () => {
       if (!inventory) return;
-      await api.post(`/inventory/${inventory.id}/adjust`, {
-        adjustment,
+      await api.post('/inventory/adjust', {
+        warehouse_id: inventory.warehouse_id,
+        product_id: inventory.product_id,
+        quantity_change: adjustment,
         reason,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      if (inventory) {
+        queryClient.invalidateQueries({ queryKey: ['inventory-history', inventory.id] });
+      }
       onOpenChange(false);
       setAdjustment(0);
       setReason('');
@@ -380,6 +494,7 @@ function StockAdjustmentDialog({
   if (!inventory) return null;
 
   const newQuantity = inventory.quantity + adjustment;
+  const history = historyQuery.data?.history || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -485,6 +600,49 @@ function StockAdjustmentDialog({
               placeholder="e.g., Damaged goods, Stock count correction, Return from customer"
             />
             <p className="text-xs text-gray-500">This will be recorded in the audit log</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-600">Recent Adjustments</label>
+            {historyQuery.isLoading ? (
+              <div className="text-sm text-gray-500">Loading history...</div>
+            ) : history.length === 0 ? (
+              <div className="text-sm text-gray-500">No past adjustments recorded.</div>
+            ) : (
+              <div className="max-h-60 overflow-y-auto divide-y divide-gray-200 rounded-md border border-gray-100">
+                {history.map((entry) => {
+                  const newValues = entry.new_values || {};
+                  const oldValues = entry.old_values || {};
+                  const change = newValues.quantity_change ?? 0;
+                  const oldQty = oldValues.quantity;
+                  const newQty = newValues.quantity;
+                  const reasonText = newValues.reason;
+
+                  return (
+                    <div key={entry.id} className="p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">{formatDateTime(entry.created_at)}</span>
+                        <Badge variant={change >= 0 ? 'success' : 'danger'}>
+                          {change >= 0 ? `+${change}` : change}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-gray-600">
+                        {oldQty !== undefined && newQty !== undefined ? (
+                          <span>
+                            Quantity {oldQty} → {newQty}
+                          </span>
+                        ) : (
+                          <span>Quantity updated</span>
+                        )}
+                      </div>
+                      {reasonText && (
+                        <div className="mt-1 text-gray-500">Reason: {reasonText}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">

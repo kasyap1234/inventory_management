@@ -37,15 +37,46 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { format } from 'date-fns';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
 
 type CategoryOption = {
   id: string;
   name: string;
+};
+
+const SALES_TREND_CHART_CONFIG: ChartConfig = {
+  revenue: {
+    label: 'Revenue',
+    color: 'hsl(217 91% 60%)',
+  },
+  orders: {
+    label: 'Orders',
+    color: 'hsl(24 95% 53%)',
+  },
+};
+
+const TOP_PRODUCTS_CHART_CONFIG: ChartConfig = {
+  unitsSold: {
+    label: 'Units Sold',
+    color: 'hsl(217 83% 53%)',
+  },
+};
+
+const REVENUE_BY_CATEGORY_CHART_CONFIG: ChartConfig = {
+  totalRevenue: {
+    label: 'Revenue',
+    color: 'hsl(142 71% 45%)',
+  },
 };
 
 export default function AnalyticsPage() {
@@ -228,9 +259,24 @@ export default function AnalyticsPage() {
     }
   };
 
-  const topProducts: ProductSales[] = topProductsData ?? [];
-  const lowStockItems: LowStockItem[] = lowStockData ?? [];
-  const orderStatus: OrderStatusEntry[] = orderStatusData ?? [];
+  const topProducts: ProductSales[] = useMemo(() => topProductsData ?? [], [topProductsData]);
+  const lowStockItems: LowStockItem[] = useMemo(() => lowStockData ?? [], [lowStockData]);
+  const orderStatus: OrderStatusEntry[] = useMemo(() => orderStatusData ?? [], [orderStatusData]);
+  const orderStatusChartConfig = useMemo<ChartConfig>(() => {
+    if (!orderStatus.length) {
+      return {};
+    }
+
+    return orderStatus.reduce<ChartConfig>((acc, item, index) => {
+      const statusKey = item.status ?? `status-${index}`;
+      const readable = statusKey.replace(/_/g, ' ');
+      acc[statusKey] = {
+        label: readable.charAt(0).toUpperCase() + readable.slice(1),
+        color: STATUS_COLORS[item.status ?? 'default'] ?? STATUS_COLORS.default,
+      };
+      return acc;
+    }, {});
+  }, [orderStatus]);
 
   return (
     <div className="space-y-8">
@@ -307,45 +353,54 @@ export default function AnalyticsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
-          {salesTrendLoading ? (
-            <div className="h-72 bg-gray-200 rounded animate-pulse" />
-          ) : salesTrendChartData.length ? (
-            <ResponsiveContainer width="100%" height={300}>
+        {salesTrendLoading ? (
+          <div className="h-72 bg-gray-200 rounded animate-pulse" />
+        ) : salesTrendChartData.length ? (
+          <ChartContainer config={SALES_TREND_CHART_CONFIG} className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={salesTrendChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" stroke="#888" />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                  formatter={(value: number | string, name: string) =>
-                    name === 'revenue' ? formatCurrency(Number(value)) : `${Number(value)} orders`
+                <CartesianGrid strokeDasharray="4 4" className="stroke-muted/40" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} stroke="#888" />
+                <YAxis tickLine={false} axisLine={false} stroke="#888" />
+                <ChartTooltip
+                  cursor={{ strokeDasharray: '4 4' }}
+                  content={
+                    <ChartTooltipContent
+                      indicator="line"
+                      formatter={({ value, name }) =>
+                        name === 'revenue'
+                          ? formatCurrency(Number(value ?? 0))
+                          : `${Number(value ?? 0)} orders`
+                      }
+                    />
                   }
                 />
-                <Legend />
+                <ChartLegend verticalAlign="top" content={<ChartLegendContent className="pt-2" />} />
                 <Line
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#3b82f6"
+                  stroke="var(--color-revenue)"
                   strokeWidth={3}
-                  dot={{ fill: '#3b82f6', r: 4 }}
+                  dot={{ fill: 'var(--color-revenue)', r: 4 }}
                   activeDot={{ r: 6 }}
                   name="Revenue"
                 />
                 <Line
                   type="monotone"
                   dataKey="orders"
-                  stroke="#f59e0b"
+                  stroke="var(--color-orders)"
                   strokeWidth={2}
                   dot={false}
                   name="Orders"
                 />
               </LineChart>
             </ResponsiveContainer>
-          ) : (
-            <p className="text-center text-gray-500 py-10">
-              No sales data available for the selected period.
-            </p>
-          )}
+          </ChartContainer>
+        ) : (
+          <p className="text-center text-gray-500 py-10">
+            No sales data available for the selected period.
+          </p>
+        )}
         </CardContent>
       </Card>
 
@@ -361,27 +416,35 @@ export default function AnalyticsPage() {
             {topProductsLoading ? (
               <div className="h-80 bg-gray-200 rounded animate-pulse" />
             ) : topProducts.length ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={topProducts.slice(0, 5)} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="productName"
-                    stroke="#888"
-                    angle={-15}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis stroke="#888" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                    formatter={(value: number | string, name: string) =>
-                      name === 'unitsSold' ? `${Number(value)} units` : formatCurrency(Number(value))
-                    }
-                  />
-                  <Legend />
-                  <Bar dataKey="unitsSold" fill="#3b82f6" name="Units Sold" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <ChartContainer config={TOP_PRODUCTS_CHART_CONFIG} className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topProducts.slice(0, 5)} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+                    <CartesianGrid strokeDasharray="4 4" className="stroke-muted/40" />
+                    <XAxis
+                      dataKey="productName"
+                      stroke="#888"
+                      angle={-15}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis stroke="#888" />
+                    <ChartTooltip
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.15)' }}
+                      content={
+                        <ChartTooltipContent
+                          formatter={({ value }) => `${Number(value ?? 0)} units`}
+                        />
+                      }
+                    />
+                    <Bar
+                      dataKey="unitsSold"
+                      fill="var(--color-unitsSold)"
+                      name="Units Sold"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             ) : (
               <p className="text-center text-gray-500 py-10">No product sales data available.</p>
             )}
@@ -440,41 +503,49 @@ export default function AnalyticsPage() {
             {orderStatusLoading ? (
               <div className="h-80 bg-gray-200 rounded animate-pulse" />
             ) : orderStatus.length ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie
-                    data={orderStatus}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ status, count, percent }) =>
-                      `${status}: ${count} (${Math.round((percent ?? 0) * 100)}%)`
-                    }
-                    outerRadius={100}
-                    dataKey="count"
-                    nameKey="status"
-                  >
-                    {orderStatus.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={STATUS_COLORS[entry.status] || STATUS_COLORS.default}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(
-                      value: number | string,
-                      name: string,
-                      entry: { payload?: OrderStatusEntry }
-                    ) => {
-                      const count = typeof value === 'number' ? value : Number(value) || 0;
-                      const percent = entry?.payload?.percent ?? 0;
-                      return [`${count} orders (${Math.round(percent * 100)}%)`, name];
-                    }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              <ChartContainer config={orderStatusChartConfig} className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={orderStatus}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ status, count, percent }) =>
+                        `${status}: ${count} (${Math.round((percent ?? 0) * 100)}%)`
+                      }
+                      outerRadius={110}
+                      dataKey="count"
+                      nameKey="status"
+                    >
+                      {orderStatus.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={`var(--color-${entry.status ?? `status-${index}`})`}
+                        />
+                      ))}
+                    </Pie>
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={({ value, item }) => {
+                            const count = typeof value === 'number' ? value : Number(value ?? 0);
+                            const percent = (item?.payload?.percent ?? 0) * 100;
+                            return `${count} orders (${Math.round(percent)}%)`;
+                          }}
+                          labelFormatter={() => null}
+                        />
+                      }
+                    />
+                    <ChartLegend
+                      layout="horizontal"
+                      verticalAlign="bottom"
+                      align="center"
+                      content={<ChartLegendContent className="pt-4" />}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             ) : (
               <p className="text-center text-gray-500 py-10">No orders available for the selected range.</p>
             )}
@@ -492,25 +563,35 @@ export default function AnalyticsPage() {
             {revenueByCategoryLoading ? (
               <div className="h-80 bg-gray-200 rounded animate-pulse" />
             ) : revenueByCategoryChartData.length ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={revenueByCategoryChartData} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="label"
-                    stroke="#888"
-                    angle={-15}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis stroke="#888" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                    formatter={(value: number | string) => formatCurrency(Number(value))}
-                  />
-                  <Legend />
-                  <Bar dataKey="totalRevenue" fill="#10b981" name="Revenue" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <ChartContainer config={REVENUE_BY_CATEGORY_CHART_CONFIG} className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={revenueByCategoryChartData} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+                    <CartesianGrid strokeDasharray="4 4" className="stroke-muted/40" />
+                    <XAxis
+                      dataKey="label"
+                      stroke="#888"
+                      angle={-15}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis stroke="#888" />
+                    <ChartTooltip
+                      cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }}
+                      content={
+                        <ChartTooltipContent
+                          formatter={({ value }) => formatCurrency(Number(value ?? 0))}
+                        />
+                      }
+                    />
+                    <Bar
+                      dataKey="totalRevenue"
+                      fill="var(--color-totalRevenue)"
+                      name="Revenue"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             ) : (
               <p className="text-center text-gray-500 py-10">No category revenue data available.</p>
             )}

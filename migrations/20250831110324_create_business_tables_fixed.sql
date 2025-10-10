@@ -201,6 +201,10 @@ INSERT INTO distributors (tenant_id, name, contact_email, contact_phone, address
 ((SELECT id FROM tenants LIMIT 1), 'Farm Distribution Co', 'sales@farmdistro.com', '+91-9876543211', '789 Distributor Road, Kolkata', 'DIST001')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO inventory (tenant_id, warehouse_id, product_id, quantity, last_updated) VALUES
-((SELECT id FROM tenants LIMIT 1), (SELECT id FROM warehouses LIMIT 1), (SELECT id FROM products LIMIT 1), 500, NOW())
+INSERT INTO inventory (tenant_id, warehouse_id, product_id, quantity, last_updated)
+SELECT t.id, w.id, p.id, 500, NOW()
+FROM tenants t
+CROSS JOIN LATERAL (SELECT id FROM warehouses WHERE tenant_id = t.id LIMIT 1) w
+CROSS JOIN LATERAL (SELECT id FROM products WHERE tenant_id = t.id LIMIT 1) p
+WHERE EXISTS (SELECT 1 FROM products WHERE tenant_id = t.id)
 ON CONFLICT DO NOTHING;

@@ -2,7 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import { AuthResponse, LoginCredentials, SignupData, User } from '@/types';
+import { csrfTokenManager, mfaChallengeStore, tokenStorage } from '@/lib/security';
+import {
+  AuthResponse,
+  ForgotPasswordPayload,
+  LoginCredentials,
+  ResetPasswordPayload,
+  SignupData,
+  SignupResponse,
+  User,
+} from '@/types';
 
 export function useAuth() {
   const router = useRouter();
@@ -15,14 +24,24 @@ export function useAuth() {
 
   const login = useMutation({
     mutationFn: async (credentials: LoginCredentials) => {
-      const response = await api.post<AuthResponse>('/auth/login', credentials);
+      const payload: LoginCredentials = {
+        email: credentials.email.trim().toLowerCase(),
+        password: credentials.password.trim(),
+      };
+      const response = await api.post<AuthResponse>('/auth/login', payload);
       return response.data;
     },
     onSuccess: (data) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
+      if (data.mfa_required) {
+        mfaChallengeStore.store(data.mfa_token ?? null);
+        tokenStorage.clear();
+        queryClient.removeQueries({ queryKey: ['user'] });
+        router.push('/mfa');
+        return;
       }
+
+      tokenStorage.setTokens(data.access_token, data.refresh_token);
+      csrfTokenManager.clearToken();
       queryClient.setQueryData(['user'], data.user);
       router.push('/dashboard');
     },
@@ -30,16 +49,22 @@ export function useAuth() {
 
   const signup = useMutation({
     mutationFn: async (data: SignupData) => {
-      const response = await api.post<AuthResponse>('/auth/signup', data);
+      const payload: SignupData = {
+        email: data.email.trim().toLowerCase(),
+        password: data.password.trim(),
+        first_name: data.first_name.trim(),
+        last_name: data.last_name.trim(),
+        tenant_name: data.tenant_name.trim(),
+        subdomain: data.subdomain.trim().toLowerCase(),
+      };
+      const response = await api.post<SignupResponse>('/auth/signup', payload);
       return response.data;
     },
     onSuccess: (data) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
-      }
-      queryClient.setQueryData(['user'], data.user);
-      router.push('/dashboard');
+      queryClient.removeQueries({ queryKey: ['user'] });
+      const email = data.user?.email ?? '';
+      const target = email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email';
+      router.push(target);
     },
   });
 
@@ -48,16 +73,38 @@ export function useAuth() {
       await api.post('/auth/logout');
     },
     onSuccess: () => {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-      }
+      tokenStorage.clear();
+      csrfTokenManager.clearToken();
+      mfaChallengeStore.clear();
       queryClient.clear();
       router.push('/login');
     },
   });
 
-  const hasToken = isClient && typeof window !== 'undefined' && !!localStorage.getItem('access_token');
+  const requestPasswordReset = useMutation({
+    mutationFn: async (payload: ForgotPasswordPayload) => {
+      const sanitized: ForgotPasswordPayload = {
+        email: payload.email.trim().toLowerCase(),
+      };
+      await api.post('/auth/password/forgot', sanitized);
+    },
+  });
+
+  const resetPassword = useMutation({
+    mutationFn: async (payload: ResetPasswordPayload) => {
+      const sanitized: ResetPasswordPayload = {
+        token: payload.token.trim(),
+        password: payload.password.trim(),
+        confirm_password: payload.confirm_password.trim(),
+      };
+      await api.post('/auth/password/reset', sanitized);
+    },
+    onSuccess: () => {
+      router.push('/login?reset=success');
+    },
+  });
+
+  const isAuthenticatedToken = isClient && tokenStorage.hasAccessToken();
 
   const { data: user, isLoading } = useQuery<User>({
     queryKey: ['user'],
@@ -65,7 +112,7 @@ export function useAuth() {
       const response = await api.get<User>('/me');
       return response.data;
     },
-    enabled: hasToken,
+    enabled: isAuthenticatedToken,
     retry: false,
   });
 
@@ -76,5 +123,7 @@ export function useAuth() {
     login,
     signup,
     logout,
+    requestPasswordReset,
+    resetPassword,
   };
 }

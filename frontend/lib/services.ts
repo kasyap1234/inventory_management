@@ -763,6 +763,7 @@ export const userService = {
 // Tenant Services
 export const tenantService = {
   list: () => api.get('/tenants'),
+  create: (data: { name: string; subdomain: string; license: string }) => api.post('/tenants', data),
   getById: (id: string) => api.get(`/tenants/${id}`),
   update: (id: string, data: Record<string, unknown>) => api.put(`/tenants/${id}`, data),
   delete: (id: string) => api.delete(`/tenants/${id}`),
@@ -863,4 +864,12 @@ export const invoiceService = {
   getUnpaid: () => api.get('/invoices/unpaid'),
   generatePDF: (id: string) => api.post(`/invoices/${id}/generate-pdf`),
   delete: (id: string) => api.delete(`/invoices/${id}`),
+};
+
+// Webhook Services
+export const webhookService = {
+  list: () => api.get('/webhooks/subscriptions'),
+  create: (data: Record<string, unknown>) => api.post('/webhooks/subscriptions', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/webhooks/subscriptions/${id}`, data),
+  delete: (id: string) => api.delete(`/webhooks/subscriptions/${id}`),
 };

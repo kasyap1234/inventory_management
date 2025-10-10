@@ -19,6 +19,9 @@ type UserRepository interface {
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.User, error)
 	GetByEmail(ctx context.Context, tenantID uuid.UUID, email string) (*models.User, error)
 	GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GetByEmailGlobal(ctx context.Context, email string) (*models.User, error)
+	UpdatePassword(ctx context.Context, tenantID, userID uuid.UUID, passwordHash string) error
+	UpdateStatus(ctx context.Context, tenantID, userID uuid.UUID, status string) error
 }
 
 type userRepo struct {
@@ -138,4 +141,44 @@ func (r *userRepo) GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (u
 		return uuid.Nil, fmt.Errorf("invalid tenant_id format for user %s: %w", userID, err)
 	}
 	return id, nil
+}
+
+func (r *userRepo) GetByEmailGlobal(ctx context.Context, email string) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, tenant_id, email, password_hash, first_name, last_name, status, created_at, updated_at
+		FROM users
+		WHERE email = $1
+	`
+	var tenantID string
+	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &tenantID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	parsedTenantID, err := uuid.Parse(tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid tenant_id format for email %s: %w", email, err)
+	}
+	user.TenantID = parsedTenantID
+	return user, nil
+}
+
+func (r *userRepo) UpdatePassword(ctx context.Context, tenantID, userID uuid.UUID, passwordHash string) error {
+	query := `
+		UPDATE users
+		SET password_hash = $1, updated_at = NOW()
+		WHERE tenant_id = $2 AND id = $3
+	`
+	_, err := r.db.Exec(ctx, query, passwordHash, tenantID, userID)
+	return err
+}
+
+func (r *userRepo) UpdateStatus(ctx context.Context, tenantID, userID uuid.UUID, status string) error {
+	query := `
+		UPDATE users
+		SET status = $1, updated_at = NOW()
+		WHERE tenant_id = $2 AND id = $3
+	`
+	_, err := r.db.Exec(ctx, query, status, tenantID, userID)
+	return err
 }

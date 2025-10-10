@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
 import api from '@/lib/api';
 import { Invoice, Order } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -19,6 +20,7 @@ export default function InvoicesPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isBulkGenerateOpen, setIsBulkGenerateOpen] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const queryClient = useQueryClient();
 
   const { data: invoices, isLoading } = useQuery<{ invoices: Invoice[] }>({
@@ -56,7 +58,52 @@ export default function InvoicesPage() {
 
   const filteredInvoices = invoices?.invoices?.filter(invoice => {
     const matchesStatus = filterStatus === 'all' || invoice.status === filterStatus;
-    return matchesStatus;
+
+    const matchesSearch = !searchQuery
+      || invoice.id.toLowerCase().includes(searchQuery.toLowerCase())
+      || invoice.gstin?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesStatus || !matchesSearch) {
+      return false;
+    }
+
+    if (advancedFilters.statuses && advancedFilters.statuses.length > 0) {
+      if (!advancedFilters.statuses.includes(invoice.status)) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.start_date) {
+      if (!invoice.issued_date || invoice.issued_date < advancedFilters.start_date) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.end_date) {
+      if (!invoice.issued_date || invoice.issued_date > advancedFilters.end_date) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.min_total) {
+      if (invoice.total_amount < parseFloat(advancedFilters.min_total)) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.max_total) {
+      if (invoice.total_amount > parseFloat(advancedFilters.max_total)) {
+        return false;
+      }
+    }
+
+    if (advancedFilters.gstin && invoice.gstin) {
+      if (!invoice.gstin.toLowerCase().includes(String(advancedFilters.gstin).toLowerCase())) {
+        return false;
+      }
+    }
+
+    return true;
   }) || [];
 
   const bulkDownloadPDFs = useMutation({
@@ -234,6 +281,49 @@ export default function InvoicesPage() {
               <option value="overdue">Overdue</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            <AdvancedFilters
+              config={{
+                dateRange: {
+                  label: 'Issued Date Range',
+                  startKey: 'start_date',
+                  endKey: 'end_date',
+                },
+                statuses: {
+                  label: 'Invoice Status',
+                  options: [
+                    { value: 'unpaid', label: 'Unpaid' },
+                    { value: 'paid', label: 'Paid' },
+                    { value: 'overdue', label: 'Overdue' },
+                    { value: 'cancelled', label: 'Cancelled' },
+                  ],
+                },
+                priceRange: {
+                  label: 'Total Amount',
+                  minKey: 'min_total',
+                  maxKey: 'max_total',
+                },
+                customFilters: [
+                  {
+                    key: 'gstin',
+                    label: 'GSTIN Contains',
+                    type: 'text',
+                  },
+                ],
+              }}
+              activeFilters={advancedFilters}
+              onApply={setAdvancedFilters}
+              onReset={() => setAdvancedFilters({})}
+            />
+          </div>
+          <div className="mt-4">
+            <ActiveFilterBadges
+              filters={advancedFilters}
+              onRemove={(key) => {
+                const next = { ...advancedFilters };
+                delete next[key];
+                setAdvancedFilters(next);
+              }}
+            />
           </div>
         </CardHeader>
         <CardContent>

@@ -134,6 +134,11 @@ func (m *MockInventoryRepository) AdvancedSearch(ctx context.Context, tenantID u
 	return args.Get(0).([]*models.Inventory), args.Error(1)
 }
 
+func (m *MockInventoryRepository) GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	args := m.Called(ctx, tenantID, productID)
+	return args.Get(0).([]*models.Inventory), args.Error(1)
+}
+
 type MockCategoryRepository struct {
 	mock.Mock
 }
@@ -379,7 +384,7 @@ func (m *MockCacheService) GetString(ctx context.Context, key string) (string, e
 	return args.String(0), args.Error(1)
 }
 
-type MockMinioService struct{
+type MockMinioService struct {
 	mock.Mock
 }
 
@@ -423,12 +428,12 @@ func (suite *ProductServiceTestSuite) SetupTest() {
 	suite.mockProductImageRepo = &MockProductImageRepository{}
 	suite.mockMinioService = &MockMinioService{}
 	suite.mockCacheService = &MockCacheService{}
-	
+
 	// Set up lenient cache expectations that allow but don't require cache calls
 	suite.mockCacheService.On("GetProduct", mock.Anything, mock.Anything, mock.Anything).Return((*models.Product)(nil), nil).Maybe()
 	suite.mockCacheService.On("SetProduct", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	suite.mockCacheService.On("DeleteProduct", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	
+
 	suite.service = NewProductService(suite.mockProductRepo, suite.mockInventoryRepo, suite.mockCategoryRepo, suite.mockProductImageRepo, suite.mockMinioService, suite.mockCacheService)
 	suite.tenantID = uuid.New()
 
@@ -473,7 +478,7 @@ func (suite *ProductServiceTestSuite) TestCreate_ProductWithBarcodeDuplicate() {
 		Barcode: &barcode,
 	}
 	product := &models.Product{
-		Name:     "Test Product",
+		Name:      "Test Product",
 		UnitPrice: 10.99,
 		Quantity:  100,
 		Barcode:   &barcode,
@@ -591,6 +596,7 @@ func (suite *ProductServiceTestSuite) TestUpdate_Success() {
 		updatedProd := args.Get(1).(*models.Product)
 		assert.Equal(suite.T(), 75, updatedProd.Quantity)
 	}).Twice()
+	suite.mockInventoryRepo.On("GetByProduct", mock.Anything, suite.tenantID, productID).Return([]*models.Inventory{}, nil).Once()
 
 	err := suite.service.Update(context.Background(), suite.tenantID, updatedProduct)
 
@@ -666,6 +672,7 @@ func (suite *ProductServiceTestSuite) TestUpdateStock_Success() {
 		updatedProduct := args.Get(1).(*models.Product)
 		assert.Equal(suite.T(), 75, updatedProduct.Quantity)
 	}).Once()
+	suite.mockInventoryRepo.On("GetByProduct", mock.Anything, suite.tenantID, productID).Return([]*models.Inventory{}, nil).Once()
 
 	err := suite.service.UpdateStock(context.Background(), suite.tenantID, productID, change)
 

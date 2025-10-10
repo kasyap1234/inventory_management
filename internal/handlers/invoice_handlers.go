@@ -20,21 +20,33 @@ import (
 
 // InvoiceHandlers handles HTTP requests for invoices
 type InvoiceHandlers struct {
-	invoiceService services.InvoiceServiceInterface
-	orderService   services.OrderServiceInterface
-	productService services.ProductService
-	minioSvc       services.MinioService
-	rbacMiddleware *middleware.RBACMiddleware
+	invoiceService     services.InvoiceServiceInterface
+	orderService       services.OrderServiceInterface
+	productService     services.ProductService
+	minioSvc           services.MinioService
+	rbacMiddleware     *middleware.RBACMiddleware
+	supplierService    services.SupplierService
+	distributorService services.DistributorService
 }
 
 // NewInvoiceHandlers creates a new invoice handlers instance
-func NewInvoiceHandlers(invoiceService services.InvoiceServiceInterface, orderService services.OrderServiceInterface, productService services.ProductService, minioSvc services.MinioService, rbacMiddleware *middleware.RBACMiddleware) *InvoiceHandlers {
+func NewInvoiceHandlers(
+	invoiceService services.InvoiceServiceInterface,
+	orderService services.OrderServiceInterface,
+	productService services.ProductService,
+	minioSvc services.MinioService,
+	rbacMiddleware *middleware.RBACMiddleware,
+	supplierService services.SupplierService,
+	distributorService services.DistributorService,
+) *InvoiceHandlers {
 	return &InvoiceHandlers{
-		invoiceService: invoiceService,
-		orderService:   orderService,
-		productService: productService,
-		minioSvc:       minioSvc,
-		rbacMiddleware: rbacMiddleware,
+		invoiceService:     invoiceService,
+		orderService:       orderService,
+		productService:     productService,
+		minioSvc:           minioSvc,
+		rbacMiddleware:     rbacMiddleware,
+		supplierService:    supplierService,
+		distributorService: distributorService,
 	}
 }
 
@@ -73,7 +85,7 @@ func (h *InvoiceHandlers) CreateInvoice(c echo.Context) error {
 	// Verify order exists and is in deliverable state
 	order, err := h.orderService.GetOrderByID(ctx, tenantID, orderID)
 	if err != nil {
-		return common.SendServerError(c, "Failed to retrieve order: " + err.Error())
+		return common.SendServerError(c, "Failed to retrieve order: "+err.Error())
 	}
 
 	if order == nil {
@@ -82,13 +94,13 @@ func (h *InvoiceHandlers) CreateInvoice(c echo.Context) error {
 
 	if order.Status != "delivered" {
 		return common.SendValidationError(c, "order_status",
-			"Invoice can only be generated for orders with status 'delivered', current status: " + order.Status)
+			"Invoice can only be generated for orders with status 'delivered', current status: "+order.Status)
 	}
 
 	// Check if invoice already exists for this order
 	existingInvoices, err := h.invoiceService.GetInvoicesByOrderID(ctx, tenantID, orderID)
 	if err != nil {
-		return common.SendServerError(c, "Failed to check existing invoices: " + err.Error())
+		return common.SendServerError(c, "Failed to check existing invoices: "+err.Error())
 	}
 
 	if len(existingInvoices) > 0 {
@@ -96,14 +108,14 @@ func (h *InvoiceHandlers) CreateInvoice(c echo.Context) error {
 	}
 
 	invoice := &models.Invoice{
-		ID:             uuid.New(),
-		TenantID:       tenantID,
-		OrderID:        orderID,
-		GSTIN:          req.GSTIN,
-		Status:         "unpaid",
-		IssuedDate:     time.Now(),
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		ID:         uuid.New(),
+		TenantID:   tenantID,
+		OrderID:    orderID,
+		GSTIN:      req.GSTIN,
+		Status:     "unpaid",
+		IssuedDate: time.Now(),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
 	// Validate quantity and unit price for overflow protection
@@ -143,7 +155,7 @@ func (h *InvoiceHandlers) CreateInvoice(c echo.Context) error {
 	invoice.IGST = nil // Assuming intra-state for now
 
 	if err := h.invoiceService.CreateInvoice(ctx, invoice); err != nil {
-		return common.SendServerError(c, "Failed to create invoice: " + err.Error())
+		return common.SendServerError(c, "Failed to create invoice: "+err.Error())
 	}
 
 	return c.JSON(http.StatusCreated, invoice)
@@ -196,15 +208,15 @@ func (h *InvoiceHandlers) BulkCreateInvoices(c echo.Context) error {
 
 	var req struct {
 		Invoices []struct {
-			OrderID        string  `json:"order_id"`
-			GSTIN          string  `json:"gstin"`
-			HSNSAC         string  `json:"hsn_sac"`
-			TaxableAmount  float64 `json:"taxable_amount"`
-			GSTRate        float64 `json:"gst_rate"`
-			CGST           float64 `json:"cgst"`
-			SGST           float64 `json:"sgst"`
-			IGST           float64 `json:"igst"`
-			TotalAmount    float64 `json:"total_amount"`
+			OrderID       string  `json:"order_id"`
+			GSTIN         string  `json:"gstin"`
+			HSNSAC        string  `json:"hsn_sac"`
+			TaxableAmount float64 `json:"taxable_amount"`
+			GSTRate       float64 `json:"gst_rate"`
+			CGST          float64 `json:"cgst"`
+			SGST          float64 `json:"sgst"`
+			IGST          float64 `json:"igst"`
+			TotalAmount   float64 `json:"total_amount"`
 		} `json:"invoices"`
 	}
 
@@ -269,10 +281,10 @@ func (h *InvoiceHandlers) BulkCreateInvoices(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"message":         "Bulk invoice creation completed",
-		"created_count":   len(createdInvoices),
-		"failed_count":    len(failedOrders),
-		"total_count":     len(req.Invoices),
+		"message":          "Bulk invoice creation completed",
+		"created_count":    len(createdInvoices),
+		"failed_count":     len(failedOrders),
+		"total_count":      len(req.Invoices),
 		"created_invoices": createdInvoices,
 		"failed_orders":    failedOrders,
 	})
@@ -531,12 +543,12 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 	pdf.Ln(6)
 
 	pdf.SetFont("Arial", "", 10)
-	
+
 	// Get customer details from order
 	customerName := "Customer"
 	customerAddress := "Address not provided"
 	customerContact := "Contact not provided"
-	
+
 	// Try to get supplier or distributor details
 	if order.SupplierID != nil {
 		if supplier, err := h.supplierService.GetByID(ctx, tenantID, *order.SupplierID); err == nil && supplier != nil {
@@ -563,7 +575,7 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 			}
 		}
 	}
-	
+
 	pdf.Cell(0, 6, customerName)
 	pdf.Ln(6)
 	pdf.Cell(0, 6, customerAddress)
@@ -596,7 +608,12 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 	pdf.CellFormat(colWidths[0], 8, description, "1", 0, "L", false, 0, "")
 	pdf.CellFormat(colWidths[1], 8, fmt.Sprintf("%d", order.Quantity), "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colWidths[2], 8, fmt.Sprintf("%.2f", order.UnitPrice), "1", 0, "R", false, 0, "")
-	pdf.CellFormat(colWidths[3], 8, fmt.Sprintf("%.2f", float64(order.Quantity)*order.UnitPrice), "1", 0, "R", false, 0, "")
+
+	lineAmount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate line total: %w", err)
+	}
+	pdf.CellFormat(colWidths[3], 8, fmt.Sprintf("%.2f", lineAmount), "1", 0, "R", false, 0, "")
 	pdf.Ln(8)
 
 	// Empty rows for future multiple items
@@ -617,7 +634,7 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 	pdf.SetFont("Arial", "B", 10)
 
 	// Subtotal
-	subtotal := float64(order.Quantity) * order.UnitPrice
+	subtotal := lineAmount
 	pdf.CellFormat(130, 6, "Subtotal:", "", 0, "R", false, 0, "")
 	pdf.CellFormat(40, 6, fmt.Sprintf("%.2f", subtotal), "", 0, "R", false, 0, "")
 	pdf.Ln(6)
@@ -738,13 +755,13 @@ func (h *InvoiceHandlers) GenerateInvoicePDF(c echo.Context) error {
 
 	err = h.minioSvc.UploadImage(ctx, bucketName, objectName, bytes.NewReader(pdfBytes), int64(len(pdfBytes)))
 	if err != nil {
-		return common.SendServerError(c, "Failed to upload PDF to storage: " + err.Error())
+		return common.SendServerError(c, "Failed to upload PDF to storage: "+err.Error())
 	}
 
 	// Generate presigned URL for download with error handling
 	pdfURL, err := h.minioSvc.GetPresignedURL(bucketName, objectName, 24*time.Hour)
 	if err != nil {
-		return common.SendServerError(c, "Failed to generate download URL: " + err.Error())
+		return common.SendServerError(c, "Failed to generate download URL: "+err.Error())
 	}
 
 	// Validate the URL was generated

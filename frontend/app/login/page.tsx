@@ -1,17 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { ArrowRight, Sparkles, Shield, Zap } from 'lucide-react';
+import { AxiosError } from 'axios';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+
+  const resetSuccessful = searchParams.get('reset') === 'success';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +38,25 @@ export default function LoginPage() {
           <Card className="shadow-xl">
             <CardContent className="p-8">
               <form onSubmit={handleSubmit} className="space-y-6">
+                {resetSuccessful && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm animate-fade-in">
+                    Password updated successfully. Please sign in with your new password.
+                  </div>
+                )}
+                {login.isError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in flex items-start gap-2">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span>
+                      {(
+                        (login.error as AxiosError<{ error?: { message?: string } }> | undefined)?.response?.data?.error?.message ??
+                        (login.error as AxiosError<{ message?: string }> | undefined)?.response?.data?.message ??
+                        'Invalid credentials. Please try again.'
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-gray-700">
                     Email address
@@ -51,9 +75,9 @@ export default function LoginPage() {
                     <label htmlFor="password" className="text-sm font-medium text-gray-700">
                       Password
                     </label>
-                    <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
                       Forgot?
-                    </a>
+                    </Link>
                   </div>
                   <Input
                     id="password"
@@ -64,14 +88,6 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                {login.isError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                    Invalid credentials. Please try again.
-                  </div>
-                )}
                 <Button
                   type="submit"
                   className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
@@ -98,7 +114,7 @@ export default function LoginPage() {
 
           {/* Sign up link */}
           <p className="text-center text-sm text-gray-600 mt-6">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-semibold">
               Create a free account
             </Link>

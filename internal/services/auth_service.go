@@ -26,6 +26,14 @@ type AuthService interface {
 	RefreshToken(ctx context.Context, refreshToken string, clientID *string) (*models.TokenResponse, error)
 	ValidateToken(ctx context.Context, token string) (*TokenClaims, error)
 	RevokeToken(ctx context.Context, token string, tokenType *string) error
+	GeneratePasswordResetToken(ctx context.Context, userID uuid.UUID) (string, error)
+	ValidatePasswordResetToken(ctx context.Context, token string) (uuid.UUID, error)
+	ConsumePasswordResetToken(ctx context.Context, token string) (uuid.UUID, error)
+	GenerateEmailVerificationToken(ctx context.Context, userID uuid.UUID) (string, error)
+	ConsumeEmailVerificationToken(ctx context.Context, token string) (uuid.UUID, error)
+	IsAccountLocked(ctx context.Context, userID uuid.UUID) (bool, error)
+	RegisterFailedLoginAttempt(ctx context.Context, userID uuid.UUID) (int, bool, error)
+	ClearFailedLoginAttempts(ctx context.Context, userID uuid.UUID) error
 
 	// OAuth2 flows
 	GenerateAuthorizationCode(ctx context.Context, userID, tenantID uuid.UUID, clientID string, redirectURI, scope *string) (string, error)
@@ -39,39 +47,49 @@ type AuthService interface {
 }
 
 type authService struct {
-	cacheSvc    caching.CacheService
-	jwtSecret   []byte
-	tokenTTL    int // Access token TTL in seconds
-	refreshTTL  int // Refresh token TTL in seconds
+	cacheSvc             caching.CacheService
+	jwtSecret            []byte
+	tokenTTL             int // Access token TTL in seconds
+	refreshTTL           int // Refresh token TTL in seconds
+	passwordResetTTL     time.Duration
+	emailVerificationTTL time.Duration
+	maxLoginAttempts     int
+	lockoutDuration      time.Duration
+	loginAttemptWindow   time.Duration
 }
 
 // TokenClaims represents JWT claims
 type TokenClaims struct {
-	UserID   string `json:"user_id"`
-	TenantID string `json:"tenant_id"`
+	UserID   string  `json:"user_id"`
+	TenantID string  `json:"tenant_id"`
 	Scope    *string `json:"scope,omitempty"`
-	TokenID  string `json:"token_id"`
+	TokenID  string  `json:"token_id"`
 	ClientID *string `json:"client_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // AuthorizationCodeClaims represents authorization code claims
 type AuthorizationCodeClaims struct {
-	Code      string
-	CodeHash  string
-	UserID    string
-	TenantID  string
-	ClientID  string
-	Scope     *string
+	Code     string
+	CodeHash string
+	UserID   string
+	TenantID string
+	ClientID string
+	Scope    *string
 }
 
 // NewAuthService creates a new authentication service
 func NewAuthService(cacheSvc caching.CacheService, jwtSecret string, tokenTTLSeconds, refreshTTLSeconds int) AuthService {
 	return &authService{
-		cacheSvc:   cacheSvc,
-		jwtSecret:  []byte(jwtSecret),
-		tokenTTL:   tokenTTLSeconds,
-		refreshTTL: refreshTTLSeconds,
+		cacheSvc:             cacheSvc,
+		jwtSecret:            []byte(jwtSecret),
+		tokenTTL:             tokenTTLSeconds,
+		refreshTTL:           refreshTTLSeconds,
+		passwordResetTTL:     15 * time.Minute,
+		emailVerificationTTL: 24 * time.Hour,
+		maxLoginAttempts:     5,
+		lockoutDuration:      15 * time.Minute,
+		loginAttemptWindow:   15 * time.Minute,
 	}
 }
 
@@ -104,7 +122,7 @@ func (s *authService) GenerateTokens(ctx context.Context, userID, tenantID uuid.
 	}
 
 	// Generate refresh token
-	refreshToken:= s.generateSecureToken()
+	refreshToken := s.generateSecureToken()
 	refreshTokenHash, err := s.hashToken(refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash refresh token: %v", err)
@@ -299,12 +317,12 @@ func (s *authService) ValidateAuthorizationCode(ctx context.Context, code, clien
 	}
 
 	return &AuthorizationCodeClaims{
-		Code:      code,
-		CodeHash:  codeHash,
-		UserID:    userIDStr,
-		TenantID:  tenantIDStr,
-		ClientID:  clientID,
-		Scope:     scope,
+		Code:     code,
+		CodeHash: codeHash,
+		UserID:   userIDStr,
+		TenantID: tenantIDStr,
+		ClientID: clientID,
+		Scope:    scope,
 	}, nil
 }
 
@@ -358,6 +376,156 @@ func (s *authService) RevokeUserTokens(ctx context.Context, userID uuid.UUID) er
 func (s *authService) CleanupExpiredTokens(ctx context.Context) error {
 	log.Println("Cleaning up expired tokens")
 	// In production, this would query and delete expired tokens
+	return nil
+}
+
+// GeneratePasswordResetToken creates a time-limited password reset token for a user
+func (s *authService) GeneratePasswordResetToken(ctx context.Context, userID uuid.UUID) (string, error) {
+	token := s.generateSecureToken()
+	tokenHash, err := s.hashToken(token)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password reset token: %v", err)
+	}
+
+	cacheKey := fmt.Sprintf("password_reset:%s", tokenHash)
+	if err := s.cacheSvc.SetString(ctx, cacheKey, userID.String(), s.passwordResetTTL); err != nil {
+		return "", fmt.Errorf("failed to store password reset token: %v", err)
+	}
+
+	return token, nil
+}
+
+// ValidatePasswordResetToken validates a password reset token without consuming it
+func (s *authService) ValidatePasswordResetToken(ctx context.Context, token string) (uuid.UUID, error) {
+	tokenHash, err := s.hashToken(token)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to hash password reset token: %v", err)
+	}
+
+	cacheKey := fmt.Sprintf("password_reset:%s", tokenHash)
+	userIDStr, err := s.cacheSvc.GetString(ctx, cacheKey)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid or expired password reset token")
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid user ID in password reset token")
+	}
+
+	return userID, nil
+}
+
+// ConsumePasswordResetToken validates and removes a password reset token
+func (s *authService) ConsumePasswordResetToken(ctx context.Context, token string) (uuid.UUID, error) {
+	userID, err := s.ValidatePasswordResetToken(ctx, token)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	tokenHash, hashErr := s.hashToken(token)
+	if hashErr != nil {
+		return uuid.Nil, fmt.Errorf("failed to hash password reset token: %v", hashErr)
+	}
+
+	cacheKey := fmt.Sprintf("password_reset:%s", tokenHash)
+	if err := s.cacheSvc.Delete(ctx, cacheKey); err != nil {
+		log.Printf("Failed to delete password reset token from cache: %v", err)
+	}
+
+	return userID, nil
+}
+
+// GenerateEmailVerificationToken creates a verification token for email confirmation
+func (s *authService) GenerateEmailVerificationToken(ctx context.Context, userID uuid.UUID) (string, error) {
+	token := s.generateSecureToken()
+	tokenHash, err := s.hashToken(token)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash email verification token: %v", err)
+	}
+
+	cacheKey := fmt.Sprintf("email_verify:%s", tokenHash)
+	if err := s.cacheSvc.SetString(ctx, cacheKey, userID.String(), s.emailVerificationTTL); err != nil {
+		return "", fmt.Errorf("failed to store email verification token: %v", err)
+	}
+
+	return token, nil
+}
+
+// ConsumeEmailVerificationToken validates and removes an email verification token
+func (s *authService) ConsumeEmailVerificationToken(ctx context.Context, token string) (uuid.UUID, error) {
+	tokenHash, err := s.hashToken(token)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to hash email verification token: %v", err)
+	}
+
+	cacheKey := fmt.Sprintf("email_verify:%s", tokenHash)
+	userIDStr, err := s.cacheSvc.GetString(ctx, cacheKey)
+	if err != nil || userIDStr == "" {
+		return uuid.Nil, fmt.Errorf("invalid or expired email verification token")
+	}
+
+	if err := s.cacheSvc.Delete(ctx, cacheKey); err != nil {
+		log.Printf("Failed to delete email verification token from cache: %v", err)
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid user ID in email verification token")
+	}
+
+	return userID, nil
+}
+
+// IsAccountLocked returns whether the user account is currently locked due to repeated failures
+func (s *authService) IsAccountLocked(ctx context.Context, userID uuid.UUID) (bool, error) {
+	lockKey := fmt.Sprintf("login_lock:%s", userID.String())
+	val, err := s.cacheSvc.GetString(ctx, lockKey)
+	if err != nil {
+		return false, err
+	}
+	return val != "", nil
+}
+
+// RegisterFailedLoginAttempt increments failed attempt counters and locks the account if threshold reached
+func (s *authService) RegisterFailedLoginAttempt(ctx context.Context, userID uuid.UUID) (int, bool, error) {
+	attemptsKey := fmt.Sprintf("login_attempts:%s", userID.String())
+	current := 0
+	if val, err := s.cacheSvc.GetString(ctx, attemptsKey); err == nil && val != "" {
+		if parsed, parseErr := strconv.Atoi(val); parseErr == nil {
+			current = parsed
+		}
+	} else if err != nil {
+		return 0, false, err
+	}
+
+	current++
+	if err := s.cacheSvc.SetString(ctx, attemptsKey, strconv.Itoa(current), s.loginAttemptWindow); err != nil {
+		return current, false, err
+	}
+
+	if current >= s.maxLoginAttempts {
+		lockKey := fmt.Sprintf("login_lock:%s", userID.String())
+		if err := s.cacheSvc.SetString(ctx, lockKey, "locked", s.lockoutDuration); err != nil {
+			return current, true, err
+		}
+		return current, true, nil
+	}
+
+	return current, false, nil
+}
+
+// ClearFailedLoginAttempts clears counters and removes any lock for the user
+func (s *authService) ClearFailedLoginAttempts(ctx context.Context, userID uuid.UUID) error {
+	attemptsKey := fmt.Sprintf("login_attempts:%s", userID.String())
+	lockKey := fmt.Sprintf("login_lock:%s", userID.String())
+
+	if err := s.cacheSvc.Delete(ctx, attemptsKey); err != nil {
+		return err
+	}
+	if err := s.cacheSvc.Delete(ctx, lockKey); err != nil {
+		return err
+	}
 	return nil
 }
 

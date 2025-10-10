@@ -65,11 +65,11 @@ else
     echo -e "${GREEN}✓ Docker Compose is installed${NC}"
 fi
 
-if ! command_exists node; then
-    echo -e "${RED}✗ Node.js is not installed${NC}"
+if ! command_exists bun; then
+    echo -e "${RED}✗ Bun is not installed${NC}"
     MISSING_DEPS=1
 else
-    echo -e "${GREEN}✓ Node.js is installed ($(node --version))${NC}"
+    echo -e "${GREEN}✓ Bun is installed ($(bun --version))${NC}"
 fi
 
 if ! command_exists go; then
@@ -159,7 +159,7 @@ cd "$PROJECT_ROOT/frontend"
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}Installing frontend dependencies...${NC}"
-    npm install
+    bun install
     if [ $? -ne 0 ]; then
         echo -e "${RED}Failed to install frontend dependencies${NC}"
         exit 1
@@ -169,7 +169,7 @@ fi
 
 # Start the frontend in development mode
 echo -e "${YELLOW}Starting frontend development server...${NC}"
-nohup npm run dev > ../frontend.log 2>&1 &
+nohup bun run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > ../frontend.pid
 echo -e "${GREEN}✓ Frontend started (PID: $FRONTEND_PID)${NC}\n"
