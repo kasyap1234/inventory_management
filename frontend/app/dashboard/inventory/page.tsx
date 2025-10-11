@@ -115,8 +115,8 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
-          <p className="text-gray-500 mt-1">Track stock levels across warehouses</p>
+          <h1 className="text-3xl font-bold text-foreground">Inventory</h1>
+          <p className="text-muted-foreground mt-1">Track stock levels across warehouses</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -127,7 +127,7 @@ export default function InventoryPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Items
             </CardTitle>
           </CardHeader>
@@ -137,7 +137,7 @@ export default function InventoryPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Low Stock Items
             </CardTitle>
           </CardHeader>
@@ -149,7 +149,7 @@ export default function InventoryPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Out of Stock
             </CardTitle>
           </CardHeader>
@@ -165,7 +165,7 @@ export default function InventoryPage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by product or warehouse..."
                 value={searchQuery}
@@ -223,7 +223,7 @@ export default function InventoryPage() {
           {isLoading ? (
             <div className="text-center py-8">Loading inventory...</div>
           ) : filteredInventory.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No inventory records found. Add stock to get started.
             </div>
           ) : (
@@ -504,18 +504,18 @@ function StockAdjustmentDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">Product</label>
+            <label className="text-sm font-medium text-muted-foreground">Product</label>
             <div className="text-base font-semibold">{product?.name || 'Unknown Product'}</div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">Warehouse</label>
+            <label className="text-sm font-medium text-muted-foreground">Warehouse</label>
             <div className="text-base font-semibold">{warehouse?.name || 'Unknown Warehouse'}</div>
           </div>
 
           <div className="bg-gray-50 p-4 rounded-md">
-            <label className="text-sm font-medium text-gray-600">Current Quantity</label>
-            <div className="text-3xl font-bold text-gray-900 mt-1">{inventory.quantity}</div>
+            <label className="text-sm font-medium text-muted-foreground">Current Quantity</label>
+            <div className="text-3xl font-bold text-foreground mt-1">{inventory.quantity}</div>
           </div>
 
           <div className="space-y-2">
@@ -566,7 +566,7 @@ function StockAdjustmentDialog({
                 +10
               </Button>
             </div>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               {adjustment > 0 && `Adding ${adjustment} units`}
               {adjustment < 0 && `Removing ${Math.abs(adjustment)} units`}
               {adjustment === 0 && 'Enter adjustment amount'}
@@ -578,7 +578,7 @@ function StockAdjustmentDialog({
             newQuantity === 0 ? 'bg-orange-50' : 
             'bg-green-50'
           }`}>
-            <label className="text-sm font-medium text-gray-600">New Quantity</label>
+            <label className="text-sm font-medium text-muted-foreground">New Quantity</label>
             <div className={`text-3xl font-bold mt-1 ${
               newQuantity < 0 ? 'text-red-600' : 
               newQuantity === 0 ? 'text-orange-600' : 
@@ -599,15 +599,15 @@ function StockAdjustmentDialog({
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g., Damaged goods, Stock count correction, Return from customer"
             />
-            <p className="text-xs text-gray-500">This will be recorded in the audit log</p>
+            <p className="text-xs text-muted-foreground">This will be recorded in the audit log</p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-600">Recent Adjustments</label>
+            <label className="text-sm font-medium text-muted-foreground">Recent Adjustments</label>
             {historyQuery.isLoading ? (
-              <div className="text-sm text-gray-500">Loading history...</div>
+              <div className="text-sm text-muted-foreground">Loading history...</div>
             ) : history.length === 0 ? (
-              <div className="text-sm text-gray-500">No past adjustments recorded.</div>
+              <div className="text-sm text-muted-foreground">No past adjustments recorded.</div>
             ) : (
               <div className="max-h-60 overflow-y-auto divide-y divide-gray-200 rounded-md border border-gray-100">
                 {history.map((entry) => {
@@ -621,12 +621,12 @@ function StockAdjustmentDialog({
                   return (
                     <div key={entry.id} className="p-3 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900">{formatDateTime(entry.created_at)}</span>
+                        <span className="font-medium text-foreground">{formatDateTime(entry.created_at)}</span>
                         <Badge variant={change >= 0 ? 'success' : 'danger'}>
                           {change >= 0 ? `+${change}` : change}
                         </Badge>
                       </div>
-                      <div className="mt-1 text-gray-600">
+                      <div className="mt-1 text-muted-foreground">
                         {oldQty !== undefined && newQty !== undefined ? (
                           <span>
                             Quantity {oldQty} → {newQty}
@@ -636,7 +636,7 @@ function StockAdjustmentDialog({
                         )}
                       </div>
                       {reasonText && (
-                        <div className="mt-1 text-gray-500">Reason: {reasonText}</div>
+                        <div className="mt-1 text-muted-foreground">Reason: {reasonText}</div>
                       )}
                     </div>
                   );

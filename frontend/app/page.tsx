@@ -31,7 +31,7 @@ export default function Home() {
             </div>
           </div>
           <h1 className="text-2xl font-bold gradient-text mb-2">Agromart</h1>
-          <p className="text-gray-600">Loading your workspace...</p>
+          <p className="text-muted-foreground">Loading your workspace...</p>
         </div>
       </div>
     );

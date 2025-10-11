@@ -51,8 +51,8 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-          <p className="text-gray-500 mt-1">Organize your product catalog</p>
+          <h1 className="text-3xl font-bold text-foreground">Categories</h1>
+          <p className="text-muted-foreground mt-1">Organize your product catalog</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -64,7 +64,7 @@ export default function CategoriesPage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search categories..."
                 value={searchQuery}
@@ -78,8 +78,8 @@ export default function CategoriesPage() {
           {isLoading ? (
             <div className="text-center py-8">Loading categories...</div>
           ) : filteredCategories.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FolderTree className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-8 text-muted-foreground">
+              <FolderTree className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
               <p>No categories found. Add your first category to organize products.</p>
             </div>
           ) : (
@@ -100,7 +100,7 @@ export default function CategoriesPage() {
                     <TableCell className="font-medium">{category.name}</TableCell>
                     <TableCell>{category.description || '-'}</TableCell>
                     <TableCell>{category.level}</TableCell>
-                    <TableCell className="text-sm text-gray-500">{category.path}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{category.path}</TableCell>
                     <TableCell>{formatDate(category.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

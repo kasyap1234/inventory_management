@@ -59,8 +59,8 @@ export default function SignupPage() {
         <div className="w-full max-w-lg animate-fade-in">
           {/* Logo */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create your account</h1>
-            <p className="text-gray-600">Get started with Agromart in less than 2 minutes.</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Create your account</h1>
+            <p className="text-muted-foreground">Get started with Agromart in less than 2 minutes.</p>
           </div>
 
           {/* Form Card */}
@@ -69,7 +69,7 @@ export default function SignupPage() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label htmlFor="first_name" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="first_name" className="text-sm font-medium text-foreground">
                       First Name
                     </label>
                     <Input
@@ -83,7 +83,7 @@ export default function SignupPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="last_name" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="last_name" className="text-sm font-medium text-foreground">
                       Last Name
                     </label>
                     <Input
@@ -99,7 +99,7 @@ export default function SignupPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
                     Work Email
                   </label>
                   <Input
@@ -115,7 +115,7 @@ export default function SignupPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  <label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
                     Password
                   </label>
                   <Input
@@ -129,14 +129,14 @@ export default function SignupPage() {
                     required
                   />
                   <PasswordStrengthMeter password={formData.password} />
-                  <p className="text-xs text-gray-500">Use at least 12 characters with numbers, symbols, and mixed case letters.</p>
+                  <p className="text-xs text-muted-foreground">Use at least 12 characters with numbers, symbols, and mixed case letters.</p>
                   {passwordError && (
                     <p className="text-xs text-red-600">{passwordError}</p>
                   )}
                 </div>
                 
                 <div className="space-y-2">
-                  <label htmlFor="tenant_name" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="tenant_name" className="text-sm font-medium text-foreground">
                     Company Name
                   </label>
                   <Input
@@ -151,7 +151,7 @@ export default function SignupPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  <label htmlFor="subdomain" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="subdomain" className="text-sm font-medium text-foreground">
                     Workspace URL
                   </label>
                   <div className="flex items-stretch">
@@ -164,7 +164,7 @@ export default function SignupPage() {
                       className="h-12 bg-gray-50 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-r-none border-r-0"
                       required
                     />
-                    <span className="inline-flex items-center h-12 px-4 border border-gray-200 bg-gray-100 text-gray-600 text-sm font-medium rounded-r-lg">
+                    <span className="inline-flex items-center h-12 px-4 border border-input bg-muted text-muted-foreground text-sm font-medium rounded-r-lg">
                       .agromart.com
                     </span>
                   </div>
@@ -187,7 +187,7 @@ export default function SignupPage() {
                 
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
+                  className="w-full h-12 btn-modern gradient-green text-white text-sm font-semibold shadow-lg hover:shadow-xl"
                   disabled={signup.isPending || !passwordStrength.isAcceptable}
                 >
                   {signup.isPending ? (
@@ -206,7 +206,7 @@ export default function SignupPage() {
                   )}
                 </Button>
 
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-muted-foreground text-center">
                   By signing up, you agree to our Terms of Service and Privacy Policy
                 </p>
               </form>
@@ -214,9 +214,9 @@ export default function SignupPage() {
           </Card>
 
           {/* Sign in link */}
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-6">
             Already have an account?{' '}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/login" className="text-green-700 hover:text-green-800 font-semibold">
               Sign in
             </Link>
           </p>
@@ -224,55 +224,55 @@ export default function SignupPage() {
       </div>
 
       {/* Right side - Features */}
-      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
+      <div className="hidden lg:flex flex-1 gradient-agro items-center justify-center p-12">
         <div className="max-w-md space-y-8 animate-slide-in">
           <div className="inline-block">
             <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-md">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-semibold text-gray-900">Trusted by 500+ businesses</span>
+              <TrendingUp className="w-5 h-5 text-green-600" />
+              <span className="text-sm font-semibold text-foreground">Trusted by 500+ businesses</span>
             </div>
           </div>
           
-          <h2 className="text-4xl font-bold text-gray-900 leading-tight">
+          <h2 className="text-4xl font-bold text-foreground leading-tight">
             Everything you need to manage inventory
           </h2>
           
-          <p className="text-lg text-gray-700">
+          <p className="text-lg text-foreground">
             Join thousands of businesses streamlining their operations with Agromart.
           </p>
 
           <div className="space-y-4 pt-4">
             {features.map((feature, index) => (
               <div key={index} className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                <div className="flex-shrink-0 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
                   <CheckCircle2 className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-gray-900 font-medium">{feature}</span>
+                <span className="text-foreground font-medium">{feature}</span>
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-3 gap-6 pt-8">
             <div className="text-center">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-xl mx-auto mb-2">
-                <Users className="w-6 h-6 text-blue-600" />
+              <div className="flex items-center justify-center w-12 h-12 bg-white/90 rounded-xl mx-auto mb-2">
+                <Users className="w-6 h-6 text-green-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">500+</div>
-              <div className="text-sm text-gray-600">Active Users</div>
+              <div className="text-2xl font-bold text-foreground">500+</div>
+              <div className="text-sm text-muted-foreground">Active Users</div>
             </div>
             <div className="text-center">
-              <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-xl mx-auto mb-2">
-                <BarChart3 className="w-6 h-6 text-purple-600" />
+              <div className="flex items-center justify-center w-12 h-12 bg-white/90 rounded-xl mx-auto mb-2">
+                <BarChart3 className="w-6 h-6 text-green-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">98%</div>
-              <div className="text-sm text-gray-600">Satisfaction</div>
+              <div className="text-2xl font-bold text-foreground">98%</div>
+              <div className="text-sm text-muted-foreground">Satisfaction</div>
             </div>
             <div className="text-center">
-              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-xl mx-auto mb-2">
+              <div className="flex items-center justify-center w-12 h-12 bg-white/90 rounded-xl mx-auto mb-2">
                 <TrendingUp className="w-6 h-6 text-green-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">24/7</div>
-              <div className="text-sm text-gray-600">Support</div>
+              <div className="text-2xl font-bold text-foreground">24/7</div>
+              <div className="text-sm text-muted-foreground">Support</div>
             </div>
           </div>
         </div>

@@ -525,6 +525,75 @@ func (h *AuthHandlers) VerifyEmail(c echo.Context) error {
 	})
 }
 
+// ResendVerificationEmailRequest represents resend verification request
+type ResendVerificationEmailRequest struct {
+	Email string `json:"email" validate:"required,email" sanitize:"trim,lower"`
+}
+
+// ResendVerificationEmail sends a new verification email to the user
+func (h *AuthHandlers) ResendVerificationEmail(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req ResendVerificationEmailRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	validation.SanitizeStruct(&req)
+
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	email := req.Email
+
+	// Find user by email across all tenants
+	user, err := h.getUserByEmailAcrossTenants(ctx, email)
+	if err != nil {
+		log.Printf("Resend verification lookup failed for %s: %v", email, err)
+		// Return success even if user not found for security
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": "If the account exists and is not verified, a verification email has been sent.",
+		})
+	}
+
+	if user == nil {
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": "If the account exists and is not verified, a verification email has been sent.",
+		})
+	}
+
+	// Check if user is already verified
+	if user.Status == "active" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Email is already verified.")
+	}
+
+	// Generate new verification token
+	verificationToken, err := h.authService.GenerateEmailVerificationToken(ctx, user.ID)
+	if err != nil {
+		log.Printf("Failed to create verification token for user %s: %v", user.Email, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to send verification email")
+	}
+
+	// Build verification URL
+	verificationURL := h.buildEmailVerificationURL(verificationToken)
+	emailBody := fmt.Sprintf(
+		"<p>Hello %s,</p><p>You requested a new verification link for your Agromart account. Please confirm your email address to activate your account.</p><p><a href=\"%s\">Verify Email</a></p><p>This link expires in 24 hours.</p>",
+		user.FirstName,
+		verificationURL,
+	)
+
+	// Send verification email
+	if err := h.notificationService.SendEmail(ctx, user.TenantID, user.Email, "Verify your Agromart account", emailBody); err != nil {
+		log.Printf("Failed to send verification email to %s: %v", user.Email, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to send verification email")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Verification email has been sent. Please check your inbox.",
+	})
+}
+
 // Me handles getting current user profile
 func (h *AuthHandlers) Me(c echo.Context) error {
 	ctx := c.Request().Context()

@@ -98,7 +98,7 @@ export default function AdvancedFilters({
                 <label className="text-sm font-medium">{config.dateRange.label}</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500">From</label>
+                    <label className="text-xs text-muted-foreground">From</label>
                     <Input
                       type="date"
                       value={filters[config.dateRange.startKey] || ''}
@@ -108,7 +108,7 @@ export default function AdvancedFilters({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">To</label>
+                    <label className="text-xs text-muted-foreground">To</label>
                     <Input
                       type="date"
                       value={filters[config.dateRange.endKey] || ''}
@@ -175,7 +175,7 @@ export default function AdvancedFilters({
                 <label className="text-sm font-medium">{config.priceRange.label}</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500">Min Price</label>
+                    <label className="text-xs text-muted-foreground">Min Price</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -190,7 +190,7 @@ export default function AdvancedFilters({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Max Price</label>
+                    <label className="text-xs text-muted-foreground">Max Price</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -214,7 +214,7 @@ export default function AdvancedFilters({
                 <label className="text-sm font-medium">{config.quantityRange.label}</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500">Min Quantity</label>
+                    <label className="text-xs text-muted-foreground">Min Quantity</label>
                     <Input
                       type="number"
                       placeholder="0"
@@ -228,7 +228,7 @@ export default function AdvancedFilters({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Max Quantity</label>
+                    <label className="text-xs text-muted-foreground">Max Quantity</label>
                     <Input
                       type="number"
                       placeholder="∞"

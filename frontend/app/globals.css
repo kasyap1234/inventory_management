@@ -1,31 +1,80 @@
 @import "tailwindcss";
 
-:root {
-  --background: #fafafa;
-  --foreground: #18181b;
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --accent: #8b5cf6;
-  --muted: #71717a;
-  --border: #e5e7eb;
-  --radius: 0.75rem;
+@theme {
+  /* Define semantic colors using --color-* prefix */
+  /* Tailwind v4 will generate utilities: bg-primary, text-primary, etc. */
+  
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  
+  --color-card: #ffffff;
+  --color-card-foreground: #0a0a0a;
+  
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0a0a0a;
+  
+  --color-primary: #16a34a;
+  --color-primary-foreground: #f0fdf4;
+  
+  --color-secondary: #f4f4f5;
+  --color-secondary-foreground: #18181b;
+  
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+  
+  --color-accent: #f4f4f5;
+  --color-accent-foreground: #18181b;
+  
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #fafafa;
+  
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: #16a34a;
+  
+  /* Chart colors for recharts */
+  --color-chart-1: #16a34a;
+  --color-chart-2: #84cc16;
+  --color-chart-3: #f97316;
+  --color-chart-4: #a855f7;
+  --color-chart-5: #06b6d4;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #09090b;
-    --foreground: #fafafa;
-    --secondary: #18181b;
-    --border: #27272a;
-  }
+/* Dark mode color overrides - applied when .dark class is present */
+.dark {
+  --color-background: #0a0a0a;
+  --color-foreground: #fafafa;
+  
+  --color-card: #171717;
+  --color-card-foreground: #fafafa;
+  
+  --color-popover: #171717;
+  --color-popover-foreground: #fafafa;
+  
+  --color-primary: #22c55e;
+  --color-primary-foreground: #052e16;
+  
+  --color-secondary: #27272a;
+  --color-secondary-foreground: #fafafa;
+  
+  --color-muted: #27272a;
+  --color-muted-foreground: #a1a1aa;
+  
+  --color-accent: #27272a;
+  --color-accent-foreground: #fafafa;
+  
+  --color-destructive: #7f1d1d;
+  --color-destructive-foreground: #fafafa;
+  
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-ring: #22c55e;
+  
+  --color-chart-1: #22c55e;
+  --color-chart-2: #a3e635;
+  --color-chart-3: #fb923c;
+  --color-chart-4: #c084fc;
+  --color-chart-5: #22d3ee;
 }
 
 * {
@@ -33,9 +82,10 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Minimal scrollbar */
@@ -97,27 +147,59 @@ body {
   animation: slideIn 0.4s ease-out;
 }
 
-/* Modern card with rich hover */
+/* Modern card with rich hover and dark mode */
 .card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease-out;
 }
 
 .card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.08), 0 8px 16px -4px rgba(0, 0, 0, 0.04);
+  transform: translateY(-0.25rem);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-/* Gradient backgrounds */
+.dark .card-hover:hover {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+}
+
+/* Modern Gradient backgrounds with dark mode support */
 .gradient-blue {
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
 }
 
+.dark .gradient-blue {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
+.dark .gradient-green {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+}
+
 .gradient-purple {
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+}
+
+.dark .gradient-purple {
+  background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
 }
 
 .gradient-bg {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #faf5ff 100%);
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #d9f99d 100%);
+}
+
+.dark .gradient-bg {
+  background: linear-gradient(135deg, #052e16 0%, #14532d 50%, #365314 100%);
+}
+
+.gradient-agro {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 50%, #14532d 100%);
+}
+
+.dark .gradient-agro {
+  background: linear-gradient(135deg, #15803d 0%, #14532d 50%, #052e16 100%);
 }
 
 /* Modern button */

@@ -289,7 +289,7 @@ func main() {
 		tallyExporter,
 		tallyImporter,
 		jobs.NewInventoryAlertService(inventoryRepo, productRepo),
-		jobs.NewAnalyticsRefreshService(analyticsSvc),
+		jobs.NewAnalyticsRefreshService(analyticsSvc, pool),
 		analyticsSvc,
 		orderRepo,
 		invoiceRepo,
@@ -413,6 +413,7 @@ func main() {
 	auth.POST("/password/forgot", authHandlers.ForgotPassword)
 	auth.POST("/password/reset", authHandlers.ResetPassword)
 	auth.POST("/verify", authHandlers.VerifyEmail)
+	auth.POST("/verify/resend", authHandlers.ResendVerificationEmail)
 
 	// Protected routes (require JWT and RBAC)
 	protected := v1.Group("")

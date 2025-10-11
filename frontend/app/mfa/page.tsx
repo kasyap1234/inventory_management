@@ -49,14 +49,14 @@ export default function MFAPage() {
               <ShieldAlert className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Verify your identity</h1>
-              <p className="text-sm text-gray-600">Enter the 6-digit code from your authenticator app.</p>
+              <h1 className="text-2xl font-semibold text-foreground">Verify your identity</h1>
+              <p className="text-sm text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label htmlFor="code" className="text-sm font-medium text-gray-700">
+              <label htmlFor="code" className="text-sm font-medium text-foreground">
                 Authentication code
               </label>
               <Input
@@ -70,7 +70,7 @@ export default function MFAPage() {
                 maxLength={6}
                 required
               />
-              <p className="text-xs text-gray-500">We&apos;ll prompt you for MFA whenever your account requires additional verification.</p>
+              <p className="text-xs text-muted-foreground">We&apos;ll prompt you for MFA whenever your account requires additional verification.</p>
             </div>
 
             {feedback && <p className="text-xs text-red-600">{feedback}</p>}

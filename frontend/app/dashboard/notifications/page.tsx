@@ -50,7 +50,7 @@ export default function NotificationsPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
             Notifications
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
+          <p className="text-muted-foreground mt-2 text-lg">
             Stay updated with all your notifications
           </p>
         </div>
@@ -85,15 +85,15 @@ export default function NotificationsPage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-gray-900">
+                          <h3 className="font-semibold text-foreground">
                             {notification.subject || 'Notification'}
                           </h3>
-                          <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-full">
+                          <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-foreground rounded-full">
                             {notification.status || 'pending'}
                           </span>
                         </div>
-                        <p className="text-gray-700 mb-2">{notification.body}</p>
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                        <p className="text-foreground mb-2">{notification.body}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                           <span className="capitalize">Channel: {notification.type}</span>
                           {notification.event_type && (
                             <span className="capitalize">Event: {notification.event_type}</span>
@@ -142,11 +142,11 @@ export default function NotificationsPage() {
           <Card className="border-0 shadow-md">
             <CardContent className="py-16">
               <div className="text-center">
-                <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <Bell className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   No notifications yet
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-muted-foreground">
                   When you receive notifications, they&rsquo;ll appear here
                 </p>
               </div>

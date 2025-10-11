@@ -138,8 +138,8 @@ export default function WebhooksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Webhook Subscriptions</h1>
-          <p className="text-gray-500 mt-1">Manage outbound integrations and event delivery</p>
+          <h1 className="text-3xl font-bold text-foreground">Webhook Subscriptions</h1>
+          <p className="text-muted-foreground mt-1">Manage outbound integrations and event delivery</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -159,7 +159,7 @@ export default function WebhooksPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
             <Link className="h-5 w-5 text-blue-600" />
             Active Integrations
           </CardTitle>
@@ -168,8 +168,8 @@ export default function WebhooksPage() {
           {isLoading ? (
             <div className="text-center py-10">Loading webhook subscriptions...</div>
           ) : subscriptions.length === 0 ? (
-            <div className="text-center py-16 text-gray-500">
-              <Shield className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-16 text-muted-foreground">
+              <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
               <p>No webhook subscriptions configured</p>
             </div>
           ) : (
@@ -188,9 +188,9 @@ export default function WebhooksPage() {
                 {subscriptions.map((subscription) => (
                   <TableRow key={subscription.id}>
                     <TableCell>
-                      <div className="font-semibold text-gray-900">{subscription.name}</div>
+                      <div className="font-semibold text-foreground">{subscription.name}</div>
                       {subscription.description && (
-                        <div className="text-sm text-gray-500">{subscription.description}</div>
+                        <div className="text-sm text-muted-foreground">{subscription.description}</div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -206,7 +206,7 @@ export default function WebhooksPage() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {subscription.events.map((event) => (
-                          <Badge key={event} variant="outline" className="text-xs">
+                          <Badge key={event} variant="secondary" className="text-xs">
                             {event}
                           </Badge>
                         ))}

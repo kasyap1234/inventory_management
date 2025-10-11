@@ -97,8 +97,8 @@ export default function JobsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Background Jobs</h1>
-          <p className="text-gray-500 mt-1">Monitor and manage asynchronous tasks</p>
+          <h1 className="text-3xl font-bold text-foreground">Background Jobs</h1>
+          <p className="text-muted-foreground mt-1">Monitor and manage asynchronous tasks</p>
         </div>
         <Button onClick={() => refetch()} variant="outline">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -109,7 +109,7 @@ export default function JobsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {[
-          { label: 'Total Jobs', value: stats.total, color: 'text-gray-600', bgColor: 'bg-gray-50' },
+          { label: 'Total Jobs', value: stats.total, color: 'text-muted-foreground', bgColor: 'bg-gray-50' },
           { label: 'Pending', value: stats.pending, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
           { label: 'Active', value: stats.active, color: 'text-blue-600', bgColor: 'bg-blue-50' },
           { label: 'Completed', value: stats.completed, color: 'text-green-600', bgColor: 'bg-green-50' },
@@ -117,7 +117,7 @@ export default function JobsPage() {
         ].map((stat) => (
           <Card key={stat.label}>
             <CardContent className="pt-6">
-              <div className="text-sm font-medium text-gray-600">{stat.label}</div>
+              <div className="text-sm font-medium text-muted-foreground">{stat.label}</div>
               <div className={`text-3xl font-bold ${stat.color} mt-2`}>{stat.value}</div>
             </CardContent>
           </Card>
@@ -149,7 +149,7 @@ export default function JobsPage() {
                   <TableRow key={job.id}>
                     <TableCell className="font-medium">{job.type}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{job.queue}</Badge>
+                      <Badge variant="secondary">{job.queue}</Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(job.state)}</TableCell>
                     <TableCell>
@@ -194,8 +194,8 @@ export default function JobsPage() {
               </TableBody>
             </Table>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Loader2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12 text-muted-foreground">
+              <Loader2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
               <p>No background jobs found</p>
             </div>
           )}

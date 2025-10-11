@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,7 +11,7 @@ import { KeyRound, ShieldCheck } from 'lucide-react';
 import { PasswordStrengthMeter } from '@/components/password-strength-meter';
 import { evaluatePasswordStrength } from '@/lib/password';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const tokenParam = searchParams.get('token') ?? '';
 
@@ -60,8 +60,8 @@ export default function ResetPasswordPage() {
               <KeyRound className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Create a new password</h1>
-              <p className="text-gray-600">Choose a secure password to protect your account.</p>
+              <h1 className="text-3xl font-bold text-foreground">Create a new password</h1>
+              <p className="text-muted-foreground">Choose a secure password to protect your account.</p>
             </div>
           </div>
 
@@ -69,17 +69,17 @@ export default function ResetPasswordPage() {
             <CardContent className="p-8">
               {!tokenParam ? (
                 <div className="text-center space-y-4">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     This reset link is invalid or expired. Please request a new one.
                   </p>
-                  <Button asChild>
-                    <Link href="/forgot-password">Request new link</Link>
-                  </Button>
+                  <Link href="/forgot-password">
+                    <Button>Request new link</Button>
+                  </Link>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label htmlFor="password" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="password" className="text-sm font-medium text-foreground">
                       New password
                     </label>
                     <Input
@@ -91,11 +91,11 @@ export default function ResetPasswordPage() {
                       required
                     />
                     <PasswordStrengthMeter password={password} />
-                    <p className="text-xs text-gray-500">Use at least 12 characters with numbers, symbols, and mixed case letters.</p>
+                    <p className="text-xs text-muted-foreground">Use at least 12 characters with numbers, symbols, and mixed case letters.</p>
                   </div>
 
                   <div className="space-y-2">
-                    <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                       Confirm password
                     </label>
                     <Input
@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
 
                   <Button
                     type="submit"
-                    className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
+                    className="w-full h-12 btn-modern gradient-green text-white text-sm font-semibold shadow-lg hover:shadow-xl"
                     disabled={disableForm || !passwordStrength.isAcceptable}
                   >
                     {resetPassword.isPending ? 'Updating password...' : 'Update password'}
@@ -126,16 +126,16 @@ export default function ResetPasswordPage() {
             </CardContent>
           </Card>
 
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-6">
             Remembered it?{' '}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/login" className="text-green-700 hover:text-green-800 font-semibold">
               Go back to sign in
             </Link>
           </p>
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
+      <div className="hidden lg:flex flex-1 gradient-agro items-center justify-center p-12">
         <div className="max-w-md space-y-6 animate-slide-in text-white">
           <h2 className="text-4xl font-bold leading-tight">Security is our priority</h2>
           <p className="text-lg text-white/90">
@@ -148,5 +148,20 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

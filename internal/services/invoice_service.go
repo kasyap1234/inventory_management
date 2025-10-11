@@ -13,6 +13,7 @@ import (
 	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -397,14 +398,13 @@ func (s *invoiceService) AutoGenerateInvoiceOnDelivery(ctx context.Context, tena
 	// Get HSN/SAC code from product if available
 	var hsnSac *string
 	if order.ProductID != uuid.Nil {
-		// We need to add a product repository to invoice service
-		// For now, this will be a placeholder that returns nil
-		// In production, inject ProductRepository into InvoiceService
-		// and retrieve product.HSNSAC
-		// product, err := s.productRepo.GetByID(ctx, tenantID, order.ProductID)
-		// if err == nil && product != nil && product.HSNSAC != nil {
-		//     hsnSac = product.HSNSAC
-		// }
+		// Query product directly to get HSN/SAC code
+		query := `SELECT hsn_sac FROM products WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`
+		err := s.db.QueryRow(ctx, query, order.ProductID, tenantID).Scan(&hsnSac)
+		if err != nil && err != pgx.ErrNoRows {
+			log.Printf("Warning: Failed to fetch HSN/SAC code for product %s: %v", order.ProductID, err)
+			// Continue without HSN/SAC code - it's optional
+		}
 	}
 
 	// Create invoice with GST details

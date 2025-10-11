@@ -24,10 +24,10 @@ export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) 
             />
           ))}
         </div>
-        <span className="text-xs font-medium text-gray-600 w-20 text-right">{strength.label}</span>
+        <span className="text-xs font-medium text-foreground w-20 text-right">{strength.label}</span>
       </div>
       {!strength.isAcceptable && strength.suggestions.length > 0 && (
-        <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
+        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
           {strength.suggestions.slice(0, 3).map((suggestion, index) => (
             <li key={index}>{suggestion}</li>
           ))}

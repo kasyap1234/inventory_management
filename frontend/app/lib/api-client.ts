@@ -6,8 +6,8 @@ import { csrfTokenManager, tokenStorage } from '@/lib/security';
 // Request queue for batching
 interface QueuedRequest {
   config: AxiosRequestConfig;
-  resolve: (value: any) => void;
-  reject: (reason: any) => void;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
 }
 
 class APIClient {

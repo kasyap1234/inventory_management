@@ -111,13 +111,13 @@ export function ProductImageUpload({ productId, onUploadComplete }: ProductImage
       ) : (
         <div className="w-full h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
           <div className="text-center">
-            <ImageIcon className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-            <p className="text-sm text-gray-500">No image selected</p>
+            <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">No image selected</p>
           </div>
         </div>
       )}
 
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted-foreground">
         Supported formats: JPG, PNG, GIF. Max size: 5MB
       </p>
     </div>

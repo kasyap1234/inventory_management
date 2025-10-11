@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import { csrfTokenManager, tokenStorage } from '@/lib/security';
+import { retryApiCall, isRetryableError } from '@/lib/retry';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/v1';
 
@@ -38,8 +39,12 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error.response?.status;
-    const requestConfig = error.config as typeof error.config & { __isRetryRequest?: boolean };
+    const requestConfig = error.config as typeof error.config & { 
+      __isRetryRequest?: boolean;
+      __retryCount?: number;
+    };
 
+    // Handle token refresh for 401 errors
     if (status === 401 && requestConfig && !requestConfig.__isRetryRequest) {
       const refreshToken = tokenStorage.getRefreshToken();
       if (!refreshToken) {
@@ -71,6 +76,24 @@ api.interceptors.response.use(
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);
+      }
+    }
+
+    // Retry for transient errors (network issues, 5xx errors, rate limits)
+    if (isRetryableError(error) && !requestConfig.__isRetryRequest) {
+      const retryCount = requestConfig.__retryCount || 0;
+      const maxRetries = 3;
+
+      if (retryCount < maxRetries) {
+        requestConfig.__retryCount = retryCount + 1;
+        
+        // Calculate exponential backoff delay
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        return api(requestConfig);
       }
     }
 

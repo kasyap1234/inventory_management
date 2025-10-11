@@ -44,8 +44,8 @@ export default function DistributorsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Distributors</h1>
-          <p className="text-gray-500 mt-1">Manage your distributor network</p>
+          <h1 className="text-3xl font-bold text-foreground">Distributors</h1>
+          <p className="text-muted-foreground mt-1">Manage your distributor network</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -57,7 +57,7 @@ export default function DistributorsPage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search distributors..."
                 value={searchQuery}
@@ -71,8 +71,8 @@ export default function DistributorsPage() {
           {isLoading ? (
             <div className="text-center py-8">Loading distributors...</div>
           ) : filteredDistributors.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
               <p>No distributors found. Add your first distributor to get started.</p>
             </div>
           ) : (

@@ -184,8 +184,8 @@ export default function InvoicesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
-          <p className="text-gray-500 mt-1">Manage billing and invoices</p>
+          <h1 className="text-3xl font-bold text-foreground">Invoices</h1>
+          <p className="text-muted-foreground mt-1">Manage billing and invoices</p>
           {selectedInvoices.length > 0 && (
             <p className="text-blue-600 text-sm mt-1">
               {selectedInvoices.length} invoice(s) selected
@@ -226,7 +226,7 @@ export default function InvoicesPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Invoices</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{invoices?.invoices?.length || 0}</div>
@@ -234,7 +234,7 @@ export default function InvoicesPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Amount</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalAmount)}</div>
@@ -242,7 +242,7 @@ export default function InvoicesPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Paid</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Paid</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{formatCurrency(paidAmount)}</div>
@@ -250,7 +250,7 @@ export default function InvoicesPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Unpaid</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Unpaid</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{formatCurrency(unpaidAmount)}</div>
@@ -262,7 +262,7 @@ export default function InvoicesPage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search invoices..."
                 value={searchQuery}
@@ -330,7 +330,7 @@ export default function InvoicesPage() {
           {isLoading ? (
             <div className="text-center py-8">Loading invoices...</div>
           ) : filteredInvoices.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No invoices found. Create your first invoice to get started.
             </div>
           ) : (
@@ -742,7 +742,7 @@ function BulkInvoiceGenerateDialog({
             </div>
             <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
               {eligibleOrders.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                   No eligible orders found. Orders must be approved, shipped, or delivered.
                 </div>
               ) : (
@@ -765,23 +765,23 @@ function BulkInvoiceGenerateDialog({
                         />
                         <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
                           <div>
-                            <div className="font-medium text-gray-900">
+                            <div className="font-medium text-foreground">
                               Order #{order.id.substring(0, 8)}...
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               {order.order_type}
                             </div>
                           </div>
                           <div>
-                            <div className="text-gray-600">Qty: {order.quantity}</div>
-                            <div className="text-xs text-gray-500">@ {formatCurrency(order.unit_price)}</div>
+                            <div className="text-muted-foreground">Qty: {order.quantity}</div>
+                            <div className="text-xs text-muted-foreground">@ {formatCurrency(order.unit_price)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-600">Taxable: {formatCurrency(amount)}</div>
-                            <div className="text-xs text-gray-500">GST: {formatCurrency(gstAmount)}</div>
+                            <div className="text-muted-foreground">Taxable: {formatCurrency(amount)}</div>
+                            <div className="text-xs text-muted-foreground">GST: {formatCurrency(gstAmount)}</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-semibold text-gray-900">
+                            <div className="font-semibold text-foreground">
                               {formatCurrency(total)}
                             </div>
                             <Badge variant={order.status === 'delivered' ? 'success' : 'warning'}>

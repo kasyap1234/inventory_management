@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -46,18 +47,21 @@ export function Sidebar() {
   const { logout, user } = useAuth();
 
   return (
-    <div className="flex flex-col w-64 bg-gradient-to-b from-slate-50 to-white border-r border-gray-200 h-screen fixed left-0 top-0 shadow-sm">
-      {/* Logo section with gradient */}
-      <div className="flex items-center gap-3 h-20 px-6 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-md">
-          <Sprout className="w-6 h-6 text-white" />
+    <div className="flex flex-col w-64 bg-card border-r border-border h-screen fixed left-0 top-0">
+      {/* Logo section */}
+      <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-lg">
+            <Sprout className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">Agromart</h1>
         </div>
-        <h1 className="text-2xl font-bold gradient-text">Agromart</h1>
+        <ThemeToggle />
       </div>
       
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-6">
-        <nav className="px-3 space-y-1.5">
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav className="px-3 space-y-1">
           {navigation.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -65,21 +69,18 @@ export function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'group flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200',
+                  'group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
                   isActive
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 hover:translate-x-1'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >
-                <div className="flex items-center">
-                  <item.icon className={cn(
-                    "mr-3 h-5 w-5",
-                    isActive ? "text-white" : "text-gray-500 group-hover:text-blue-600"
-                  )} />
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-4 w-4" />
                   <span>{item.name}</span>
                 </div>
                 {isActive && (
-                  <ChevronRight className="h-4 w-4 text-white" />
+                  <ChevronRight className="h-4 w-4" />
                 )}
               </Link>
             );
@@ -87,25 +88,25 @@ export function Sidebar() {
         </nav>
       </div>
       
-      {/* User section with modern card */}
-      <div className="border-t border-gray-200 p-4 bg-white">
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl">
-          <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full text-white font-semibold text-sm shadow-md">
+      {/* User section */}
+      <div className="border-t border-border p-4">
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-accent/50 rounded-lg">
+          <div className="flex items-center justify-center w-9 h-9 bg-primary rounded-full text-primary-foreground font-semibold text-sm">
             {user?.first_name?.[0]}{user?.last_name?.[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">
+            <p className="text-sm font-medium text-foreground truncate">
               {user?.first_name} {user?.last_name}
             </p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
           </div>
         </div>
         <button
           onClick={() => logout.mutate()}
-          className="flex items-center justify-center w-full px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white hover:bg-gradient-to-r hover:from-red-600 hover:to-red-700 rounded-xl transition-all duration-200 border border-red-200 hover:border-transparent hover:shadow-md"
+          className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-all duration-200"
         >
-          <LogOut className="mr-2 h-4 w-4" />
-          Logout
+          <LogOut className="h-4 w-4" />
+          <span>Logout</span>
         </button>
       </div>
     </div>

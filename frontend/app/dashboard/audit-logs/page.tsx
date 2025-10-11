@@ -46,7 +46,7 @@ export default function AuditLogsPage() {
       case 'DELETE':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-gray-100 text-foreground border-gray-200';
     }
   };
 
@@ -103,7 +103,7 @@ export default function AuditLogsPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
             Audit Logs
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
+          <p className="text-muted-foreground mt-2 text-lg">
             Track all changes and activities in your system
           </p>
         </div>
@@ -134,7 +134,7 @@ export default function AuditLogsPage() {
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <CardHeader className="flex flex-row items-center justify-between pb-3 pt-6">
-              <CardTitle className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 {stat.title}
               </CardTitle>
               <div className={`p-3 rounded-xl ${stat.bgColor} shadow-sm`}>
@@ -142,7 +142,7 @@ export default function AuditLogsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
+              <div className="text-3xl font-bold text-foreground">{stat.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -151,12 +151,12 @@ export default function AuditLogsPage() {
       {/* Filters */}
       <Card className="border-0 shadow-md">
         <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold text-gray-900">Filters</CardTitle>
+          <CardTitle className="text-lg font-bold text-foreground">Filters</CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Table Name
               </label>
               <Input
@@ -166,7 +166,7 @@ export default function AuditLogsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Action
               </label>
               <Input
@@ -176,7 +176,7 @@ export default function AuditLogsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Rows per page
               </label>
               <Input
@@ -194,7 +194,7 @@ export default function AuditLogsPage() {
       {/* Audit Logs - Dynamic View */}
       <Card className="border-0 shadow-md">
         <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold text-gray-900">Activity Log</CardTitle>
+          <CardTitle className="text-lg font-bold text-foreground">Activity Log</CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           {isLoading ? (
@@ -211,9 +211,9 @@ export default function AuditLogsPage() {
             )
           ) : (
             <div className="text-center py-16">
-              <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No audit logs found</h3>
-              <p className="text-gray-500">Audit logs will appear here when actions are performed</p>
+              <FileText className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No audit logs found</h3>
+              <p className="text-muted-foreground">Audit logs will appear here when actions are performed</p>
             </div>
           )}
         </CardContent>
@@ -233,7 +233,7 @@ function ListViewLogs({ logs, getActionColor }: { logs: AuditLogEntry[]; getActi
         >
           <div className="flex items-start space-x-4 flex-1">
             <div className="flex-shrink-0 mt-1">
-              <Activity className="h-5 w-5 text-gray-400" />
+              <Activity className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-2">
@@ -244,16 +244,16 @@ function ListViewLogs({ logs, getActionColor }: { logs: AuditLogEntry[]; getActi
                 >
                   {log.action}
                 </span>
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-foreground">
                   {log.table_name}
                 </span>
                 {log.record_id && (
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     ID: {log.record_id.substring(0, 8)}...
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center">
                   <User className="h-4 w-4 mr-1" />
                   User: {log.changed_by ? `${log.changed_by.substring(0, 8)}...` : 'System'}
@@ -305,16 +305,16 @@ function TimelineViewLogs({
                   <Badge className={getActionColor(log.action)}>
                     {log.action}
                   </Badge>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm font-semibold text-foreground">
                     {log.table_name}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm')}
                 </span>
               </div>
               
-              <div className="flex items-center gap-3 text-sm text-gray-600 mb-3">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
                 <span className="flex items-center">
                   <User className="h-4 w-4 mr-1" />
                   {log.changed_by ? `${log.changed_by.substring(0, 8)}...` : 'System'}
@@ -372,13 +372,13 @@ function DiffView({
           {changes.map((change, index) => (
             <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">{change.field}</span>
-                <span className="text-xs text-gray-500 uppercase">{change.type}</span>
+                <span className="text-sm font-medium text-foreground">{change.field}</span>
+                <span className="text-xs text-muted-foreground uppercase">{change.type}</span>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {change.oldValue !== undefined && (
                   <div>
-                    <div className="text-xs text-gray-500 mb-1">Old:</div>
+                    <div className="text-xs text-muted-foreground mb-1">Old:</div>
                     <div className="bg-red-50 border border-red-200 rounded px-2 py-1 text-red-900 font-mono text-xs break-all">
                       {formatValue(change.oldValue)}
                     </div>
@@ -386,7 +386,7 @@ function DiffView({
                 )}
                 {change.newValue !== undefined && (
                   <div>
-                    <div className="text-xs text-gray-500 mb-1">New:</div>
+                    <div className="text-xs text-muted-foreground mb-1">New:</div>
                     <div className="bg-green-50 border border-green-200 rounded px-2 py-1 text-green-900 font-mono text-xs break-all">
                       {formatValue(change.newValue)}
                     </div>

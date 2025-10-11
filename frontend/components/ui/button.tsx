@@ -9,22 +9,22 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', ...props }, ref) => {
-    const baseStyles = "inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]"
+    const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
     
     const variants = {
-      default: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md",
-      destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm hover:shadow-md",
-      outline: "border-2 border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 text-gray-900",
-      secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
-      ghost: "hover:bg-gray-100 text-gray-900",
-      link: "text-blue-600 underline-offset-4 hover:underline",
+      default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow",
+      destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
+      outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+      secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      ghost: "hover:bg-accent hover:text-accent-foreground",
+      link: "text-primary underline-offset-4 hover:underline",
     }
     
     const sizes = {
-      default: "h-11 px-5 py-2.5 text-sm",
-      sm: "h-9 px-4 text-sm",
-      lg: "h-12 px-8 text-base",
-      icon: "h-10 w-10",
+      default: "h-10 px-4 py-2 text-sm",
+      sm: "h-8 px-3 text-xs",
+      lg: "h-11 px-8 text-base",
+      icon: "h-9 w-9",
     }
     
     return (

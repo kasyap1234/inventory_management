@@ -153,9 +153,9 @@ export default function OrdersPage() {
           case 'process':
             return order.status === 'approved';
           case 'receive':
-            return order.status === 'processing' && order.order_type === 'purchase';
+            return order.status === 'approved' && order.order_type === 'purchase';
           case 'ship':
-            return order.status === 'processing' && order.order_type === 'sales';
+            return order.status === 'approved' && order.order_type === 'sales';
           case 'deliver':
             return order.status === 'shipped';
           case 'cancel':
@@ -213,8 +213,8 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
-          <p className="text-gray-500 mt-1">Manage purchase and sales orders</p>
+          <h1 className="text-3xl font-bold text-foreground">Orders</h1>
+          <p className="text-muted-foreground mt-1">Manage purchase and sales orders</p>
           {selectedOrders.length > 0 && (
             <p className="text-sm text-blue-600 mt-1">{selectedOrders.length} order(s) selected</p>
           )}
@@ -290,7 +290,7 @@ export default function OrdersPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Orders</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{orders?.orders?.length || 0}</div>
@@ -298,7 +298,7 @@ export default function OrdersPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Purchase Orders</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Purchase Orders</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
@@ -308,7 +308,7 @@ export default function OrdersPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Sales Orders</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Sales Orders</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
@@ -318,7 +318,7 @@ export default function OrdersPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Pending</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
@@ -333,7 +333,7 @@ export default function OrdersPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search orders..."
                   value={searchQuery}
@@ -362,7 +362,7 @@ export default function OrdersPage() {
                     options: [
                       { value: 'pending', label: 'Pending' },
                       { value: 'approved', label: 'Approved' },
-                      { value: 'processing', label: 'Processing' },
+                      { value: 'received', label: 'Received' },
                       { value: 'shipped', label: 'Shipped' },
                       { value: 'delivered', label: 'Delivered' },
                       { value: 'cancelled', label: 'Cancelled' },
@@ -398,7 +398,7 @@ export default function OrdersPage() {
           {isLoading ? (
             <div className="text-center py-8">Loading orders...</div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No orders found. Create your first order to get started.
             </div>
           ) : (
@@ -489,8 +489,8 @@ export default function OrdersPage() {
                             </Button>
                           )}
                           
-                          {/* Receive button - processing → delivered (purchase orders) */}
-                          {order.status === 'processing' && order.order_type === 'purchase' && (
+                          {/* Receive button - approved → received (purchase orders) */}
+                          {order.status === 'approved' && order.order_type === 'purchase' && (
                             <Button 
                               size="sm" 
                               variant="default"
@@ -506,8 +506,8 @@ export default function OrdersPage() {
                             </Button>
                           )}
                           
-                          {/* Ship button - processing → shipped (sales orders) */}
-                          {order.status === 'processing' && order.order_type === 'sales' && (
+                          {/* Ship button - approved → shipped (sales orders) */}
+                          {order.status === 'approved' && order.order_type === 'sales' && (
                             <Button 
                               size="sm" 
                               variant="default"

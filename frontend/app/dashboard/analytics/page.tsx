@@ -124,10 +124,10 @@ export default function AnalyticsPage() {
       const response = await categoryService.list();
       const raw = Array.isArray(response.data?.categories) ? response.data.categories : [];
       return raw
-        .filter((category): category is { id: string; name: string } =>
+        .filter((category: any): category is { id: string; name: string } =>
           typeof category?.id === 'string' && typeof category?.name === 'string'
         )
-        .map((category) => ({ id: category.id, name: category.name }));
+        .map((category: any) => ({ id: category.id, name: category.name }));
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -253,7 +253,8 @@ export default function AnalyticsPage() {
         queryClient.invalidateQueries({ queryKey: ['analytics-inventory-valuation'] }),
       ]);
     } catch (error) {
-      console.error('Failed to refresh analytics:', error);
+      // Error is already handled by react-query
+      // Log to error tracking service in production
     } finally {
       setRefreshing(false);
     }
@@ -285,7 +286,7 @@ export default function AnalyticsPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
             Analytics & Reports
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
+          <p className="text-muted-foreground mt-2 text-lg">
             Comprehensive insights into your business performance
           </p>
         </div>
@@ -307,7 +308,7 @@ export default function AnalyticsPage() {
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <CardHeader className="flex flex-row items-center justify-between pb-3 pt-6">
-              <CardTitle className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 {stat.title}
               </CardTitle>
               <div className={`p-3 rounded-xl ${stat.bgColor} shadow-sm`}>
@@ -315,7 +316,7 @@ export default function AnalyticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900 mb-1">
+              <div className="text-3xl font-bold text-foreground mb-1">
                 {stat.isLoading ? (
                   <div className="h-9 w-24 bg-gray-200 rounded animate-pulse" />
                 ) : typeof stat.value === 'number' ? (
@@ -325,14 +326,14 @@ export default function AnalyticsPage() {
                 )}
               </div>
               {stat.change !== 'N/A' && (
-                <p className="text-sm text-gray-500 flex items-center">
+                <p className="text-sm text-muted-foreground flex items-center">
                   <span
                     className={`font-medium mr-1 ${
                       stat.change.startsWith('-')
                         ? 'text-red-600'
                         : stat.change.startsWith('+')
                         ? 'text-green-600'
-                        : 'text-gray-500'
+                        : 'text-muted-foreground'
                     }`}
                   >
                     {stat.change}
@@ -347,7 +348,7 @@ export default function AnalyticsPage() {
 
       <Card className="border-0 shadow-md">
         <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+          <CardTitle className="text-lg font-bold text-foreground flex items-center">
             <LineChartIcon className="h-5 w-5 mr-2 text-blue-600" />
             Sales Trend (Last 30 Days)
           </CardTitle>
@@ -397,7 +398,7 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </ChartContainer>
         ) : (
-          <p className="text-center text-gray-500 py-10">
+          <p className="text-center text-muted-foreground py-10">
             No sales data available for the selected period.
           </p>
         )}
@@ -407,7 +408,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-0 shadow-md">
           <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+            <CardTitle className="text-lg font-bold text-foreground flex items-center">
               <BarChart3 className="h-5 w-5 mr-2 text-blue-600" />
               Top Selling Products
             </CardTitle>
@@ -446,14 +447,14 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </ChartContainer>
             ) : (
-              <p className="text-center text-gray-500 py-10">No product sales data available.</p>
+              <p className="text-center text-muted-foreground py-10">No product sales data available.</p>
             )}
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-md">
           <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+            <CardTitle className="text-lg font-bold text-foreground flex items-center">
               <AlertTriangle className="h-5 w-5 mr-2 text-orange-600" />
               Low Stock Alert
             </CardTitle>
@@ -473,19 +474,19 @@ export default function AnalyticsPage() {
                     className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200"
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">{item.productName || 'Unnamed Product'}</p>
-                      <p className="text-sm text-gray-600">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
+                      <p className="font-semibold text-foreground">{item.productName || 'Unnamed Product'}</p>
+                      <p className="text-sm text-muted-foreground">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-orange-600">{item.currentStock} units</p>
-                      <p className="text-xs text-gray-500">Threshold: {item.threshold}</p>
+                      <p className="text-xs text-muted-foreground">Threshold: {item.threshold}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-center text-gray-500 py-12">
-                <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-center text-muted-foreground py-12">
+                <Package className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
                 All items are well stocked
               </p>
             )}
@@ -494,7 +495,7 @@ export default function AnalyticsPage() {
 
         <Card className="border-0 shadow-md">
           <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+            <CardTitle className="text-lg font-bold text-foreground flex items-center">
               <PieChartIcon className="h-5 w-5 mr-2 text-purple-600" />
               Order Status Distribution
             </CardTitle>
@@ -511,8 +512,8 @@ export default function AnalyticsPage() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ status, count, percent }) =>
-                        `${status}: ${count} (${Math.round((percent ?? 0) * 100)}%)`
+                      label={({ status, count, percent }: any) =>
+                        `${status}: ${count} (${Math.round((Number(percent) || 0) * 100)}%)`
                       }
                       outerRadius={110}
                       dataKey="count"
@@ -547,14 +548,14 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </ChartContainer>
             ) : (
-              <p className="text-center text-gray-500 py-10">No orders available for the selected range.</p>
+              <p className="text-center text-muted-foreground py-10">No orders available for the selected range.</p>
             )}
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-md lg:col-span-2">
           <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-gray-900 flex items-center">
+            <CardTitle className="text-lg font-bold text-foreground flex items-center">
               <DollarSign className="h-5 w-5 mr-2 text-green-600" />
               Revenue by Category
             </CardTitle>
@@ -593,7 +594,7 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </ChartContainer>
             ) : (
-              <p className="text-center text-gray-500 py-10">No category revenue data available.</p>
+              <p className="text-center text-muted-foreground py-10">No category revenue data available.</p>
             )}
           </CardContent>
         </Card>

@@ -18,8 +18,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 mt-1">Manage your account and preferences</p>
+        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
       </div>
 
       <div className="flex gap-4 border-b border-gray-200">
@@ -28,7 +28,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'profile'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           <User className="inline h-4 w-4 mr-2" />
@@ -39,7 +39,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'password'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           <Lock className="inline h-4 w-4 mr-2" />
@@ -50,7 +50,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'tenant'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           <Building className="inline h-4 w-4 mr-2" />
@@ -250,7 +250,7 @@ function TenantSettings() {
             <label className="text-sm font-medium">License Number</label>
             <Input placeholder="Enter license number" />
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Contact support to update organization details
           </p>
         </div>

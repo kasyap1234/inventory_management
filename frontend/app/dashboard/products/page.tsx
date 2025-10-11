@@ -79,8 +79,8 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500 mt-1">Manage your product catalog</p>
+          <h1 className="text-3xl font-bold text-foreground">Products</h1>
+          <p className="text-muted-foreground mt-1">Manage your product catalog</p>
           {selectedProducts.length > 0 && (
             <p className="text-blue-600 text-sm mt-1">
               {selectedProducts.length} product(s) selected
@@ -117,7 +117,7 @@ export default function ProductsPage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search products by name or barcode..."
                 value={searchQuery}
@@ -131,7 +131,7 @@ export default function ProductsPage() {
           {isLoading ? (
             <div className="text-center py-8">Loading products...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No products found. Add your first product to get started.
             </div>
           ) : (
@@ -467,7 +467,7 @@ function BulkPriceUpdateDialog({ open, onOpenChange, selectedProductIds, onSucce
               onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
               placeholder={updateType === 'percentage' ? 'e.g., 10' : 'e.g., 50'}
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               {updateType === 'percentage'
                 ? `Prices will be ${isIncrease ? 'increased' : 'decreased'} by ${value}%`
                 : `Prices will be ${isIncrease ? 'increased' : 'decreased'} by ₹${value}`}

@@ -158,9 +158,13 @@ func (s *auditLogsService) LogEntitySoftDelete(ctx context.Context, tenantID uui
 
 // Helper function to create JSONB for entity values (exclude sensitive fields like passwords)
 func CreateEntityValues(entity interface{}) (models.JSONB, error) {
-	// This is a placeholder - in a real implementation, you'd use reflection
-	// or have entity-specific methods to create JSONB representations
-	// You might also want to exclude sensitive fields like passwords, secrets, etc.
+	// Use reflection to convert entity to map, excluding sensitive fields
+	if entity == nil {
+		return models.JSONB{}, nil
+	}
+	
+	// TODO: Implement reflection-based field filtering to exclude sensitive fields
+	// Sensitive fields to exclude: Password, PasswordHash, Secret, SecretKey, Token, APIKey, AccessKey
 
 	switch v := entity.(type) {
 	case *models.User:

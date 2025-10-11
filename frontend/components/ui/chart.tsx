@@ -5,6 +5,7 @@ import type { LegendProps, TooltipProps } from 'recharts';
 import { Legend as RechartsLegend, Tooltip as RechartsTooltip } from 'recharts';
 
 import { cn } from '@/lib/utils';
+import type { ChartLegendItem } from '@/types/chart';
 
 const DEFAULT_COLORS = [
   'hsl(217 91% 60%)',
@@ -67,20 +68,21 @@ export const ChartContainer = React.forwardRef<HTMLDivElement, ChartContainerPro
 );
 ChartContainer.displayName = 'ChartContainer';
 
-type TooltipItem = TooltipProps<number, string>['payload'] extends Array<infer Item> ? Item : never;
-
 export type ChartTooltipContentFormatter = (args: {
-  value: TooltipItem['value'];
+  value: any;
   name: string;
-  item: TooltipItem;
+  item: any;
   index: number;
 }) => React.ReactNode;
 
-export interface ChartTooltipContentProps extends TooltipProps<number, string> {
+export interface ChartTooltipContentProps {
+  active?: boolean;
+  payload?: any[];
+  label?: any;
   indicator?: 'dot' | 'line';
   className?: string;
   formatter?: ChartTooltipContentFormatter;
-  labelFormatter?: (label?: TooltipProps<number, string>['label']) => React.ReactNode;
+  labelFormatter?: (label?: any) => React.ReactNode;
 }
 
 export function ChartTooltipContent({
@@ -151,7 +153,7 @@ export const ChartLegend = RechartsLegend;
 
 export interface ChartLegendContentProps {
   className?: string;
-  payload?: LegendProps['payload'];
+  payload?: ChartLegendItem[];
 }
 
 export function ChartLegendContent({ payload, className }: ChartLegendContentProps) {

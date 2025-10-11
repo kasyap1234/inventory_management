@@ -43,20 +43,40 @@ export const dismissAllToasts = () => {
 };
 
 // Update an existing toast
-export const updateToast = (toastId: string, options: any) => {
-  return toast.success(options.render, { id: toastId });
+export const updateToast = (toastId: string, message: string) => {
+  return toast.success(message, { id: toastId });
 };
 
 // Helper to extract error message from API response
-export const getErrorMessage = (error: any): string => {
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
+export const getErrorMessage = (error: unknown): string => {
+  // Type-safe error extraction
+  if (error && typeof error === 'object') {
+    const err = error as Record<string, unknown>;
+    
+    // Check for nested error structures
+    if (err.response && typeof err.response === 'object') {
+      const response = err.response as Record<string, unknown>;
+      if (response.data && typeof response.data === 'object') {
+        const data = response.data as Record<string, unknown>;
+        
+        if (typeof data.message === 'string') {
+          return data.message;
+        }
+        
+        if (data.error && typeof data.error === 'object') {
+          const errorObj = data.error as Record<string, unknown>;
+          if (typeof errorObj.message === 'string') {
+            return errorObj.message;
+          }
+        }
+      }
+    }
+    
+    // Check for direct message property
+    if (typeof err.message === 'string') {
+      return err.message;
+    }
   }
-  if (error?.response?.data?.error?.message) {
-    return error.response.data.error.message;
-  }
-  if (error?.message) {
-    return error.message;
-  }
+  
   return 'An unexpected error occurred';
 };

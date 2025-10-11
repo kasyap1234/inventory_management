@@ -26,16 +26,16 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen">
       {/* Left side - Form */}
-      <div className="flex flex-1 items-center justify-center p-8 bg-white">
+      <div className="flex flex-1 items-center justify-center p-8 bg-background">
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Agromart</h1>
-            <p className="text-gray-600">Welcome back! Please sign in to continue.</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Agromart</h1>
+            <p className="text-muted-foreground">Welcome back! Please sign in to continue.</p>
           </div>
 
           {/* Form Card */}
-          <Card className="shadow-xl">
+          <Card>
             <CardContent className="p-8">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {resetSuccessful && (
@@ -58,7 +58,7 @@ export default function LoginPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
                     Email address
                   </label>
                   <Input
@@ -72,10 +72,10 @@ export default function LoginPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="password" className="text-sm font-medium text-foreground">
                       Password
                     </label>
-                    <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <Link href="/forgot-password" className="text-sm text-primary hover:opacity-80 font-medium">
                       Forgot?
                     </Link>
                   </div>
@@ -90,7 +90,7 @@ export default function LoginPage() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
+                  className="w-full"
                   disabled={login.isPending}
                 >
                   {login.isPending ? (
@@ -113,9 +113,9 @@ export default function LoginPage() {
           </Card>
 
           {/* Sign up link */}
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-6">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/signup" className="text-primary hover:opacity-80 font-semibold">
               Create a free account
             </Link>
           </p>
@@ -123,40 +123,40 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Brand */}
-      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
+      <div className="hidden lg:flex flex-1 gradient-agro items-center justify-center p-12">
         <div className="max-w-md space-y-8 animate-slide-in">
           <div className="inline-block">
-            <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-md">
-              <Sparkles className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-semibold text-gray-900">Modern Inventory System</span>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20">
+              <Sparkles className="w-5 h-5 text-white" />
+              <span className="text-sm font-semibold text-white">Modern Inventory System</span>
             </div>
           </div>
           
-          <h2 className="text-4xl font-bold text-gray-900 leading-tight">
+          <h2 className="text-4xl font-bold text-white leading-tight">
             Manage your inventory with confidence
           </h2>
           
-          <p className="text-lg text-gray-700">
+          <p className="text-lg text-white/90">
             Track products, manage warehouses, and streamline your supply chain all in one place.
           </p>
 
           <div className="space-y-4 pt-4">
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Shield className="w-5 h-5 text-blue-600" />
+              <div className="flex-shrink-0 w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                <Shield className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Secure & Reliable</h3>
-                <p className="text-sm text-gray-600">Enterprise-grade security for your data</p>
+                <h3 className="font-semibold text-white mb-1">Secure & Reliable</h3>
+                <p className="text-sm text-white/80">Enterprise-grade security for your data</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-purple-600" />
+              <div className="flex-shrink-0 w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Lightning Fast</h3>
-                <p className="text-sm text-gray-600">Real-time updates and instant synchronization</p>
+                <h3 className="font-semibold text-white mb-1">Lightning Fast</h3>
+                <p className="text-sm text-white/80">Real-time updates and instant synchronization</p>
               </div>
             </div>
           </div>

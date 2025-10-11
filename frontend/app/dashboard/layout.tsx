@@ -29,8 +29,8 @@ export default function DashboardLayout({
               <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 opacity-20 animate-pulse"></div>
             </div>
           </div>
-          <p className="mt-6 text-gray-700 font-medium">Loading your workspace...</p>
-          <p className="mt-2 text-sm text-gray-500">Please wait</p>
+          <p className="mt-6 text-foreground font-medium">Loading your workspace...</p>
+          <p className="mt-2 text-sm text-muted-foreground">Please wait</p>
         </div>
       </div>
     );

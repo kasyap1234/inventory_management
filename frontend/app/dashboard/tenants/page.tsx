@@ -125,8 +125,8 @@ export default function TenantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tenants</h1>
-          <p className="text-gray-500 mt-1">Manage customer accounts and licensing</p>
+          <h1 className="text-3xl font-bold text-foreground">Tenants</h1>
+          <p className="text-muted-foreground mt-1">Manage customer accounts and licensing</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -146,7 +146,7 @@ export default function TenantsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-blue-600" />
             Tenant Directory
           </CardTitle>
@@ -154,7 +154,7 @@ export default function TenantsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, subdomain, or license..."
                 value={searchQuery}
@@ -167,8 +167,8 @@ export default function TenantsPage() {
           {isLoading ? (
             <div className="text-center py-10">Loading tenants...</div>
           ) : filteredTenants.length === 0 ? (
-            <div className="text-center py-16 text-gray-500">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-16 text-muted-foreground">
+              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
               <p>No tenants found</p>
             </div>
           ) : (
@@ -189,7 +189,7 @@ export default function TenantsPage() {
                   <TableRow key={tenant.id}>
                     <TableCell className="font-medium">{tenant.name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{tenant.subdomain}.agromart.example</Badge>
+                      <Badge variant="secondary">{tenant.subdomain}.agromart.example</Badge>
                     </TableCell>
                     <TableCell>{tenant.license_number || '—'}</TableCell>
                     <TableCell>
@@ -339,7 +339,7 @@ function TenantFormDialog({
               onChange={(e) => setFormState((prev) => ({ ...prev, subdomain: e.target.value }))}
               placeholder="acme"
             />
-            <p className="text-xs text-gray-500">Final URL: https://{formState.subdomain || 'subdomain'}.agromart.example</p>
+            <p className="text-xs text-muted-foreground">Final URL: https://{formState.subdomain || 'subdomain'}.agromart.example</p>
           </div>
 
           <div className="space-y-2">

@@ -77,7 +77,7 @@ export default function SubscriptionsPage() {
       case 'cancelled':
         return 'bg-red-100 text-red-800 border-red-200';
       case 'expired':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-gray-100 text-foreground border-gray-200';
       default:
         return 'bg-blue-100 text-blue-800 border-blue-200';
     }
@@ -91,7 +91,7 @@ export default function SubscriptionsPage() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
             Subscriptions
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
+          <p className="text-muted-foreground mt-2 text-lg">
             Manage your subscription plans and billing
           </p>
         </div>
@@ -118,7 +118,7 @@ export default function SubscriptionsPage() {
             <Card key={subscription.id} className="border-0 shadow-md hover:shadow-lg transition-all">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-bold text-gray-900">
+                  <CardTitle className="text-xl font-bold text-foreground">
                     {subscription.plan_name || 'Subscription'}
                   </CardTitle>
                   <span
@@ -134,9 +134,9 @@ export default function SubscriptionsPage() {
                 <div className="space-y-4">
                   {/* Price */}
                   <div>
-                    <div className="text-3xl font-bold text-gray-900">
+                    <div className="text-3xl font-bold text-foreground">
                       {amountDisplay}
-                      <span className="text-lg font-normal text-gray-500">
+                      <span className="text-lg font-normal text-muted-foreground">
                         /{intervalLabel}
                       </span>
                     </div>
@@ -145,29 +145,29 @@ export default function SubscriptionsPage() {
                   {/* Details */}
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Start Date:</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="text-muted-foreground">Start Date:</span>
+                      <span className="font-medium text-foreground">
                         {format(new Date(subscription.start_date), 'MMM dd, yyyy')}
                       </span>
                     </div>
                     {subscription.end_date && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">End Date:</span>
-                        <span className="font-medium text-gray-900">
+                        <span className="text-muted-foreground">End Date:</span>
+                        <span className="font-medium text-foreground">
                           {format(new Date(subscription.end_date), 'MMM dd, yyyy')}
                         </span>
                       </div>
                     )}
                     {subscription.currency && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Currency:</span>
-                        <span className="font-medium text-gray-900">{subscription.currency}</span>
+                        <span className="text-muted-foreground">Currency:</span>
+                        <span className="font-medium text-foreground">{subscription.currency}</span>
                       </div>
                     )}
                     {subscription.razorpay_subscription_id && (
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Gateway ID:</span>
-                        <span className="font-medium text-gray-900">
+                        <span className="text-muted-foreground">Gateway ID:</span>
+                        <span className="font-medium text-foreground">
                           {subscription.razorpay_subscription_id}
                         </span>
                       </div>
@@ -241,11 +241,11 @@ export default function SubscriptionsPage() {
           <Card className="border-0 shadow-md col-span-2">
             <CardContent className="py-16">
               <div className="text-center">
-                <CreditCard className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <CreditCard className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   No active subscriptions
                 </h3>
-                <p className="text-gray-500 mb-6">
+                <p className="text-muted-foreground mb-6">
                   Get started by subscribing to a plan
                 </p>
                 <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">

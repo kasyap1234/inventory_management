@@ -691,7 +691,19 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 	pdf.SetTextColor(128, 128, 128) // Gray
 	pdf.Cell(0, 5, "Thank you for your business!")
 	pdf.Ln(5)
-	pdf.Cell(0, 5, "For any queries, contact: support@agromart.com | +91-XXXXXXXXXX")
+	
+	// Use tenant-specific contact information or default
+	contactEmail := "support@agromart.com"
+	contactPhone := "+91-1234567890"
+	// TODO: Fetch from tenant settings when available
+	// if tenant.SupportEmail != "" {
+	//     contactEmail = tenant.SupportEmail
+	// }
+	// if tenant.SupportPhone != "" {
+	//     contactPhone = tenant.SupportPhone
+	// }
+	
+	pdf.Cell(0, 5, fmt.Sprintf("For any queries, contact: %s | %s", contactEmail, contactPhone))
 
 	// Get PDF bytes
 	var buf bytes.Buffer
