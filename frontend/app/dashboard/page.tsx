@@ -53,63 +53,67 @@ export default function DashboardPage() {
       title: 'Total Sales',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200',
       helper: analytics?.lastUpdated,
     },
     {
       title: 'Inventory Value',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: 'text-sky-600',
+      bgColor: 'bg-sky-50',
+      borderColor: 'border-sky-200',
     },
     {
       title: 'Orders Processed',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-50',
+      borderColor: 'border-purple-200',
     },
     {
       title: 'Unpaid Invoices',
       value: unpaidInvoiceItems.length,
       icon: FileText,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-200',
     },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Header with gradient */}
+      {/* Header - Clean and modern */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold text-foreground tracking-tight">
             Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2 text-lg">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
+          <p className="text-muted-foreground mt-2">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
         </div>
       </div>
 
-      {/* Stats Cards with modern design */}
+      {/* Stats Cards - Clean, modern design */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, index) => (
           <Card 
             key={stat.title}
-            className="card-hover border-0 shadow-md bg-white overflow-hidden"
+            className={`card-hover border ${stat.borderColor} bg-white shadow-sm overflow-hidden`}
             style={{ animationDelay: `${index * 100}ms` }}
           >
-            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-6">
-              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 pt-5">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <div className={`p-3 rounded-xl ${stat.bgColor} shadow-sm`}>
-                <stat.icon className={`h-6 w-6 ${stat.color}`} />
+              <div className={`p-2.5 rounded-lg ${stat.bgColor}`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground mb-1">
+            <CardContent className="pb-5">
+              <div className="text-2xl font-bold text-foreground">
                 {isLoading ? (
                   <div className="h-9 w-24 bg-gray-200 rounded animate-pulse"></div>
                 ) : (
