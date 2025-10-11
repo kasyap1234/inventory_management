@@ -1,81 +1,81 @@
 @import "tailwindcss";
 
 @theme {
-  /* Modern, Clean Color Palette - Improved for better aesthetics */
-  /* Using softer, more professional colors with better contrast */
+  /* Agro/Chemical Theme - Professional Green Palette with Excellent Contrast */
+  /* Designed for agricultural and chemical applications */
   
-  --color-background: #fafbfc;
-  --color-foreground: #1a202c;
+  --color-background: #f8fdf9;
+  --color-foreground: #0f2e1a;
   
   --color-card: #ffffff;
-  --color-card-foreground: #1a202c;
+  --color-card-foreground: #0f2e1a;
   
   --color-popover: #ffffff;
-  --color-popover-foreground: #1a202c;
+  --color-popover-foreground: #0f2e1a;
   
-  /* Modern blue-green primary - professional and clean */
-  --color-primary: #0ea5e9;
+  /* Primary: Professional emerald green - perfect for agro theme */
+  --color-primary: #10b981;
   --color-primary-foreground: #ffffff;
   
-  --color-secondary: #f1f5f9;
-  --color-secondary-foreground: #334155;
+  --color-secondary: #f0fdf4;
+  --color-secondary-foreground: #166534;
   
-  --color-muted: #f8fafc;
-  --color-muted-foreground: #64748b;
+  --color-muted: #f7fef8;
+  --color-muted-foreground: #52525b;
   
-  --color-accent: #e0f2fe;
-  --color-accent-foreground: #0c4a6e;
+  --color-accent: #d1fae5;
+  --color-accent-foreground: #065f46;
   
   --color-destructive: #dc2626;
   --color-destructive-foreground: #ffffff;
   
-  --color-border: #e2e8f0;
-  --color-input: #e2e8f0;
-  --color-ring: #0ea5e9;
+  --color-border: #d1fae5;
+  --color-input: #d1fae5;
+  --color-ring: #10b981;
   
-  /* Modern chart colors - harmonious palette */
-  --color-chart-1: #0ea5e9; /* Sky blue */
-  --color-chart-2: #8b5cf6; /* Purple */
-  --color-chart-3: #f59e0b; /* Amber */
-  --color-chart-4: #10b981; /* Emerald */
-  --color-chart-5: #ef4444; /* Red */
+  /* Agro-themed chart colors - earth tones with greens */
+  --color-chart-1: #10b981; /* Emerald - growth */
+  --color-chart-2: #84cc16; /* Lime - fresh crops */
+  --color-chart-3: #eab308; /* Yellow - sunshine */
+  --color-chart-4: #0891b2; /* Cyan - water */
+  --color-chart-5: #f97316; /* Orange - harvest */
 }
 
-/* Dark mode - Softer, more professional dark theme */
+/* Dark mode - Agro theme with excellent readability */
 .dark {
-  --color-background: #0f172a;
-  --color-foreground: #f1f5f9;
+  --color-background: #0a1f12;
+  --color-foreground: #e7f9ef;
   
-  --color-card: #1e293b;
-  --color-card-foreground: #f1f5f9;
+  --color-card: #0f2e1a;
+  --color-card-foreground: #e7f9ef;
   
-  --color-popover: #1e293b;
-  --color-popover-foreground: #f1f5f9;
+  --color-popover: #0f2e1a;
+  --color-popover-foreground: #e7f9ef;
   
-  --color-primary: #38bdf8;
-  --color-primary-foreground: #0c4a6e;
+  --color-primary: #34d399;
+  --color-primary-foreground: #022c22;
   
-  --color-secondary: #334155;
-  --color-secondary-foreground: #f1f5f9;
+  --color-secondary: #14532d;
+  --color-secondary-foreground: #d1fae5;
   
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
+  --color-muted: #14532d;
+  --color-muted-foreground: #86efac;
   
-  --color-accent: #1e3a5f;
-  --color-accent-foreground: #bae6fd;
+  --color-accent: #065f46;
+  --color-accent-foreground: #a7f3d0;
   
   --color-destructive: #991b1b;
   --color-destructive-foreground: #fee2e2;
   
-  --color-border: #334155;
-  --color-input: #334155;
-  --color-ring: #38bdf8;
+  --color-border: #14532d;
+  --color-input: #14532d;
+  --color-ring: #34d399;
   
-  --color-chart-1: #38bdf8;
-  --color-chart-2: #a78bfa;
-  --color-chart-3: #fbbf24;
-  --color-chart-4: #34d399;
-  --color-chart-5: #f87171;
+  --color-chart-1: #34d399;
+  --color-chart-2: #a3e635;
+  --color-chart-3: #fde047;
+  --color-chart-4: #22d3ee;
+  --color-chart-5: #fb923c;
 }
 
 * {
@@ -172,46 +172,46 @@ body {
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 10px 10px -5px rgb(0 0 0 / 0.3);
 }
 
-/* Modern, professional gradient backgrounds */
-.gradient-blue {
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-}
-
-.dark .gradient-blue {
-  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
-}
-
-.gradient-purple {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-}
-
-.dark .gradient-purple {
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-}
-
-.gradient-emerald {
+/* Agro-themed gradient backgrounds */
+.gradient-green {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
 }
 
-.dark .gradient-emerald {
+.dark .gradient-green {
   background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
 }
 
-.gradient-amber {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+.gradient-lime {
+  background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
 }
 
-.dark .gradient-amber {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+.dark .gradient-lime {
+  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
 }
 
-/* Clean background gradient */
+.gradient-teal {
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+}
+
+.dark .gradient-teal {
+  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
+}
+
+.gradient-yellow {
+  background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
+}
+
+.dark .gradient-yellow {
+  background: linear-gradient(135deg, #fde047 0%, #facc15 100%);
+}
+
+/* Clean agro background gradient */
 .gradient-bg {
-  background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+  background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%);
 }
 
 .dark .gradient-bg {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #0a1f12 0%, #0f2e1a 100%);
 }
 
 /* Modern button */
