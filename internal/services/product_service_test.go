@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// Mock repositories and services
+// ========== Shared Mock Implementations for All Service Tests ==========
+
+// MockProductRepository is a mock for ProductRepository
 type MockProductRepository struct {
 	mock.Mock
 }
@@ -250,6 +252,10 @@ func (m *MockProductImageRepository) DeleteAllByProductID(ctx context.Context, t
 
 type MockCacheService struct {
 	mock.Mock
+}
+
+func NewMockCacheService() *MockCacheService {
+	return &MockCacheService{}
 }
 
 func (m *MockCacheService) Get(ctx context.Context, key string) (string, error) {
@@ -725,3 +731,51 @@ func (suite *ProductServiceTestSuite) TestCategoryAnalytics_Success() {
 // TestUploadProductImage, TestGetProductImages, TestGetProductImageURL, TestDeleteProductImage
 
 // Note: Bulk operation tests would be comprehensive but follow similar mocking patterns
+
+// ========== Additional Mock Types for Order and Inventory Service Tests ==========
+
+// MockOrderRepository mock (shared for all tests)
+type MockOrderRepository struct {
+	mock.Mock
+}
+
+func (m *MockOrderRepository) Create(ctx context.Context, order *models.Order) error {
+	args := m.Called(ctx, order)
+	return args.Error(0)
+}
+
+func (m *MockOrderRepository) GetByID(ctx context.Context, tenantID, orderID uuid.UUID) (*models.Order, error) {
+	args := m.Called(ctx, tenantID, orderID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Order), args.Error(1)
+}
+
+func (m *MockOrderRepository) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error) {
+	args := m.Called(ctx, tenantID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Order), args.Error(1)
+}
+
+func (m *MockOrderRepository) Update(ctx context.Context, order *models.Order) error {
+	args := m.Called(ctx, order)
+	return args.Error(0)
+}
+
+func (m *MockOrderRepository) Delete(ctx context.Context, tenantID, orderID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, orderID)
+	return args.Error(0)
+}
+
+// MockInventoryService mock (shared for all tests)
+type MockInventoryService struct {
+	mock.Mock
+}
+
+func (m *MockInventoryService) AdjustStock(ctx context.Context, tenantID, warehouseID, productID uuid.UUID, quantity int, reason string) error {
+	args := m.Called(ctx, tenantID, warehouseID, productID, quantity, reason)
+	return args.Error(0)
+}

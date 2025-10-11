@@ -139,6 +139,6 @@ func JWTMiddleware(userRepo repositories.UserRepository, jwtSecret string) echo.
 			c.SetRequest(c.Request().WithContext(ctx))
 
 			return next(c)
-				}
-			}
 		}
+	}
+}
