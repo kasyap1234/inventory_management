@@ -115,13 +115,13 @@ export default function DashboardPage() {
             <CardContent className="pb-5">
               <div className="text-2xl font-bold text-foreground">
                 {isLoading ? (
-                  <div className="h-9 w-24 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-8 w-24 bg-muted rounded animate-pulse"></div>
                 ) : (
                   stat.value
                 )}
               </div>
               {stat.helper && !isLoading && (
-                <p className="text-sm text-gray-500">
+                <p className="text-xs text-muted-foreground mt-1">
                   Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
                 </p>
               )}
