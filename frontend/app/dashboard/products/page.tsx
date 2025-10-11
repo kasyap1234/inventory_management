@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash, Upload, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -19,6 +19,9 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isBulkPriceDialogOpen, setIsBulkPriceDialogOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery<{ products: Product[] }>({
@@ -75,6 +78,81 @@ export default function ProductsPage() {
     }
   };
 
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await api.post('/tally/export', {
+        data_type: 'products',
+        format: 'csv',
+      });
+      
+      if (response.data.message) {
+        alert('Export job queued successfully. You will be notified when ready.');
+      }
+    } catch (error) {
+      alert('Failed to export products');
+      console.error(error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    // Create CSV template with headers
+    const csvContent = 'name,barcode,unit_price,quantity,category,description\n' +
+                      'Sample Product,BAR123,99.99,100,Electronics,Sample description\n';
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'products_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+      alert('Please upload a CSV or Excel file');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      // Read file content
+      const text = await file.text();
+      
+      // Send to backend
+      const response = await api.post('/tally/import', {
+        data_type: 'products',
+        data: text,
+      });
+
+      if (response.data.message) {
+        alert('Import job queued successfully. Processing in background.');
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+      }
+    } catch (error) {
+      alert('Failed to import products');
+      console.error(error);
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -106,12 +184,47 @@ export default function ProductsPage() {
               </Button>
             </>
           )}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleImportClick}
+              disabled={isImporting}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {isImporting ? 'Importing...' : 'Import CSV'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={downloadTemplate}
+              title="Download CSV template"
+            >
+              Template
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={isExporting}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Export CSV'}
+          </Button>
           <Button onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
         </div>
       </div>
+
+      {/* Hidden file input for CSV import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xlsx"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
 
       <Card>
         <CardHeader>
