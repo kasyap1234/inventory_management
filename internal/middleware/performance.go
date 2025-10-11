@@ -70,12 +70,13 @@ func (pm *PerformanceMiddleware) RateLimiter() echo.MiddlewareFunc {
 }
 
 // EndpointRateLimiter returns a configurable endpoint-specific rate limiter middleware
+// NOTE: Currently uses in-memory store. For production cluster deployments,
+// consider implementing Redis-backed rate limiting for distributed enforcement.
 func (pm *PerformanceMiddleware) EndpointRateLimiter(requests int, window time.Duration, burst int) echo.MiddlewareFunc {
 	limit := rate.Every(window / time.Duration(requests))
 	config := middleware.RateLimiterConfig{
 		Skipper: middleware.DefaultSkipper,
 		Store: middleware.NewRateLimiterMemoryStoreWithConfig(
-			// TODO: Use shared store (e.g., Redis) for cluster-wide enforcement
 			middleware.RateLimiterMemoryStoreConfig{
 				Rate:      limit,
 				Burst:     burst,

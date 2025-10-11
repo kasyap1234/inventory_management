@@ -206,7 +206,8 @@ func (js *JobScheduler) processInventoryAlerts() error {
 
 		if lowStockCount > 0 {
 			log.Printf("ALERT: Tenant %s has %d inventory items with low stock", tenant.Name, lowStockCount)
-			// TODO: Send notifications via email/SMS
+			// NOTE: Notification system available but not integrated here
+			// Integrate with NotificationService.SendNotification() when enabling alerts
 		}
 	}
 

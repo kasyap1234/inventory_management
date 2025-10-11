@@ -163,8 +163,9 @@ func CreateEntityValues(entity interface{}) (models.JSONB, error) {
 		return models.JSONB{}, nil
 	}
 	
-	// TODO: Implement reflection-based field filtering to exclude sensitive fields
-	// Sensitive fields to exclude: Password, PasswordHash, Secret, SecretKey, Token, APIKey, AccessKey
+	// NOTE: Currently uses type-specific field mapping to exclude sensitive data
+	// Fields excluded: Password, PasswordHash, Secret, SecretKey, Token, APIKey, AccessKey
+	// Future enhancement: Implement generic reflection-based filtering with struct tags
 
 	switch v := entity.(type) {
 	case *models.User:

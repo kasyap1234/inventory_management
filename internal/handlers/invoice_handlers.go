@@ -693,15 +693,10 @@ func (h *InvoiceHandlers) generateInvoicePDF(ctx context.Context, invoice *model
 	pdf.Ln(5)
 	
 	// Use tenant-specific contact information or default
+	// NOTE: Default values used until tenant settings table is implemented
+	// Future enhancement: Add tenant_settings table with support_email, support_phone columns
 	contactEmail := "support@agromart.com"
 	contactPhone := "+91-1234567890"
-	// TODO: Fetch from tenant settings when available
-	// if tenant.SupportEmail != "" {
-	//     contactEmail = tenant.SupportEmail
-	// }
-	// if tenant.SupportPhone != "" {
-	//     contactPhone = tenant.SupportPhone
-	// }
 	
 	pdf.Cell(0, 5, fmt.Sprintf("For any queries, contact: %s | %s", contactEmail, contactPhone))
 

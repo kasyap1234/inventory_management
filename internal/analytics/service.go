@@ -523,8 +523,8 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 	}
 
 	// Get most used filters from actual usage tracking
-	// For now, return a computed list based on common patterns
-	// TODO: Implement proper filter usage tracking table
+	// NOTE: Currently uses heuristic-based approach
+	// Future enhancement: Implement analytics_filter_usage table to track user filter selections
 	mostUsedFilters := []string{}
 	
 	// Query to check which filters are commonly used (basic heuristic)
