@@ -1,19 +1,693 @@
 $ next dev --turbopack -p 3000
  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
- We detected multiple lockfiles and selected the directory of /home/tgt/pnpm-lock.yaml as the root directory.
+ We detected multiple lockfiles and selected the directory of /Users/kasyapdharanikota/package-lock.json as the root directory.
  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
    See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
  Detected additional lockfiles: 
-   * /home/tgt/Documents/projects/personal/inventory_management/frontend/bun.lock
+   * /Users/kasyapdharanikota/Desktop/agro/inventory_management/frontend/bun.lock
 
- ⨯ Failed to start server
-Error: listen EADDRINUSE: address already in use :::3000
-    at <unknown> (Error: listen EADDRINUSE: address already in use :::3000)
-    at new Promise (<anonymous>) {
-  code: 'EADDRINUSE',
-  errno: -98,
-  syscall: 'listen',
-  address: '::',
-  port: 3000
-}
-[?25h
+   ▲ Next.js 15.5.4 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.7:3000
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+ ✓ Starting...
+ ✓ Compiled middleware in 101ms
+ ✓ Ready in 1140ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.4s
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET / 200 in 2679ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ○ Compiling /login ...
+ ✓ Compiled /login in 771ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET /login 200 in 825ms
+ ✓ Compiled /signup in 273ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET /signup 200 in 329ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET /signup 200 in 71ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET / 200 in 70ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET / 200 in 198ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET /login 200 in 80ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET /login?redirect=%2Fdashboard 200 in 37ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET /login?redirect=%2Fdashboard 200 in 53ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET / 200 in 86ms
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_a71539c9.module.css
+next/font: warning:
+Failed to download `Geist` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_a71539c9.module.css
+    [next]/internal/font/google/geist_a71539c9.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ ⚠ [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+next/font: warning:
+Failed to download `Geist Mono` from Google Fonts. Using fallback font instead.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/geist_mono_8d43a2aa.module.css
+    [next]/internal/font/google/geist_mono_8d43a2aa.js
+    ./Desktop/agro/inventory_management/frontend/app/layout.tsx
+
+
+ GET / 200 in 118ms

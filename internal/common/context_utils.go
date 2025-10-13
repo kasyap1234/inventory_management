@@ -245,6 +245,11 @@ func GetTenantIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	tenantID, ok := ctx.Value(TenantIDKey).(uuid.UUID)
 	return tenantID, ok
 }
+
+// SetTenantIDInContext sets the tenant ID in the request context
+func SetTenantIDInContext(ctx context.Context, tenantID uuid.UUID) context.Context {
+	return context.WithValue(ctx, TenantIDKey, tenantID)
+}
 // SanitizeHTMLElement escapes HTML characters to prevent XSS attacks
 func SanitizeHTMLElement(input string) string {
 	return html.EscapeString(input)

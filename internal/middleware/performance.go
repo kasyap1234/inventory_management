@@ -12,11 +12,24 @@ import (
 type PerformanceMiddleware struct {
 	gzipConfig        middleware.GzipConfig
 	rateLimiterConfig middleware.RateLimiterConfig
+	redisAddr         string
+	redisPassword     string
+	redisDB           int
+	useRedisRateLimit bool
 }
 
 // NewPerformanceMiddleware creates a new performance middleware instance
 func NewPerformanceMiddleware() *PerformanceMiddleware {
-	return &PerformanceMiddleware{
+	return NewPerformanceMiddlewareWithRedis("", "", 0, false)
+}
+
+// NewPerformanceMiddlewareWithRedis creates a performance middleware with Redis support
+func NewPerformanceMiddlewareWithRedis(redisAddr, redisPassword string, redisDB int, useRedis bool) *PerformanceMiddleware {
+	pm := &PerformanceMiddleware{
+		redisAddr:         redisAddr,
+		redisPassword:     redisPassword,
+		redisDB:           redisDB,
+		useRedisRateLimit: useRedis && redisAddr != "",
 		gzipConfig: middleware.GzipConfig{
 			Level: 5, // Balanced compression level (1-9, 5 is good balance)
 			Skipper: func(c echo.Context) bool {
@@ -31,15 +44,34 @@ func NewPerformanceMiddleware() *PerformanceMiddleware {
 				return false
 			},
 		},
-		rateLimiterConfig: middleware.RateLimiterConfig{
-			Skipper: middleware.DefaultSkipper,
-			Store: middleware.NewRateLimiterMemoryStoreWithConfig(
-				middleware.RateLimiterMemoryStoreConfig{
-					Rate:      100,             // 100 requests
-					Burst:     150,             // Burst up to 150
-					ExpiresIn: 1 * time.Minute, // Per minute
-				},
-			),
+	}
+	
+	// Configure rate limiter with Redis if enabled
+	var rateLimiterStore middleware.RateLimiterStore
+	if pm.useRedisRateLimit {
+		rateLimiterStore = NewRedisRateLimiterStoreWithConfig(
+			redisAddr,
+			redisPassword,
+			redisDB,
+			middleware.RateLimiterMemoryStoreConfig{
+				Rate:      100,             // 100 requests
+				Burst:     150,             // Burst up to 150
+				ExpiresIn: 1 * time.Minute, // Per minute
+			},
+		)
+	} else {
+		rateLimiterStore = middleware.NewRateLimiterMemoryStoreWithConfig(
+			middleware.RateLimiterMemoryStoreConfig{
+				Rate:      100,             // 100 requests
+				Burst:     150,             // Burst up to 150
+				ExpiresIn: 1 * time.Minute, // Per minute
+			},
+		)
+	}
+	
+	pm.rateLimiterConfig = middleware.RateLimiterConfig{
+		Skipper: middleware.DefaultSkipper,
+		Store:   rateLimiterStore,
 			IdentifierExtractor: func(c echo.Context) (string, error) {
 				// Rate limit by IP address
 				id := c.RealIP()
@@ -55,8 +87,9 @@ func NewPerformanceMiddleware() *PerformanceMiddleware {
 					"error": "Rate limit exceeded",
 				})
 			},
-		},
 	}
+	
+	return pm
 }
 
 // Gzip returns the configured gzip middleware

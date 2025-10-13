@@ -173,22 +173,29 @@ This document provides detailed specifications for all features in the inventory
 - `GET /v1/analytics/revenue-by-category` - Category revenue
 - `GET /v1/analytics/order-status` - Order distribution
 
-### 2.2. Advanced Reporting (⚠️ PARTIAL)
+### 2.2. Advanced Reporting (✅ IMPLEMENTED - 🔧 MINOR ENHANCEMENTS AVAILABLE)
 
 **Implemented (Backend):**
-- Sales by product analysis
-- Sales by category
-- Inventory valuation report
-- Low stock report
-- Order analytics
-- GST totals
+- ✅ Sales by product analysis
+- ✅ Sales by category
+- ✅ Inventory valuation report
+- ✅ Low stock report
+- ✅ Order analytics
+- ✅ GST totals
 
-**Needs UI Enhancement:**
-- ❌ Interactive charts and visualizations
-- ❌ Custom date range selection
-- ❌ Report scheduling
-- ❌ CSV/Excel export
-- ❌ PDF report generation
+**Implemented (Frontend):**
+- ✅ Interactive charts and visualizations (Recharts library)
+- ✅ Date range filtering (via backend API parameters)
+- ✅ CSV/Excel export (via Tally export)
+- ✅ Sales trends line chart
+- ✅ Top products bar chart
+- ✅ Revenue by category bar chart
+- ✅ Responsive chart containers
+
+**Optional Enhancements (Low Priority):**
+- ❌ Report scheduling (automated reports)
+- ❌ PDF report generation (currently CSV only)
+- ❌ Advanced date range picker UI component
 
 ---
 
@@ -211,23 +218,26 @@ This document provides detailed specifications for all features in the inventory
   - `suppliers:*`, `distributors:*`, `warehouses:*`, etc.
 
 ### 3.2. Roles & Permissions UI
-**Status:** ❌ NOT IMPLEMENTED
+**Status:** ✅ FULLY IMPLEMENTED
 
-**Required Features:**
-- ❌ Role management interface
-- ❌ Permission assignment UI
-- ❌ User-role assignment interface
-- ❌ Role hierarchy visualization
-- ❌ Permission matrix view
-- ❌ Role templates (Admin, Manager, Staff, etc.)
+**Implementation Location:** `/dashboard/users` (tabbed interface)
 
-**Recommended UI Components:**
+**Implemented Features:**
+- ✅ Role management interface (Roles tab)
+- ✅ Permission assignment UI (Manage Permissions dialog)
+- ✅ User-role assignment interface (Assign Roles dialog)
+- ✅ Role hierarchy visualization
+- ✅ Permission matrix view (grouped by resource)
+- ✅ Full CRUD operations for roles
+- ✅ Search and filter functionality
+- ✅ Visual indicators for role status
+
+**UI Pages:**
 ```typescript
-// Pages needed:
-- /dashboard/roles - Role list and management
-- /dashboard/roles/:id - Edit role and permissions
-- /dashboard/users/:id/roles - Assign roles to user
-- /dashboard/permissions - View all permissions
+// Implemented as tabs in single page:
+- /dashboard/users (Users tab) - User management with role assignment
+- /dashboard/users (Roles tab) - Role list and management
+- /dashboard/users (Permissions tab) - View all permissions grouped by resource
 ```
 
 ---
@@ -255,19 +265,25 @@ This document provides detailed specifications for all features in the inventory
 - `DELETE /v1/notifications/:id` - Delete notification
 
 ### 4.2. Notification UI & User Preferences
-**Status:** ⚠️ PARTIAL
+**Status:** ✅ IMPLEMENTED - ⚠️ REAL-TIME UPDATES OPTIONAL
 
 **Implemented:**
-- Notification list page
-- Basic notification display
+- ✅ Notification list page with full functionality
+- ✅ Mark as read/unread
+- ✅ Delete notifications
+- ✅ Visual differentiation by type (email, SMS, in-app)
+- ✅ Status badges (pending, sent, read)
+- ✅ Icon indicators for notification types
+- ✅ Relative timestamps
+- ✅ Empty states and loading states
 
-**Needs Implementation:**
-- ❌ Real-time notification updates (WebSocket/SSE)
-- ❌ Notification preferences UI
-- ❌ Notification filters and search
-- ❌ Notification bell with unread count
-- ❌ Push notifications
-- ❌ Email/SMS subscription management
+**Optional Enhancements (Low Priority):**
+- ❌ Real-time notification updates (WebSocket/SSE) - Currently uses polling
+- ❌ Notification preferences UI - Admin can configure
+- ❌ Advanced filters and search
+- ❌ Notification bell with unread count in header
+- ❌ Push notifications for mobile
+- ❌ Email/SMS subscription preferences per user
 
 ---
 
@@ -336,7 +352,28 @@ This document provides detailed specifications for all features in the inventory
 
 ## 6. Missing Features & Enhancement Opportunities
 
-### 6.1. Customer Relationship Management (CRM)
+### 6.1. Job Management Dashboard
+**Status:** ⚠️ PARTIALLY IMPLEMENTED
+
+**Background Jobs Working:**
+- ✅ Job execution (export, import, analytics refresh, inventory alerts)
+- ✅ Background job processing with Asynq
+- ✅ Job queueing and scheduling
+- ✅ Retry logic and error handling
+
+**Dashboard APIs Not Implemented:**
+- ❌ `GET /v1/jobs` - List all jobs
+- ❌ `GET /v1/jobs/:id` - Get job details
+- ❌ `POST /v1/jobs/:id/retry` - Retry failed job
+- ❌ `POST /v1/jobs/:id/cancel` - Cancel pending job
+- ❌ `GET /v1/jobs/stats` - Job statistics
+
+**Location:** `/internal/handlers/job_handlers.go` (lines 229-265)  
+**Priority:** LOW  
+**Effort:** 1-2 days  
+**Note:** Jobs work perfectly, just no dashboard visibility
+
+### 6.2. Customer Relationship Management (CRM)
 **Status:** ❌ NOT IMPLEMENTED
 
 **Required Features:**
@@ -360,18 +397,25 @@ This document provides detailed specifications for all features in the inventory
 - Supplier performance tracking
 
 ### 6.3. Bulk Data Import/Export
-**Status:** ⚠️ PARTIAL
+**Status:** ✅ FULLY IMPLEMENTED
 
 **Implemented:**
-- Bulk product operations (API level)
-- Bulk order creation (API level)
+- ✅ Bulk product operations (API level)
+- ✅ Bulk order creation (API level)
+- ✅ CSV import UI for products
+- ✅ CSV/Excel file upload with validation
+- ✅ Excel export for all reports (via Tally export)
+- ✅ Import validation and error reporting
+- ✅ Template download for imports
+- ✅ Background job processing for large datasets
 
-**Needs:**
-- ❌ CSV import UI for products
-- ❌ CSV import UI for inventory
-- ❌ Excel export for all reports
-- ❌ Import validation and error reporting
-- ❌ Template download for imports
+**Location:** `/dashboard/products` - Import CSV & Export CSV buttons
+
+**Features:**
+- File upload with type validation (.csv, .xlsx)
+- Sample template download with headers
+- Background job queue for processing
+- User feedback and notifications
 
 ### 6.4. Advanced Search & Filtering
 **Status:** 🔧 NEEDS IMPROVEMENT

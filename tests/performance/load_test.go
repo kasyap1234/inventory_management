@@ -2,355 +2,393 @@ package performance
 
 import (
 	"context"
-	"sync"
+	"fmt"
+	"math/rand"
+	"os"
 	"testing"
 	"time"
-	"runtime"
-	"github.com/stretchr/testify/assert"
+
+	"agromart2/internal/models"
+	"agromart2/internal/repositories"
+	"agromart2/internal/services"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// LoadTestSuite provides enterprise-grade performance and load testing
-type LoadTestSuite struct {
-}
-// TestConcurrentUserSimulation simulates 100+ concurrent users
-func (suite *LoadTestSuite) TestConcurrentUserSimulation(t *testing.T) {
-	ctx := context.Background()
+// setupPerformanceTestDB creates a test database for performance tests
+func setupPerformanceTestDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 
-
-	const concurrentUsers = 100
-	const operationsPerUser = 10
-
-	// Simulate concurrent user operations
-	totalOperations := concurrentUsers * operationsPerUser
-	var wg sync.WaitGroup
-	results := make(chan OperationResult, totalOperations)
-
-	startTime := time.Now()
-
-	// Launch concurrent users
-	for userID := 0; userID < concurrentUsers; userID++ {
-		for operationID := 0; operationID < operationsPerUser; operationID++ {
-			wg.Add(1)
-			go func(user, operation int) {
-				defer wg.Done()
-
-				result := simulateUserOperation(ctx, user, operation)
-				results <- result
-			}(userID, operationID)
-		}
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL environment variable not set, skipping performance tests")
 	}
 
-	// Wait for all operations to complete
-	wg.Wait()
-	close(results)
+	pool, err := pgxpool.New(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatalf("Unable to connect to test database: %v", err)
+	}
 
-	duration := time.Since(startTime)
+	// Ping the database to ensure a good connection
+	if err := pool.Ping(context.Background()); err != nil {
+		t.Fatalf("Failed to ping test database: %v", err)
+	}
 
-	// Analyze results
-	var successCount, failureCount int
-	totalResponseTime := time.Duration(0)
-	minResponseTime := time.Hour
-	maxResponseTime := time.Duration(0)
+	return pool
+}
 
-	for result := range results {
-		if result.Success {
-			successCount++
-			totalResponseTime += result.ResponseTime
-			if result.ResponseTime < minResponseTime {
-				minResponseTime = result.ResponseTime
+// seedPerformanceData creates test data for performance tests
+func seedPerformanceData(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, numProducts int) {
+	t.Helper()
+
+	// Create category first
+	categoryRepo := repositories.NewCategoryRepo(pool)
+	category := &models.Category{
+		ID:          uuid.New(),
+		TenantID:    tenantID,
+		Name:        "Performance Test Category",
+		Description: "Category for performance testing",
+	}
+	err := categoryRepo.Create(context.Background(), category)
+	if err != nil {
+		t.Fatalf("Failed to create category: %v", err)
+	}
+
+	// Create products
+	productRepo := repositories.NewProductRepo(pool)
+	for i := 0; i < numProducts; i++ {
+		batchNum := fmt.Sprintf("BATCH_PERF_%d", i)
+		barcode := fmt.Sprintf("PERF_BARCODE_%d", i)
+		uom := "pcs"
+		desc := fmt.Sprintf("Description for performance product %d", i)
+
+		product := &models.Product{
+			ID:             uuid.New(),
+			TenantID:       tenantID,
+			CategoryID:     &category.ID,
+			Name:           fmt.Sprintf("Performance Product %d", i),
+			BatchNumber:    &batchNum,
+			Quantity:       rand.Intn(1000) + 1, // Random quantity 1-1000
+			UnitPrice:      rand.Float64()*1000 + 10, // Random price 10-1010
+			Barcode:        &barcode,
+			UnitOfMeasure:  &uom,
+			Description:    &desc,
+		}
+
+		err := productRepo.Create(context.Background(), product)
+		if err != nil {
+			t.Fatalf("Failed to create product %d: %v", i, err)
+		}
+	}
+}
+
+// BenchmarkProductRepository benchmarks product repository operations
+func BenchmarkProductRepository(b *testing.B) {
+	pool := setupPerformanceTestDB(&testing.T{})
+	defer pool.Close()
+
+	tenantID := uuid.New()
+
+	// Setup performance data
+	seedPerformanceData(&testing.T{}, pool, tenantID, 100)
+
+	repo := repositories.NewProductRepo(pool)
+	ctx := context.Background()
+
+	b.ResetTimer()
+
+	b.Run("GetByID", func(b *testing.B) {
+		productID := uuid.New()
+		// Create a test product for benchmarking
+		testProduct := &models.Product{
+			ID:        productID,
+			TenantID:  tenantID,
+			Name:      "Benchmark Product",
+			Quantity:  100,
+			UnitPrice: 29.99,
+		}
+		err := repo.Create(ctx, testProduct)
+		if err != nil {
+			b.Fatalf("Failed to create test product: %v", err)
+		}
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, err := repo.GetByID(ctx, tenantID, productID)
+				if err != nil {
+					b.Errorf("GetByID failed: %v", err)
+				}
 			}
-			if result.ResponseTime > maxResponseTime {
-				maxResponseTime = result.ResponseTime
+		})
+	})
+
+	b.Run("List", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, err := repo.List(ctx, tenantID, 50, 0)
+				if err != nil {
+					b.Errorf("List failed: %v", err)
+				}
 			}
-		} else {
-			failureCount++
+		})
+	})
+
+	b.Run("Search", func(b *testing.B) {
+		testCases := []struct {
+			name  string
+			query string
+		}{
+			{"ExactMatch", "Performance Product 50"},
+			{"PartialMatch", "Performance"},
+			{"NoMatch", "NonExistentProduct12345"},
 		}
-	}
 
-	avgResponseTime := totalResponseTime / time.Duration(successCount)
-
-	// Enterprise-grade assertions
-	t.Logf("Load Test Results: %d concurrent users, %d operations each", concurrentUsers, operationsPerUser)
-	t.Logf("Total duration: %v", duration)
-	t.Logf("Success rate: %.2f%% (%d/%d)", float64(successCount)/float64(totalOperations)*100, successCount, totalOperations)
-	t.Logf("Average response time: %v", avgResponseTime)
-	t.Logf("Min response time: %v", minResponseTime)
-	t.Logf("Max response time: %v", maxResponseTime)
-
-	// SLA validation: < 200ms target response time
-	assert.True(t, avgResponseTime < 200*time.Millisecond, "Average response time should be < 200ms for SLA compliance")
-
-	// High success rate validation: > 95% success rate
-	successRate := float64(successCount) / float64(totalOperations)
-	assert.True(t, successRate > 0.95, "Success rate should be > 95%%")
-
-	// Throughput validation
-	operationsPerSecond := float64(totalOperations) / duration.Seconds()
-	t.Logf("Throughput: %.2f operations/sec", operationsPerSecond)
-
-	assert.True(t, operationsPerSecond > 100, "Should achieve > 100 operations/sec under load")
-}
-
-// TestMemoryUsageUnderLoad monitors memory usage patterns
-func (suite *LoadTestSuite) TestMemoryUsageUnderLoad(t *testing.T) {
-
-	var memStats runtime.MemStats
-
-	// Initial memory snapshot
-	runtime.GC()
-	runtime.ReadMemStats(&memStats)
-	initialAlloc := memStats.TotalAlloc
-	initialGC := memStats.NumGC
-
-	t.Logf("Initial memory allocation: %d bytes", initialAlloc)
-	t.Logf("Initial GC cycles: %d", initialGC)
-
-	// Simulate sustained load
-	const loadDuration = 30 * time.Second
-	const concurrentOperations = 50
-
-	done := make(chan struct{})
-	go func() {
-		time.Sleep(loadDuration)
-		close(done)
-	}()
-
-	var wg sync.WaitGroup
-	ctx := context.Background()
-
-	// Continuous load simulation
-	for time.Since(time.Now()) < loadDuration {
-		for i := 0; i < concurrentOperations; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				simulateMemoryIntensiveOperation(ctx)
-			}()
-		}
-		wg.Wait() // Wait for batch to complete
-	}
-
-	// Final memory snapshot
-	runtime.GC()
-	runtime.ReadMemStats(&memStats)
-	finalAlloc := memStats.TotalAlloc
-	finalGC := memStats.NumGC
-
-	memoryIncrease := finalAlloc - initialAlloc
-	gcIncrease := finalGC - initialGC
-
-	t.Logf("Final memory allocation: %d bytes", finalAlloc)
-	t.Logf("Final GC cycles: %d", finalGC)
-	t.Logf("Memory increase: %d bytes", memoryIncrease)
-	t.Logf("Additional GC cycles: %d", gcIncrease)
-
-	// Enterprise memory efficiency assertions
-	// Memory should not grow excessively under sustained load
-	maxAcceptableMemoryGrowth := uint64(50 * 1024 * 1024) // 50MB acceptable growth
-	assert.True(t, memoryIncrease < maxAcceptableMemoryGrowth, "Memory growth should be < 50MB under sustained load")
-
-	// GC efficiency validation
-	assert.True(t, gcIncrease < 50, "GC cycles should be < 50 under sustained operations")
-}
-
-// TestSystemStabilityUnderLoad validates system stability
-func (suite *LoadTestSuite) TestSystemStabilityUnderLoad(t *testing.T) {
-	ctx := context.Background()
-
-	// Setup different load patterns
-	loadScenarios := []LoadScenario{
-		{"Steady Load", 50, 20 * time.Second, 10},
-		{"Spike Load", 100, 10 * time.Second, 20},
-		{"Burst Load", 25, 5 * time.Second, 20},
-	}
-
-	for _, scenario := range loadScenarios {
-		t.Run(scenario.Name, func(t *testing.T) {
-			startTime := time.Now()
-			results := runLoadScenario(ctx, scenario)
-
-			duration := time.Since(startTime)
-			totalOperations := len(results)
-
-			var successCount int
-			var totalResponseTime time.Duration
-			var minResponseTime = time.Hour
-			var maxResponseTime time.Duration
-
-			for _, result := range results {
-				if result.Success {
-					successCount++
-					totalResponseTime += result.ResponseTime
-					if result.ResponseTime < minResponseTime {
-						minResponseTime = result.ResponseTime
+		for _, tc := range testCases {
+			b.Run(tc.name, func(b *testing.B) {
+				b.RunParallel(func(pb *testing.PB) {
+					for pb.Next() {
+						_, err := repo.Search(ctx, tenantID, tc.query, nil, 50, 0)
+						if err != nil {
+							b.Errorf("Search failed: %v", err)
+						}
 					}
-					if result.ResponseTime > maxResponseTime {
-						maxResponseTime = result.ResponseTime
+				})
+			})
+		}
+	})
+}
+
+// BenchmarkProductService benchmarks product service operations
+func BenchmarkProductService(b *testing.B) {
+	pool := setupPerformanceTestDB(&testing.T{})
+	defer pool.Close()
+
+	tenantID := uuid.New()
+
+	// Setup performance data
+	seedPerformanceData(&testing.T{}, pool, tenantID, 50)
+
+	productRepo := repositories.NewProductRepo(pool)
+	inventoryRepo := repositories.NewInventoryRepo(pool)
+	categoryRepo := repositories.NewCategoryRepo(pool)
+	productImageRepo := repositories.NewProductImageRepo(pool)
+
+	service := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, nil, nil)
+	ctx := context.Background()
+
+	b.ResetTimer()
+
+	b.Run("Create", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				product := &models.Product{
+					TenantID:  tenantID,
+					Name:      fmt.Sprintf("Bench Create Product %d", rand.Int()),
+					Quantity:  10,
+					UnitPrice: 25.99,
+				}
+
+				err := service.Create(ctx, tenantID, product)
+				if err != nil {
+					b.Errorf("Create failed: %v", err)
+				}
+			}
+		})
+	})
+
+	b.Run("GetByID", func(b *testing.B) {
+		// Get existing product ID for benchmarking
+		products, err := service.List(ctx, tenantID, 1, 0)
+		if err != nil || len(products) == 0 {
+			b.Skip("No products available for GetByID benchmark")
+		}
+		productID := products[0].ID
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, err := service.GetByID(ctx, tenantID, productID)
+				if err != nil {
+					b.Errorf("GetByID failed: %v", err)
+				}
+			}
+		})
+	})
+
+	b.Run("List", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, err := service.List(ctx, tenantID, 10, 0)
+				if err != nil {
+					b.Errorf("List failed: %v", err)
+				}
+			}
+		})
+	})
+}
+
+// LoadTest simulates concurrent load on the product service
+func TestLoadProductService(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping load test in short mode")
+	}
+
+	pool := setupPerformanceTestDB(t)
+	defer pool.Close()
+
+	tenantID := uuid.New()
+
+	// Setup initial data
+	seedPerformanceData(t, pool, tenantID, 20)
+
+	productRepo := repositories.NewProductRepo(pool)
+	inventoryRepo := repositories.NewInventoryRepo(pool)
+	categoryRepo := repositories.NewCategoryRepo(pool)
+	productImageRepo := repositories.NewProductImageRepo(pool)
+
+	service := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, nil, nil)
+	ctx := context.Background()
+
+	// Load test configuration
+	const (
+		numGoroutines   = 50  // Concurrent users
+		operationsPerGo = 20  // Operations per goroutine
+	)
+
+	start := time.Now()
+
+	// Channel to track completion
+	done := make(chan bool, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(goroutineID int) {
+			for j := 0; j < operationsPerGo; j++ {
+				// Mix of operations: 70% reads, 30% writes
+				if rand.Float32() < 0.7 {
+					// Read operation
+					_, err := service.List(ctx, tenantID, 10, 0)
+					if err != nil {
+						t.Errorf("Goroutine %d: List failed: %v", goroutineID, err)
+					}
+				} else {
+					// Write operation
+					product := &models.Product{
+						TenantID:  tenantID,
+						Name:      fmt.Sprintf("Load Test Product G%d O%d", goroutineID, j),
+						Quantity:  rand.Intn(100) + 1,
+						UnitPrice: rand.Float64()*100 + 10,
+					}
+
+					err := service.Create(ctx, tenantID, product)
+					if err != nil {
+						t.Errorf("Goroutine %d: Create failed: %v", goroutineID, err)
 					}
 				}
 			}
+			done <- true
+		}(i)
+	}
 
-			if successCount > 0 {
-				avgResponseTime := totalResponseTime / time.Duration(successCount)
-				successRate := float64(successCount) / float64(totalOperations)
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
 
-				t.Logf("Scenario: %s", scenario.Name)
-				t.Logf("Duration: %v", duration)
-				t.Logf("Operations: %d", totalOperations)
-				t.Logf("Success Rate: %.2f%%", successRate*100)
-				t.Logf("Avg Response Time: %v", avgResponseTime)
-				t.Logf("95th Percentile: %v", maxResponseTime)
+	elapsed := time.Since(start)
 
-				// Stability assertions
-				assert.True(t, successRate > 0.90, "Success rate should be > 90%% for stability")
-				assert.True(t, avgResponseTime < 500*time.Millisecond, "Average response time should be < 500ms")
-				assert.True(t, minResponseTime > 0, "All operations should complete")
-			}
-		})
+	// Calculate metrics
+	totalOperations := numGoroutines * operationsPerGo
+	opsPerSecond := float64(totalOperations) / elapsed.Seconds()
+
+	t.Logf("Load Test Results:")
+	t.Logf("Total operations: %d", totalOperations)
+	t.Logf("Elapsed time: %v", elapsed)
+	t.Logf("Operations per second: %.2f", opsPerSecond)
+	t.Logf("Average response time: %.2f ms", float64(elapsed.Milliseconds())/float64(totalOperations))
+
+	// Performance assertions
+	if opsPerSecond < 50 {
+		t.Errorf("Throughput too low: %.2f ops/sec (minimum: 50)", opsPerSecond)
+	}
+
+	if elapsed > 30*time.Second {
+		t.Errorf("Test took too long: %v (maximum: 30s)", elapsed)
 	}
 }
 
-// TestResourceLeakDetection performs resource leak detection
-func (suite *LoadTestSuite) TestResourceLeakDetection(t *testing.T) {
-
-	// Monitor goroutines
-	initialGoroutines := runtime.NumGoroutine()
-	t.Logf("Initial goroutines: %d", initialGoroutines)
-
-	// Simulate workload that might create goroutines
-	const iterations = 100
-
-	for i := 0; i < iterations; i++ {
-		wg := sync.WaitGroup{}
-		for j := 0; j < 10; j++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				// Simulate work
-				time.Sleep(1 * time.Millisecond)
-			}()
-		}
-		wg.Wait()
+// StressTest simulates extreme load conditions
+func TestStressProductService(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping stress test in short mode")
 	}
 
-	// Allow some settling time
-	time.Sleep(100 * time.Millisecond)
+	pool := setupPerformanceTestDB(t)
+	defer pool.Close()
 
-	finalGoroutines := runtime.NumGoroutine()
-	goroutineLeak := finalGoroutines - initialGoroutines
+	tenantID := uuid.New()
 
-	t.Logf("Final goroutines: %d", finalGoroutines)
-	t.Logf("Potential goroutine leak: %d", goroutineLeak)
+	// Create minimal initial data
+	categoryRepo := repositories.NewCategoryRepo(pool)
+	category := &models.Category{
+		ID:          uuid.New(),
+		TenantID:    tenantID,
+		Name:        "Stress Test Category",
+		Description: "Category for stress testing",
+	}
+	err := categoryRepo.Create(context.Background(), category)
+	if err != nil {
+		t.Fatalf("Failed to create category: %v", err)
+	}
 
-	// Assert no significant goroutine leaks
-	maxAcceptableLeak := 5 // Allow some variation
-	assert.True(t, goroutineLeak < maxAcceptableLeak, "Goroutine leak should be < %d", maxAcceptableLeak)
-}
+	productRepo := repositories.NewProductRepo(pool)
+	inventoryRepo := repositories.NewInventoryRepo(pool)
+	productImageRepo := repositories.NewProductImageRepo(pool)
 
-// Supporting types and functions
+	service := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, nil, nil)
+	ctx := context.Background()
 
-type OperationResult struct {
-	Success      bool
-	ResponseTime time.Duration
-	UserID       int
-	Error        string
-}
+	// Stress test: rapid fire operations
+	const numOperations = 200
 
-type LoadScenario struct {
-	Name           string
-	ConcurrentOps  int
-	Duration       time.Duration
-	OperationsPerSec int
-}
-
-func simulateUserOperation(ctx context.Context, userID, operationID int) OperationResult {
 	start := time.Now()
 
-	// Simulate varying operation times
-	baseDelay := time.Duration(10+userID%50) * time.Millisecond
-
-	// Add some randomness to simulate real-world variability
-	select {
-	case <-time.After(baseDelay):
-		// Success case most of the time
-		return OperationResult{
-			Success:      true,
-			ResponseTime: time.Since(start),
-			UserID:       userID,
+	// Create many products quickly
+	for i := 0; i < numOperations; i++ {
+		product := &models.Product{
+			TenantID:   tenantID,
+			Name:       fmt.Sprintf("Stress Product %d", i),
+			Quantity:   100,
+			UnitPrice:  29.99,
+			CategoryID: &category.ID,
 		}
-	case <-time.After(baseDelay + time.Duration(operationID%10)*time.Millisecond):
-		// Rare failure case to test error handling
-		return OperationResult{
-			Success:      false,
-			ResponseTime: time.Since(start),
-			UserID:       userID,
-			Error:        "simulated failure",
+
+		err := service.Create(ctx, tenantID, product)
+		if err != nil {
+			t.Errorf("Failed to create product %d: %v", i, err)
 		}
 	}
-}
 
-func simulateMemoryIntensiveOperation(ctx context.Context) {
-	// Create some memory pressure
-	data := make([]int, 1000)
-	for i := range data {
-		data[i] = i * 2
-	}
-	// Allow GC to clean up
-	time.Sleep(10 * time.Millisecond)
-}
+	elapsed := time.Since(start)
+	opsPerSecond := float64(numOperations) / elapsed.Seconds()
 
-func runLoadScenario(ctx context.Context, scenario LoadScenario) []OperationResult {
-	results := make([]OperationResult, 0)
-	resultsChan := make(chan OperationResult, scenario.ConcurrentOps*scenario.OperationsPerSec)
-	done := make(chan struct{})
+	t.Logf("Stress Test Results:")
+	t.Logf("Created %d products in %v", numOperations, elapsed)
+	t.Logf("Operations per second: %.2f", opsPerSecond)
 
-	// Start operations
-	go func() {
-		startTime := time.Now()
-		for time.Since(startTime) < scenario.Duration {
-			for i := 0; i < scenario.ConcurrentOps; i++ {
-				go func(userID, opID int) {
-					result := simulateUserOperation(ctx, userID, opID)
-					select {
-					case <-done:
-						return
-					case resultsChan <- result:
-					}
-				}(i, int(time.Since(startTime).Nanoseconds())%1000)
-			}
-			time.Sleep(time.Second / time.Duration(scenario.OperationsPerSec))
-		}
-		close(done)
-	}()
-
-	// Collect results
-	for result := range resultsChan {
-		results = append(results, result)
+	// Verify data integrity
+	products, err := service.List(ctx, tenantID, 1000, 0)
+	if err != nil {
+		t.Fatalf("Failed to verify created products: %v", err)
 	}
 
-	return results
-}
-
-// BenchmarkEnterpriseOperations provides performance benchmarks
-func BenchmarkEnterpriseOperations(b *testing.B) {
-	ctx := context.Background()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = simulateUserOperation(ctx, i, 0)
+	if len(products) != numOperations {
+		t.Errorf("Data integrity check failed: expected %d products, got %d", numOperations, len(products))
 	}
-}
 
-// BenchmarkConcurrentLoad tests concurrent load handling
-func BenchmarkConcurrentLoad(b *testing.B) {
-	ctx := context.Background()
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		userID := 0
-		for pb.Next() {
-			simulateUserOperation(ctx, userID, 0)
-			userID++
-		}
-	})
+	// Performance thresholds for stress test
+	if opsPerSecond < 20 {
+		t.Errorf("Stress test throughput too low: %.2f ops/sec (minimum: 20)", opsPerSecond)
+	}
 }

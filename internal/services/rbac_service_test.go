@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"agromart2/internal/models"
+	"agromart2/testhelpers"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ type RBACServiceTestSuite struct {
 	mockUserRoleRepo       *MockUserRoleRepository
 	mockRolePermissionRepo *MockRolePermissionRepository
 	mockPermissionRepo     *MockPermissionRepository
-	mockCacheService       *MockCacheService
+	mockCacheService       *testhelpers.MockCacheService
 	service                RBACService
 	serviceWithCache       RBACService
 	tenantID               uuid.UUID
@@ -37,7 +38,7 @@ func (suite *RBACServiceTestSuite) SetupTest() {
 	suite.mockUserRoleRepo = &MockUserRoleRepository{}
 	suite.mockRolePermissionRepo = &MockRolePermissionRepository{}
 	suite.mockPermissionRepo = &MockPermissionRepository{}
-	suite.mockCacheService = &MockCacheService{}
+	suite.mockCacheService = &testhelpers.MockCacheService{}
 
 	// Service without cache (for backward compatibility testing)
 	suite.service = NewRBACService(

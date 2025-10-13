@@ -15,10 +15,11 @@ type TallyConfig struct {
 
 // TallyIntegration contains API and database settings for Tally
 type TallyIntegration struct {
-	APIKey      string `toml:"api_key"`
-	APISecret   string `toml:"api_secret"`
-	APIEndpoint string `toml:"api_endpoint"`
-	DatabaseURL string `toml:"database_url"`
+	APIKey          string `toml:"api_key"`
+	APISecret       string `toml:"api_secret"`
+	APIEndpoint     string `toml:"api_endpoint"`
+	DatabaseURL     string `toml:"database_url"`
+	TestDatabaseURL string `toml:"test_database_url"`
 }
 
 // QueuingConfig contains Redis and concurrency settings

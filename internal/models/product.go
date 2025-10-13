@@ -44,6 +44,19 @@ type ProductBulkCreate struct {
 	TransactionMode  string               `json:"transaction_mode"`                            // Mode: "atomic", "best_effort" - default atomic
 }
 
+// ProductUpdateData represents the data structure for updating a product
+type ProductUpdateData struct {
+	Name        *string  `json:"name,omitempty"`
+	UnitPrice   *float64 `json:"unit_price,omitempty"`
+	Quantity    *int     `json:"quantity,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Barcode     *string  `json:"barcode,omitempty"`
+	CategoryID  *uuid.UUID `json:"category_id,omitempty"`
+	BatchNumber *string  `json:"batch_number,omitempty"`
+	ExpiryDate  *time.Time `json:"expiry_date,omitempty"`
+	UnitOfMeasure *string `json:"unit_of_measure,omitempty"`
+}
+
 type Product struct {
 	ID             uuid.UUID `json:"id" db:"id"`
 	TenantID       uuid.UUID `json:"tenant_id" db:"tenant_id"`

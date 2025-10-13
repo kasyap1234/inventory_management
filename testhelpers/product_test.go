@@ -18,12 +18,12 @@ func TestProductRepository(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	testDB := SetupTestDB(t, "")
-	defer testDB.Cleanup()
+	testDB := NewTestDB(t, "host=localhost port=5432 user=postgres password=postgres dbname=agromart2_test sslmode=disable")
+	defer testDB.Close()
 
 	// Setup test data
-	tenantID := SetupTestTenant(t, testDB)
-	categoryID := SetupTestCategory(t, testDB, tenantID)
+	tenantID := testDB.CreateTestTenant(t)
+	categoryID := testDB.CreateTestCategory(t, tenantID, "Test Category")
 
 	// Initialize repository
 	repo := repositories.NewProductRepo(testDB.Pool)
@@ -120,7 +120,7 @@ func TestProductRepository(t *testing.T) {
 		assert.True(t, len(products) > 0)
 
 		// Verify tenant isolation
-		otherTenantID := SetupTestTenant(t, testDB)
+		otherTenantID := testDB.CreateTestTenant(t)
 		otherProducts, err := repo.List(context.Background(), otherTenantID, 10, 0)
 		require.NoError(t, err)
 		assert.Len(t, otherProducts, 0)

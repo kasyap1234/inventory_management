@@ -2,184 +2,382 @@ package testhelpers
 
 import (
 	"context"
+	"log"
+	"os"
 	"testing"
-	"time"
 
+	"agromart2/internal/config"
+	"agromart2/internal/models"
+	"agromart2/internal/repositories"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/require"
 )
 
-// TestDB represents a test database connection
+// TestDB wraps the database connection with helper methods
 type TestDB struct {
-	Pool *pgxpool.Pool
-	ctx  context.Context
+	Pool    *pgxpool.Pool
+	t       *testing.T
+	cleanup []func()
 }
 
-// NewTestDB creates a new test database connection
-// This should be called once per test suite
-func NewTestDB(t *testing.T, databaseURL string) *TestDB {
-	ctx := context.Background()
-	
-	pool, err := pgxpool.New(ctx, databaseURL)
-	require.NoError(t, err, "Failed to connect to test database")
-	
-	// Verify connection
-	err = pool.Ping(ctx)
-	require.NoError(t, err, "Failed to ping test database")
-	
+// NewTestDB creates a new test database helper
+func NewTestDB(t *testing.T, connectionString string) *TestDB {
+	t.Helper()
+
+	pool, err := pgxpool.New(context.Background(), connectionString)
+	if err != nil {
+		t.Fatalf("Unable to connect to test database: %v", err)
+	}
+
+	if err := pool.Ping(context.Background()); err != nil {
+		t.Fatalf("Failed to ping test database: %v", err)
+	}
+
 	return &TestDB{
-		Pool: pool,
-		ctx:  ctx,
+		Pool:    pool,
+		t:       t,
+		cleanup: make([]func(), 0),
 	}
 }
 
-// Close closes the test database connection
-func (db *TestDB) Close() {
-	if db.Pool != nil {
-		db.Pool.Close()
-	}
+// stringPtr returns a pointer to the given string
+func StringPtr(s string) *string {
+	return &s
 }
 
-// TruncateTables truncates all tables for clean test state
-func (db *TestDB) TruncateTables(t *testing.T, tables []string) {
-	for _, table := range tables {
-		_, err := db.Pool.Exec(db.ctx, "TRUNCATE TABLE "+table+" CASCADE")
-		require.NoError(t, err, "Failed to truncate table: "+table)
+// intPtr returns a pointer to the given int
+func IntPtr(i int) *int {
+	return &i
+}
+
+// floatPtr returns a pointer to the given float64
+func FloatPtr(f float64) *float64 {
+	return &f
+}
+
+// Close closes the database connection and runs cleanup functions
+func (td *TestDB) Close() {
+	for i := len(td.cleanup) - 1; i >= 0; i-- {
+		td.cleanup[i]()
 	}
+	td.Pool.Close()
 }
 
 // CreateTestTenant creates a test tenant and returns its ID
-func (db *TestDB) CreateTestTenant(t *testing.T) uuid.UUID {
+func (td *TestDB) CreateTestTenant(t *testing.T) uuid.UUID {
+	t.Helper()
+
 	tenantID := uuid.New()
-	
-	query := `
-		INSERT INTO tenants (id, name, subdomain, status)
-		VALUES ($1, $2, $3, $4)
-	`
-	
-	_, err := db.Pool.Exec(db.ctx, query, tenantID, "Test Tenant", "test-"+tenantID.String()[:8], "active")
-	require.NoError(t, err, "Failed to create test tenant")
-	
+	subdomain := "test-" + tenantID.String()[:8]
+
+	tenant := &models.Tenant{
+		ID:        tenantID,
+		Name:      "Test Tenant " + tenantID.String()[:8],
+		Subdomain: subdomain,
+		Status:    "active",
+	}
+
+	tenantRepo := repositories.NewTenantRepo(td.Pool)
+	err := tenantRepo.Create(context.Background(), tenant)
+	if err != nil {
+		t.Fatalf("Failed to create test tenant: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = tenantRepo.Delete(context.Background(), tenantID)
+	})
+
 	return tenantID
 }
 
 // CreateTestUser creates a test user and returns its ID
-func (db *TestDB) CreateTestUser(t *testing.T, tenantID uuid.UUID, email string, passwordHash string) uuid.UUID {
+func (td *TestDB) CreateTestUser(t *testing.T, tenantID uuid.UUID) uuid.UUID {
+	t.Helper()
+
 	userID := uuid.New()
-	
-	query := `
-		INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-	
-	_, err := db.Pool.Exec(db.ctx, query, userID, tenantID, email, passwordHash, "Test", "User", "active")
-	require.NoError(t, err, "Failed to create test user")
-	
+	user := &models.User{
+		ID:       userID,
+		TenantID: tenantID,
+		Email:    "test-" + userID.String()[:8] + "@example.com",
+		Status:   "active",
+	}
+
+	userRepo := repositories.NewUserRepo(td.Pool)
+	err := userRepo.Create(context.Background(), user)
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = userRepo.Delete(context.Background(), tenantID, userID)
+	})
+
 	return userID
 }
 
 // CreateTestProduct creates a test product and returns its ID
-func (db *TestDB) CreateTestProduct(t *testing.T, tenantID uuid.UUID, name string, unitPrice float64, quantity int) uuid.UUID {
+func (td *TestDB) CreateTestProduct(t *testing.T, tenantID uuid.UUID) uuid.UUID {
+	t.Helper()
+
 	productID := uuid.New()
-	
-	query := `
-		INSERT INTO products (id, tenant_id, name, unit_price, quantity)
-		VALUES ($1, $2, $3, $4, $5)
-	`
-	
-	_, err := db.Pool.Exec(db.ctx, query, productID, tenantID, name, unitPrice, quantity)
-	require.NoError(t, err, "Failed to create test product")
-	
+	product := &models.Product{
+		ID:        productID,
+		TenantID:  tenantID,
+		Name:      "Test Product " + productID.String()[:8],
+		Quantity:  100,
+		UnitPrice: 10.99,
+	}
+
+	productRepo := repositories.NewProductRepo(td.Pool)
+	err := productRepo.Create(context.Background(), product)
+	if err != nil {
+		t.Fatalf("Failed to create test product: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = productRepo.Delete(context.Background(), tenantID, productID)
+	})
+
 	return productID
 }
 
-// CreateTestWarehouse creates a test warehouse and returns its ID
-func (db *TestDB) CreateTestWarehouse(t *testing.T, tenantID uuid.UUID, name string) uuid.UUID {
-	warehouseID := uuid.New()
-	
-	query := `
-		INSERT INTO warehouses (id, tenant_id, name, address, status)
-		VALUES ($1, $2, $3, $4, $5)
-	`
-	
-	_, err := db.Pool.Exec(db.ctx, query, warehouseID, tenantID, name, "Test Address", "active")
-	require.NoError(t, err, "Failed to create test warehouse")
-	
-	return warehouseID
+// CreateTestCategory creates a test category and returns its ID
+func (td *TestDB) CreateTestCategory(t *testing.T, tenantID uuid.UUID, name string) uuid.UUID {
+	t.Helper()
+
+	categoryID := uuid.New()
+	category := &models.Category{
+		ID:          categoryID,
+		TenantID:    tenantID,
+		Name:        name,
+		Description: "Test category description",
+	}
+
+	categoryRepo := repositories.NewCategoryRepo(td.Pool)
+	err := categoryRepo.Create(context.Background(), category)
+	if err != nil {
+		t.Fatalf("Failed to create test category: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = categoryRepo.Delete(context.Background(), tenantID, categoryID)
+	})
+
+	return categoryID
 }
 
 // CreateTestSupplier creates a test supplier and returns its ID
-func (db *TestDB) CreateTestSupplier(t *testing.T, tenantID uuid.UUID, name string) uuid.UUID {
+func (td *TestDB) CreateTestSupplier(t *testing.T, tenantID uuid.UUID) uuid.UUID {
+	t.Helper()
+
 	supplierID := uuid.New()
-	
-	query := `
-		INSERT INTO suppliers (id, tenant_id, name, email, phone, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`
-	
-	_, err := db.Pool.Exec(db.ctx, query, supplierID, tenantID, name, "test@example.com", "1234567890", "active")
-	require.NoError(t, err, "Failed to create test supplier")
-	
+	supplier := &models.Supplier{
+		ID:         supplierID,
+		TenantID:   tenantID,
+		Name:       "Test Supplier " + supplierID.String()[:8],
+	}
+
+	supplierRepo := repositories.NewSupplierRepository(td.Pool)
+	err := supplierRepo.Create(context.Background(), supplier)
+	if err != nil {
+		t.Fatalf("Failed to create test supplier: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = supplierRepo.Delete(context.Background(), tenantID, supplierID)
+	})
+
 	return supplierID
 }
 
+// CreateTestSupplierFull creates a test supplier with full model and returns the model
+func (td *TestDB) CreateTestSupplierFull(tenantID uuid.UUID) models.Supplier {
+	supplierID := uuid.New()
+	name := "Test Supplier Full " + supplierID.String()[:8]
+	email := supplierID.String()[:8] + "@supplier.com"
+	phone := "123-456-7890"
+
+	supplier := models.Supplier{
+		ID:          supplierID,
+		TenantID:    tenantID,
+		Name:        name,
+		ContactEmail: &email,
+		ContactPhone: &phone,
+		Address:     &name,
+		LicenseNumber: &name,
+	}
+
+	supplierRepo := repositories.NewSupplierRepository(td.Pool)
+	err := supplierRepo.Create(context.Background(), &supplier)
+	if err != nil {
+		// Fallback to simple creation if full creation fails
+		supplier = models.Supplier{
+			ID:       supplierID,
+			TenantID: tenantID,
+			Name:     "Test Supplier Full " + supplierID.String()[:8],
+		}
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = supplierRepo.Delete(context.Background(), tenantID, supplierID)
+	})
+
+	return supplier
+}
+
+// CreateTestWarehouse creates a test warehouse and returns its ID
+func (td *TestDB) CreateTestWarehouse(t *testing.T, tenantID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	warehouseID := uuid.New()
+	warehouse := &models.Warehouse{
+		ID:        warehouseID,
+		TenantID:  tenantID,
+		Name:      "Test Warehouse " + warehouseID.String()[:8],
+	}
+
+	warehouseRepo := repositories.NewWarehouseRepository(td.Pool)
+	err := warehouseRepo.Create(context.Background(), warehouse)
+	if err != nil {
+		t.Fatalf("Failed to create test warehouse: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = warehouseRepo.Delete(context.Background(), tenantID, warehouseID)
+	})
+
+	return warehouseID
+}
+
+// CreateTestWarehouseFull creates a test warehouse with full model and returns the model
+func (td *TestDB) CreateTestWarehouseFull(tenantID uuid.UUID) models.Warehouse {
+	warehouseID := uuid.New()
+	name := "Test Warehouse Full " + warehouseID.String()[:8]
+	address := "123 Test St"
+	capacity := 1000
+	license := "LIC-" + warehouseID.String()[:8]
+
+	warehouse := models.Warehouse{
+		ID:            warehouseID,
+		TenantID:      tenantID,
+		Name:          name,
+		Address:       &address,
+		Capacity:      &capacity,
+		LicenseNumber: &license,
+	}
+
+	warehouseRepo := repositories.NewWarehouseRepository(td.Pool)
+	err := warehouseRepo.Create(context.Background(), &warehouse)
+	if err != nil {
+		// Fallback to simple creation if full creation fails
+		warehouse = models.Warehouse{
+			ID:       warehouseID,
+			TenantID: tenantID,
+			Name:     "Test Warehouse Full " + warehouseID.String()[:8],
+		}
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = warehouseRepo.Delete(context.Background(), tenantID, warehouseID)
+	})
+
+	return warehouse
+}
+
 // CreateTestDistributor creates a test distributor and returns its ID
-func (db *TestDB) CreateTestDistributor(t *testing.T, tenantID uuid.UUID, name string) uuid.UUID {
+func (td *TestDB) CreateTestDistributor(t *testing.T, tenantID uuid.UUID) uuid.UUID {
+	t.Helper()
+
 	distributorID := uuid.New()
-	
-	query := `
-		INSERT INTO distributors (id, tenant_id, name, email, phone, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`
-	
-	_, err := db.Pool.Exec(db.ctx, query, distributorID, tenantID, name, "test@example.com", "1234567890", "active")
-	require.NoError(t, err, "Failed to create test distributor")
-	
+	distributor := &models.Distributor{
+		ID:       distributorID,
+		TenantID: tenantID,
+		Name:     "Test Distributor " + distributorID.String()[:8],
+	}
+
+	distributorRepo := repositories.NewDistributorRepository(td.Pool)
+	err := distributorRepo.Create(context.Background(), distributor)
+	if err != nil {
+		t.Fatalf("Failed to create test distributor: %v", err)
+	}
+
+	// Add cleanup function
+	td.cleanup = append(td.cleanup, func() {
+		_ = distributorRepo.Delete(context.Background(), tenantID, distributorID)
+	})
+
 	return distributorID
 }
 
-// WaitForCondition waits for a condition to be true or times out
-func WaitForCondition(t *testing.T, timeout time.Duration, condition func() bool, message string) {
-	deadline := time.Now().Add(timeout)
-	
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	
-	t.Fatalf("Timeout waiting for condition: %s", message)
-}
+// CreateTestInventory creates test inventory record
+func (td *TestDB) CreateTestInventory(t *testing.T, tenantID uuid.UUID, warehouseID uuid.UUID, productID uuid.UUID, quantity int) {
+	t.Helper()
 
-// AssertNoError is a helper to assert no error occurred
-func AssertNoError(t *testing.T, err error, message string) {
+	inventoryRepo := repositories.NewInventoryRepo(td.Pool)
+
+	inventoryID := uuid.New()
+	inventory := &models.Inventory{
+		ID:         inventoryID,
+		TenantID:   tenantID,
+		WarehouseID: warehouseID,
+		ProductID:  productID,
+		Quantity:   quantity,
+	}
+
+	err := inventoryRepo.Create(context.Background(), inventory)
 	if err != nil {
-		t.Fatalf("%s: %v", message, err)
+		t.Fatalf("Failed to create test inventory: %v", err)
 	}
+
+	// No cleanup needed as inventory deletion would be handled by warehouse/product deletion
 }
 
-// AssertError is a helper to assert an error occurred
-func AssertError(t *testing.T, err error, message string) {
-	if err == nil {
-		t.Fatalf("%s: expected error but got nil", message)
+// SetupTestDB initializes a connection to the test database.
+func SetupTestDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+
+	// Load Tally configuration
+	tallyConfig, err := config.LoadTallyConfig("../config/tally.toml")
+	if err != nil {
+		log.Fatalf("Failed to load tally config: %v", err)
 	}
+
+	databaseURL := tallyConfig.Tally.TestDatabaseURL
+	if databaseURL == "" {
+		databaseURL = os.Getenv("TEST_DATABASE_URL")
+	}
+	if databaseURL == "" {
+		t.Fatal("TEST_DATABASE_URL or test_database_url in config/tally.toml is not set")
+	}
+
+	pool, err := pgxpool.New(context.Background(), databaseURL)
+	if err != nil {
+		t.Fatalf("Unable to connect to test database: %v", err)
+	}
+
+	// Ping the database to ensure a good connection
+	if err := pool.Ping(context.Background()); err != nil {
+		t.Fatalf("Failed to ping test database: %v", err)
+	}
+
+	return pool
 }
 
-// AssertEqual is a helper to assert equality
-func AssertEqual(t *testing.T, expected, actual interface{}, message string) {
-	require.Equal(t, expected, actual, message)
-}
-
-// MockContext creates a context with test values
-func MockContext() context.Context {
-	return context.Background()
-}
-
-// MockTenantContext creates a context with tenant ID
-func MockTenantContext(tenantID uuid.UUID) context.Context {
-	// Note: In real implementation, this should use the actual context key
-	// from your common package
-	return context.WithValue(context.Background(), "tenant_id", tenantID)
+// TruncateTables removes all data from the specified tables to ensure a clean state.
+func TruncateTables(t *testing.T, pool *pgxpool.Pool, tables ...string) {
+	t.Helper()
+	for _, table := range tables {
+		_, err := pool.Exec(context.Background(), "TRUNCATE TABLE "+table+" RESTART IDENTITY CASCADE")
+		if err != nil {
+			t.Fatalf("Failed to truncate table %s: %v", table, err)
+		}
+	}
 }

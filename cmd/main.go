@@ -56,9 +56,21 @@ func main() {
 	}
 
 	// Database connection
-	databaseURL := os.Getenv("DATABASE_URL")
+	var databaseURL string
+	if os.Getenv("TEST_ENV") == "true" {
+		databaseURL = tallyConfig.Tally.TestDatabaseURL
+		log.Println("INFO: Using test database")
+	} else {
+		databaseURL = os.Getenv("DATABASE_URL")
+	}
+
 	if databaseURL == "" {
-		log.Fatal("DATABASE_URL environment variable is required")
+		log.Fatal("DATABASE_URL (or TEST_DATABASE_URL in test mode) environment variable is required")
+	}
+	
+	// Don't log the actual database URL in production for security
+	if !isProduction(environment) {
+		log.Printf("DEBUG: Database URL configured (details hidden in production)")
 	}
 
 	// Create optimized database connection pool
@@ -131,11 +143,19 @@ func main() {
 	}
 	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
 	if minioAccessKey == "" {
-		minioAccessKey = "minioadmin" // Default for development
+		if isProduction(environment) {
+			log.Fatalf("MINIO_ACCESS_KEY is required in production mode")
+		} else {
+			log.Fatalf("MINIO_ACCESS_KEY is required. Set it in your environment or .env file")
+		}
 	}
 	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
 	if minioSecretKey == "" {
-		minioSecretKey = "minioadmin" // Default for development
+		if isProduction(environment) {
+			log.Fatalf("MINIO_SECRET_KEY is required in production mode")
+		} else {
+			log.Fatalf("MINIO_SECRET_KEY is required. Set it in your environment or .env file")
+		}
 	}
 	minioSSLStr := os.Getenv("MINIO_USE_SSL")
 	useSSL := false
@@ -312,6 +332,9 @@ func main() {
 	tallyExporter := jobs.NewTallyExporter(invoiceRepo, orderRepo, productRepo, tallyConfig)
 	tallyImporter := jobs.NewTallyImporter(orderRepo, invoiceRepo, tallyConfig)
 
+	// Create job inspector for monitoring background jobs
+	jobInspector := jobs.NewAsynqJobInspector(redisAddr, redisPassword, redisDB)
+
 	jobHandlers := handlers.NewJobHandlers(
 		tallyExporter,
 		tallyImporter,
@@ -322,6 +345,7 @@ func main() {
 		invoiceRepo,
 		productRepo,
 		inventoryRepo,
+		jobInspector,
 	)
 
 	// Create subscription, notification, and audit log handlers
@@ -387,8 +411,14 @@ func main() {
 	}
 	e.Use(middleware.CSRFProtection(csrfManager, csrfSkipPaths))
 
-	// Performance middleware
-	perfMiddleware := middleware.NewPerformanceMiddleware()
+	// Performance middleware with optional Redis rate limiting
+	useRedisRateLimit := os.Getenv("USE_REDIS_RATE_LIMIT") == "true"
+	perfMiddleware := middleware.NewPerformanceMiddlewareWithRedis(redisAddr, redisPassword, redisDB, useRedisRateLimit)
+	if useRedisRateLimit {
+		log.Printf("INFO: Redis-backed rate limiting enabled for cluster-aware enforcement")
+	} else {
+		log.Printf("INFO: In-memory rate limiting enabled (single instance mode)")
+	}
 
 	forgotPasswordRateLimiter := perfMiddleware.EndpointRateLimiter(5, 15*time.Minute, 5)
 	resendVerificationRateLimiter := perfMiddleware.EndpointRateLimiter(3, 15*time.Minute, 3)
@@ -627,7 +657,11 @@ func main() {
 	}
 
 	log.Printf("🚀 Agromart2 server v%s starting on port %d", version, port)
-	log.Printf("Database connected: %t", databaseURL != "") // Don't log the actual URL for security
+	if isProduction(environment) {
+		log.Printf("INFO: Production mode - database connection established")
+	} else {
+		log.Printf("DEBUG: Database connected: %t", databaseURL != "")
+	}
 
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }

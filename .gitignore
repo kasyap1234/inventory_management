@@ -7,16 +7,18 @@
 *.dll
 *.so
 *.dylib
-.next/ 
 
 # Test binary, built with `go test -c`
 *.test
+repositories.test
 
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
+repo_coverage.out
+coverage.out
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -54,6 +56,8 @@ logs/
 app.log
 backend.log
 frontend.log
+nohup.out
+dev.log
 
 # PIDs
 *.pid
@@ -130,8 +134,24 @@ pgdata/
 # Build artifacts
 build/
 dist/
+cmd/
+
+# Compiled binaries
+agromart
+main
+agromart-app
 
 # Test files
 test_image.jpg
+test_minio_image.jpg
+test_upload.jpg
+testhelpers/**/*.jpg
+testhelpers/**/*.png
+
+# Migrations directory is tracked for schema changes
+
+# OS generated temp folder
+temp
+transient/
 
 # Scripts (if executable)

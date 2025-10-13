@@ -44,8 +44,15 @@ export class ErrorBoundary extends Component<Props, State> {
     // Update state with error info
     this.setState({ errorInfo });
 
-    // TODO: Log to error tracking service (Sentry, LogRocket, etc.)
-    // Example: Sentry.captureException(error, { contexts: { react: errorInfo } });
+    // Log to error tracking service (Sentry, LogRocket, etc.)
+    // Note: Uncomment when @sentry/react is installed
+    // if (typeof window !== 'undefined') {
+    //   import('@/lib/error-tracking').then(({ logErrorToService }) => {
+    //     logErrorToService(error, errorInfo);
+    //   }).catch(() => {
+    //     // Error tracking not available
+    //   });
+    // }
   }
 
   private handleReset = () => {

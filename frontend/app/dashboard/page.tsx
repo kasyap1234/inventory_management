@@ -53,75 +53,87 @@ export default function DashboardPage() {
       title: 'Total Sales',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
-      color: 'text-emerald-700',
-      bgColor: 'bg-emerald-50',
-      borderColor: 'border-emerald-200',
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
+      borderColor: 'border-primary/20',
+      gradient: 'from-primary/20 to-primary/5',
       helper: analytics?.lastUpdated,
     },
     {
       title: 'Inventory Value',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-green-700',
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bgColor: 'bg-emerald-500/10',
+      borderColor: 'border-emerald-500/20',
+      gradient: 'from-emerald-500/20 to-emerald-500/5',
     },
     {
       title: 'Orders Processed',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-teal-700',
-      bgColor: 'bg-teal-50',
-      borderColor: 'border-teal-200',
+      color: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-500/10',
+      borderColor: 'border-blue-500/20',
+      gradient: 'from-blue-500/20 to-blue-500/5',
     },
     {
       title: 'Unpaid Invoices',
       value: unpaidInvoiceItems.length,
       icon: FileText,
-      color: 'text-yellow-700',
-      bgColor: 'bg-yellow-50',
-      borderColor: 'border-yellow-200',
+      color: 'text-amber-600 dark:text-amber-400',
+      bgColor: 'bg-amber-500/10',
+      borderColor: 'border-amber-500/20',
+      gradient: 'from-amber-500/20 to-amber-500/5',
     },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Header - Clean and modern */}
+      {/* Header - Modern gradient design */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-foreground tracking-tight">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent tracking-tight">
             Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
+          <p className="text-muted-foreground mt-2 text-base">
+            Welcome back! Here&rsquo;s your business overview for today.
+          </p>
         </div>
       </div>
 
-      {/* Stats Cards - Clean, modern design */}
+      {/* Stats Cards - Modern gradient design with glassmorphism */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, index) => (
           <Card 
             key={stat.title}
-            className={`card-hover border ${stat.borderColor} bg-white shadow-sm overflow-hidden`}
+            className={`group relative card-hover border ${stat.borderColor} bg-gradient-to-br ${stat.gradient} backdrop-blur-sm shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl`}
             style={{ animationDelay: `${index * 100}ms` }}
           >
-            <CardHeader className="flex flex-row items-center justify-between pb-2 pt-5">
+            {/* Gradient overlay on hover */}
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            
+            <CardHeader className="relative flex flex-row items-center justify-between pb-2 pt-5">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <div className={`p-2.5 rounded-lg ${stat.bgColor}`}>
+              <div className={`p-2.5 rounded-xl ${stat.bgColor} ring-1 ring-inset ring-white/10 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
                 <stat.icon className={`h-5 w-5 ${stat.color}`} />
               </div>
             </CardHeader>
-            <CardContent className="pb-5">
-              <div className="text-2xl font-bold text-foreground">
+            <CardContent className="relative pb-5">
+              <div className="text-3xl font-bold text-foreground">
                 {isLoading ? (
-                  <div className="h-8 w-24 bg-muted rounded animate-pulse"></div>
+                  <div className="h-8 w-24 bg-muted/50 rounded animate-pulse"></div>
                 ) : (
-                  stat.value
+                  <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                    {stat.value}
+                  </span>
                 )}
               </div>
               {stat.helper && !isLoading && (
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                  <span className="inline-block w-1 h-1 rounded-full bg-primary animate-pulse" />
                   Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
                 </p>
               )}
@@ -130,11 +142,16 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Activity and Alerts */}
+      {/* Activity and Alerts - Enhanced design */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-md">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-foreground">Recent Activity</CardTitle>
+        <Card className="border border-border shadow-lg bg-card/50 backdrop-blur-sm">
+          <CardHeader className="border-b border-border bg-gradient-to-r from-blue-500/5 to-transparent">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <CardTitle className="text-lg font-bold text-foreground">Recent Activity</CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="pt-6">
             {invoicesLoading ? (
@@ -171,9 +188,14 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-md">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-foreground">Low Stock Alerts</CardTitle>
+        <Card className="border border-border shadow-lg bg-card/50 backdrop-blur-sm">
+          <CardHeader className="border-b border-border bg-gradient-to-r from-amber-500/5 to-transparent">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Package className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <CardTitle className="text-lg font-bold text-foreground">Low Stock Alerts</CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="pt-6">
             {lowStockLoading ? (

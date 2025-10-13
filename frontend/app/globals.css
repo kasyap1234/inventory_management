@@ -17,8 +17,9 @@
   --color-primary: #10b981;
   --color-primary-foreground: #ffffff;
   
-  --color-secondary: #f0fdf4;
-  --color-secondary-foreground: #166534;
+  /* Secondary: Professional blue - complement to green */
+  --color-secondary: #eff6ff;
+  --color-secondary-foreground: #1e40af;
   
   --color-muted: #f7fef8;
   --color-muted-foreground: #52525b;
@@ -33,12 +34,12 @@
   --color-input: #d1fae5;
   --color-ring: #10b981;
   
-  /* Agro-themed chart colors - earth tones with greens */
-  --color-chart-1: #10b981; /* Emerald - growth */
-  --color-chart-2: #84cc16; /* Lime - fresh crops */
-  --color-chart-3: #eab308; /* Yellow - sunshine */
-  --color-chart-4: #0891b2; /* Cyan - water */
-  --color-chart-5: #f97316; /* Orange - harvest */
+  /* Modern chart colors - green primary, blue secondary accents */
+  --color-chart-1: #10b981; /* Emerald green - primary */
+  --color-chart-2: #3b82f6; /* Blue - secondary */
+  --color-chart-3: #84cc16; /* Lime - accent */
+  --color-chart-4: #06b6d4; /* Cyan - water/info */
+  --color-chart-5: #f59e0b; /* Amber - warning */
 }
 
 /* Dark mode - Agro theme with excellent readability */
@@ -55,8 +56,9 @@
   --color-primary: #34d399;
   --color-primary-foreground: #022c22;
   
-  --color-secondary: #14532d;
-  --color-secondary-foreground: #d1fae5;
+  /* Secondary: Blue for dark mode */
+  --color-secondary: #1e3a8a;
+  --color-secondary-foreground: #dbeafe;
   
   --color-muted: #14532d;
   --color-muted-foreground: #86efac;
@@ -71,11 +73,11 @@
   --color-input: #14532d;
   --color-ring: #34d399;
   
-  --color-chart-1: #34d399;
-  --color-chart-2: #a3e635;
-  --color-chart-3: #fde047;
-  --color-chart-4: #22d3ee;
-  --color-chart-5: #fb923c;
+  --color-chart-1: #34d399; /* Light emerald */
+  --color-chart-2: #60a5fa; /* Light blue */
+  --color-chart-3: #a3e635; /* Light lime */
+  --color-chart-4: #22d3ee; /* Light cyan */
+  --color-chart-5: #fbbf24; /* Light amber */
 }
 
 * {

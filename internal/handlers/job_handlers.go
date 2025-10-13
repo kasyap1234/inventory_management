@@ -23,6 +23,7 @@ type JobHandlers struct {
 	invoiceRepo      repositories.InvoiceRepository
 	productRepo      repositories.ProductRepository
 	inventoryRepo    repositories.InventoryRepository
+	inspector        jobs.JobInspector
 }
 
 func NewJobHandlers(
@@ -35,6 +36,7 @@ func NewJobHandlers(
 	invoiceRepo repositories.InvoiceRepository,
 	productRepo repositories.ProductRepository,
 	inventoryRepo repositories.InventoryRepository,
+	inspector jobs.JobInspector,
 ) *JobHandlers {
 	return &JobHandlers{
 		tallyExporter:    tallyExporter,
@@ -46,6 +48,7 @@ func NewJobHandlers(
 		invoiceRepo:      invoiceRepo,
 		productRepo:      productRepo,
 		inventoryRepo:    inventoryRepo,
+		inspector:        inspector,
 	}
 }
 
@@ -226,40 +229,102 @@ func (h *JobHandlers) GetAnalyticsData(c echo.Context) error {
 	return c.JSON(http.StatusOK, data)
 }
 
-// ListJobs returns a placeholder response until job dashboards are implemented
+// ListJobs returns list of jobs from all queues
 func (h *JobHandlers) ListJobs(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	if h.inspector == nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"jobs":  []interface{}{},
+			"stats": map[string]int{"total": 0, "pending": 0, "active": 0, "completed": 0, "failed": 0},
+		})
+	}
+
+	// Get jobs from all states
+	allJobs, stats, err := h.inspector.ListAllJobs(ctx)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to list jobs")
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Job listing API is currently not implemented",
-		"jobs":    []interface{}{},
+		"jobs":  allJobs,
+		"stats": stats,
 	})
 }
 
-// GetJob returns placeholder details for a specific job
+// GetJob returns details for a specific job
 func (h *JobHandlers) GetJob(c echo.Context) error {
+	ctx := c.Request().Context()
+	jobID := c.Param("id")
+
+	if h.inspector == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Job inspector not available")
+	}
+
+	job, err := h.inspector.GetJobInfo(ctx, jobID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Job not found")
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Job detail API is currently not implemented",
-		"job_id":  c.Param("id"),
+		"job": job,
 	})
 }
 
-// RetryJob responds that retry is not available yet
+// RetryJob retries a failed job
 func (h *JobHandlers) RetryJob(c echo.Context) error {
-	return c.JSON(http.StatusNotImplemented, map[string]string{
-		"message": "Job retry is not implemented yet",
+	ctx := c.Request().Context()
+	jobID := c.Param("id")
+
+	if h.inspector == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Job inspector not available")
+	}
+
+	if err := h.inspector.RetryJob(ctx, jobID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retry job")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Job queued for retry",
+		"job_id":  jobID,
 	})
 }
 
-// CancelJob responds that cancel is not available yet
+// CancelJob cancels a pending or active job
 func (h *JobHandlers) CancelJob(c echo.Context) error {
-	return c.JSON(http.StatusNotImplemented, map[string]string{
-		"message": "Job cancel is not implemented yet",
+	ctx := c.Request().Context()
+	jobID := c.Param("id")
+
+	if h.inspector == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Job inspector not available")
+	}
+
+	if err := h.inspector.CancelJob(ctx, jobID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to cancel job")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Job cancelled successfully",
+		"job_id":  jobID,
 	})
 }
 
-// GetJobStats returns placeholder statistics
+// GetJobStats returns job queue statistics
 func (h *JobHandlers) GetJobStats(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	if h.inspector == nil {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"stats": map[string]int{"total": 0, "pending": 0, "active": 0, "completed": 0, "failed": 0},
+		})
+	}
+
+	stats, err := h.inspector.GetQueueStats(ctx)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get job statistics")
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Job statistics API is currently not implemented",
-		"stats":   map[string]int{"pending": 0, "completed": 0, "failed": 0},
+		"stats": stats,
 	})
 }
