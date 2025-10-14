@@ -16,6 +16,7 @@ type ProductRepository interface {
 	GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Product, error)
 	Update(ctx context.Context, product *models.Product) error
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
+	BulkDelete(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) (int64, error)
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error)
 	GetByBarcode(ctx context.Context, tenantID uuid.UUID, barcode string) (*models.Product, error)
 	Search(ctx context.Context, tenantID uuid.UUID, query string, categoryID *uuid.UUID, limit, offset int) ([]*models.Product, error)
@@ -355,4 +356,18 @@ func (r *productRepo) Search(ctx context.Context, tenantID uuid.UUID, query stri
 		products = append(products, product)
 	}
 	return products, nil
+}
+
+func (r *productRepo) BulkDelete(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) (int64, error) {
+	if len(productIDs) == 0 {
+		return 0, nil
+	}
+
+	query := `DELETE FROM products WHERE tenant_id = $1 AND id = ANY($2)`
+	result, err := r.db.Exec(ctx, query, tenantID, productIDs)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected(), nil
 }

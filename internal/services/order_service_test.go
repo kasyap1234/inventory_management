@@ -1,3 +1,4 @@
+//go:build integration
 package services_test
 
 	import (

@@ -1,3 +1,4 @@
+//go:build minio_tests
 package services
 
 import (

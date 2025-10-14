@@ -1,114 +1,76 @@
-# High-Level Implementation Plan
+# Implementation Plan: Bulk Product Deletion API
 
-This document outlines the high-level implementation plan for the four missing features identified in the codebase analysis report:
+This document outlines the plan to implement a bulk product deletion API endpoint.
 
-1.  **Permissions Management**
-2.  **Webhooks**
-3.  **Subscriptions**
-4.  **Analytics**
+## 1. Task Breakdown
 
----
+### Task 1: Extend the `ProductService` Interface
 
-## 1. Permissions Management
+- **File:** `internal/services/product_service.go`
+- **Change:** Add a new method to the `ProductService` interface:
+  ```go
+  BulkDeleteProducts(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) (*models.BulkOperationResult, error)
+  ```
 
-### High-Level Overview
+### Task 2: Implement the `BulkDeleteProducts` Method
 
-The current implementation of permissions and roles is incomplete. This plan will complete the implementation of a robust Role-Based Access Control (RBAC) system.
+- **File:** `internal/services/product_service.go`
+- **Change:** Implement the `BulkDeleteProducts` method in the `productService` struct. This method will:
+    - Iterate through the provided product IDs.
+    - Call the `productRepo.Delete` method for each product ID.
+    - Track successful and failed deletions.
+    - Return a `BulkOperationResult` summarizing the outcome.
 
-### Phases
+### Task 3: Extend the `ProductRepository` Interface
 
-#### Phase 1: Backend
+- **File:** `internal/repositories/product_repo.go`
+- **Change:** Add a new method to the `ProductRepository` interface:
+  ```go
+  BulkDelete(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) (int64, error)
+  ```
 
--   **Tasks:**
-    -   Define a comprehensive set of permissions for all application resources.
-    -   Implement CRUD operations for roles and permissions.
-    -   Implement logic to assign permissions to roles and roles to users.
-    -   Implement a middleware to enforce permissions on all relevant API endpoints.
-    -   Write unit and integration tests for the RBAC system.
+### Task 4: Implement the `BulkDelete` Method
 
-#### Phase 2: Frontend
+- **File:** `internal/repositories/product_repo.go`
+- **Change:** Implement the `BulkDelete` method in the `productRepo` struct. This method will use a single `DELETE` statement with a `WHERE id = ANY($2)` clause to efficiently delete multiple products.
 
--   **Tasks:**
-    -   Implement a UI for managing roles and permissions.
-    -   Implement a UI for assigning roles to users.
-    -   Conditionally render UI elements based on user permissions.
-    -   Write unit and integration tests for the permissions management UI.
+### Task 5: Create a New Handler for Bulk Deletion
 
----
+- **File:** `internal/handlers/product_handlers.go`
+- **Change:** Create a new handler function `BulkDeleteProducts` that:
+    - Binds the request body to a struct containing the product IDs.
+    - Validates the product IDs.
+    - Calls the `productService.BulkDeleteProducts` method.
+    - Returns an appropriate JSON response.
 
-## 2. Webhooks
+### Task 6: Register the New Route
 
-### High-Level Overview
+- **File:** `cmd/main.go`
+- **Change:** Register the new `DELETE /products/bulk/delete` route and associate it with the `BulkDeleteProducts` handler.
 
-The current implementation of webhooks is a stub. This plan will implement a complete webhooks system that allows users to subscribe to events and receive notifications.
+## 2. Mermaid Diagram
 
-### Phases
+```mermaid
+sequenceDiagram
+    participant client as Client
+    participant router as Echo Router
+    participant handler as ProductHandlers
+    participant service as ProductService
+    participant repo as ProductRepository
+    participant db as Database
 
-#### Phase 1: Backend
+    client->>router: DELETE /v1/products/bulk/delete
+    router->>handler: BulkDeleteProducts(c)
+    handler->>service: BulkDeleteProducts(ctx, tenantID, productIDs)
+    service->>repo: BulkDelete(ctx, tenantID, productIDs)
+    repo->>db: DELETE FROM products WHERE tenant_id = $1 AND id = ANY($2)
+    db-->>repo: (int64, error)
+    repo-->>service: (int64, error)
+    service-->>handler: (*BulkOperationResult, error)
+    handler-->>client: JSON Response
+end
+```
 
--   **Tasks:**
-    -   Define a set of events that can be subscribed to (e.g., `order.created`, `product.updated`).
-    -   Implement CRUD operations for webhooks.
-    -   Implement a system to trigger webhooks when events occur.
-    -   Implement a retry mechanism for failed webhook deliveries.
-    -   Write unit and integration tests for the webhooks system.
+## 3. Approval
 
-#### Phase 2: Frontend
-
--   **Tasks:**
-    -   Implement a UI for managing webhooks.
-    -   Implement a UI for viewing webhook delivery logs.
-    -   Write unit and integration tests for the webhooks UI.
-
----
-
-## 3. Subscriptions
-
-### High-Level Overview
-
-The current implementation of subscriptions is a stub. This plan will implement a complete subscription management system that allows users to subscribe to plans and manage their subscriptions.
-
-### Phases
-
-#### Phase 1: Backend
-
--   **Tasks:**
-    -   Define subscription plans and their features.
-    -   Integrate with a payment gateway (e.g., Razorpay) to handle recurring payments.
-    -   Implement CRUD operations for subscriptions.
-    -   Implement logic to check subscription status and restrict access to features.
-    -   Write unit and integration tests for the subscription system.
-
-#### Phase 2: Frontend
-
--   **Tasks:**
-    -   Implement a UI for displaying subscription plans.
-    -   Implement a UI for managing subscriptions.
-    -   Implement a checkout flow for subscribing to a plan.
-    -   Write unit and integration tests for the subscription UI.
-
----
-
-## 4. Analytics
-
-### High-Level Overview
-
-The current analytics page is a stub. This plan will implement a complete analytics dashboard that provides insights into key metrics.
-
-### Phases
-
-#### Phase 1: Backend
-
--   **Tasks:**
-    -   Define the key metrics to be tracked (e.g., revenue, orders, users).
-    -   Implement a system to collect and aggregate analytics data.
-    -   Implement API endpoints to expose the analytics data.
-    -   Write unit and integration tests for the analytics system.
-
-#### Phase 2: Frontend
-
--   **Tasks:**
-    -   Implement a UI for displaying analytics data.
-    -   Use charts and graphs to visualize the data.
-    -   Implement a date range filter to view data for different periods.
-    -   Write unit and integration tests for the analytics UI.
+Please review this plan. Once you approve, I will switch to `code` mode and begin implementation.

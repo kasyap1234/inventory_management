@@ -22,6 +22,7 @@ import (
 type RBACServiceTestSuite struct {
 	suite.Suite
 	mockUserRoleRepo       *MockUserRoleRepository
+    mockRoleRepo           *MockRoleRepository
 	mockRolePermissionRepo *MockRolePermissionRepository
 	mockPermissionRepo     *MockPermissionRepository
 	mockCacheService       *testhelpers.MockCacheService
@@ -36,24 +37,27 @@ type RBACServiceTestSuite struct {
 
 func (suite *RBACServiceTestSuite) SetupTest() {
 	suite.mockUserRoleRepo = &MockUserRoleRepository{}
+    suite.mockRoleRepo = &MockRoleRepository{}
 	suite.mockRolePermissionRepo = &MockRolePermissionRepository{}
 	suite.mockPermissionRepo = &MockPermissionRepository{}
 	suite.mockCacheService = &testhelpers.MockCacheService{}
 
 	// Service without cache (for backward compatibility testing)
-	suite.service = NewRBACService(
-		suite.mockUserRoleRepo,
-		suite.mockRolePermissionRepo,
-		suite.mockPermissionRepo,
-	)
+    suite.service = NewRBACService(
+        suite.mockUserRoleRepo,
+        suite.mockRoleRepo,
+        suite.mockRolePermissionRepo,
+        suite.mockPermissionRepo,
+    )
 
 	// Service with cache
-	suite.serviceWithCache = NewRBACServiceWithCache(
-		suite.mockUserRoleRepo,
-		suite.mockRolePermissionRepo,
-		suite.mockPermissionRepo,
-		suite.mockCacheService,
-	)
+    suite.serviceWithCache = NewRBACServiceWithCache(
+        suite.mockUserRoleRepo,
+        suite.mockRoleRepo,
+        suite.mockRolePermissionRepo,
+        suite.mockPermissionRepo,
+        suite.mockCacheService,
+    )
 
 	suite.tenantID = uuid.New()
 	suite.userID = uuid.New()
@@ -64,6 +68,7 @@ func (suite *RBACServiceTestSuite) SetupTest() {
 
 func (suite *RBACServiceTestSuite) TearDownTest() {
 	suite.mockUserRoleRepo.AssertExpectations(suite.T())
+    suite.mockRoleRepo.AssertExpectations(suite.T())
 	suite.mockRolePermissionRepo.AssertExpectations(suite.T())
 	suite.mockPermissionRepo.AssertExpectations(suite.T())
 }
@@ -420,6 +425,49 @@ func TestRBACServiceTestSuite(t *testing.T) {
 }
 
 // Mock repository implementations - should match the repository interfaces
+// MockRoleRepository for testing
+type MockRoleRepository struct {
+    mock.Mock
+}
+
+func (m *MockRoleRepository) Create(ctx context.Context, role *models.Role) error {
+    args := m.Called(ctx, role)
+    return args.Error(0)
+}
+
+func (m *MockRoleRepository) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Role, error) {
+    args := m.Called(ctx, tenantID, id)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*models.Role), args.Error(1)
+}
+
+func (m *MockRoleRepository) GetByName(ctx context.Context, tenantID uuid.UUID, name string) (*models.Role, error) {
+    args := m.Called(ctx, tenantID, name)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*models.Role), args.Error(1)
+}
+
+func (m *MockRoleRepository) Update(ctx context.Context, role *models.Role) error {
+    args := m.Called(ctx, role)
+    return args.Error(0)
+}
+
+func (m *MockRoleRepository) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+    args := m.Called(ctx, tenantID, id)
+    return args.Error(0)
+}
+
+func (m *MockRoleRepository) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Role, error) {
+    args := m.Called(ctx, tenantID, limit, offset)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).([]*models.Role), args.Error(1)
+}
 
 // MockUserRoleRepository for testing
 type MockUserRoleRepository struct {

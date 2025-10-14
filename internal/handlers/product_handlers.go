@@ -306,6 +306,27 @@ func (h *ProductHandlers) GetProduct(c echo.Context) error {
 	return h.GetProductByID(c)
 }
 
+// GetProductByBarcode handles GET /products/barcode/:barcode
+func (h *ProductHandlers) GetProductByBarcode(c echo.Context) error {
+    ctx := c.Request().Context()
+    tenantID, ok := common.GetTenantIDFromContext(ctx)
+    if !ok {
+        return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+    }
+
+    barcode := strings.TrimSpace(c.Param("barcode"))
+    if barcode == "" {
+        return echo.NewHTTPError(http.StatusBadRequest, "Barcode is required")
+    }
+
+    product, err := h.productService.GetByBarcode(ctx, tenantID, barcode)
+    if err != nil || product == nil {
+        return echo.NewHTTPError(http.StatusNotFound, "Product not found")
+    }
+
+    return c.JSON(http.StatusOK, product)
+}
+
 // UpdateProduct handles PUT /products/:id
 func (h *ProductHandlers) UpdateProduct(c echo.Context) error {
 	ctx := c.Request().Context()
@@ -545,11 +566,10 @@ func (h *ProductHandlers) GetProductImages(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Parse and validate product ID
-	idParam := c.Param("id")
-	productID, err := uuid.Parse(idParam)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid product ID format")
-	}
+    productID, err := h.validateUUID(c.Param("id"))
+    if err != nil {
+        return err
+    }
 
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
@@ -722,4 +742,48 @@ func (h *ProductHandlers) validateBulkCreateRequest(req *models.ProductBulkCreat
 	}
 
 	return nil
+}
+
+// BulkDeleteProducts handles bulk deletion of multiple products
+func (h *ProductHandlers) BulkDeleteProducts(c echo.Context) error {
+	var req struct {
+		ProductIDs []uuid.UUID `json:"product_ids" validate:"required"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	if len(req.ProductIDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Product IDs list is required")
+	}
+
+	if len(req.ProductIDs) > 1000 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Cannot delete more than 1000 products at once")
+	}
+
+    // Get tenant from context
+    tenantID, ok := common.GetTenantIDFromContext(c.Request().Context())
+    if !ok {
+        return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+    }
+
+	result, err := h.productService.BulkDeleteProducts(c.Request().Context(), tenantID, req.ProductIDs)
+	if err != nil {
+		log.Printf("Failed to bulk delete products: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to delete products")
+	}
+
+	// Log the bulk delete operation
+	log.Printf("Bulk product deletion operation %s completed: %d processed, %d failed", 
+		result.OperationID, result.ProcessedItems, result.FailedItems)
+
+    return c.JSON(http.StatusOK, map[string]interface{}{
+        "message": "Bulk product deletion completed",
+        "result":  result,
+    })
 }

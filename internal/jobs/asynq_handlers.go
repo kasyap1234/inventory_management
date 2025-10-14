@@ -14,6 +14,7 @@ import (
 const (
 	TypeTallyExport = "tally_export"
 	TypeTallyImport = "tally_import"
+    TypeTallyImportScan = "tally_import_scan"
 )
 
 // TallyExportPayload defines the payload for tally export tasks
@@ -60,6 +61,11 @@ func NewTallyImportTask(tenantID uuid.UUID, data, dataType string) (*asynq.Task,
 		return nil, err
 	}
 	return asynq.NewTask(TypeTallyImport, dataBytes), nil
+}
+
+// NewTallyImportScanTask creates a task to trigger the file-system based import scan
+func NewTallyImportScanTask() *asynq.Task {
+    return asynq.NewTask(TypeTallyImportScan, nil)
 }
 
 // TallyExportHandler handles tally export tasks
@@ -133,6 +139,11 @@ func (i *TallyImporter) TallyImportHandler(ctx context.Context, t *asynq.Task) e
 	}
 
 	return nil
+}
+
+// TallyImportScanHandler triggers the scheduled CSV import job
+func (i *TallyImporter) TallyImportScanHandler(ctx context.Context, t *asynq.Task) error {
+    return i.ScheduledImportJob(ctx)
 }
 
 // handleExportSuccess is a success callback after successful export

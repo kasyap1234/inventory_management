@@ -1,3 +1,4 @@
+//go:build jobs_tests
 package jobs
 
 import (

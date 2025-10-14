@@ -235,29 +235,45 @@ func (r *redisCacheService) SetTenantAnalytics(ctx context.Context, tenantID uui
 }
 
 func (r *redisCacheService) InvalidateTenantCache(ctx context.Context, tenantID uuid.UUID) error {
-	pattern := fmt.Sprintf("agromart:*:%s:*", tenantID.String())
-	keys, err := r.client.Keys(ctx, pattern).Result()
-	if err != nil {
-		return err
-	}
-
-	if len(keys) > 0 {
-		return r.client.Del(ctx, keys...).Err()
-	}
-	return nil
+    pattern := fmt.Sprintf("agromart:*:%s:*", tenantID.String())
+    var cursor uint64
+    for {
+        keys, next, err := r.client.Scan(ctx, cursor, pattern, 1000).Result()
+        if err != nil {
+            return err
+        }
+        if len(keys) > 0 {
+            if err := r.client.Del(ctx, keys...).Err(); err != nil {
+                return err
+            }
+        }
+        if next == 0 {
+            break
+        }
+        cursor = next
+    }
+    return nil
 }
 
 func (r *redisCacheService) InvalidateAllCache(ctx context.Context) error {
-	pattern := "agromart:*"
-	keys, err := r.client.Keys(ctx, pattern).Result()
-	if err != nil {
-		return err
-	}
-
-	if len(keys) > 0 {
-		return r.client.Del(ctx, keys...).Err()
-	}
-	return nil
+    pattern := "agromart:*"
+    var cursor uint64
+    for {
+        keys, next, err := r.client.Scan(ctx, cursor, pattern, 1000).Result()
+        if err != nil {
+            return err
+        }
+        if len(keys) > 0 {
+            if err := r.client.Del(ctx, keys...).Err(); err != nil {
+                return err
+            }
+        }
+        if next == 0 {
+            break
+        }
+        cursor = next
+    }
+    return nil
 }
 
 func (r *redisCacheService) SetSession(ctx context.Context, sessionID, userID string, ttl time.Duration) error {

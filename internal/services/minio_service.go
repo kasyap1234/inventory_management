@@ -10,7 +10,7 @@ import (
 )
 
 type MinioService interface {
-	UploadImage(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64) error
+    UploadImage(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, contentType string) error
 	GetPresignedURL(bucketName, objectName string, expiry time.Duration) (string, error)
 	DeleteImage(ctx context.Context, bucketName, objectName string) error
 	EnsureBucketExists(ctx context.Context, bucketName string) error
@@ -31,9 +31,9 @@ func NewMinioService(endpoint, accessKey, secretKey string, useSSL bool) (MinioS
 	return &minioClient{client: client}, nil
 }
 
-func (m *minioClient) UploadImage(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64) error {
+func (m *minioClient) UploadImage(ctx context.Context, bucketName, objectName string, reader io.Reader, objectSize int64, contentType string) error {
 	_, err := m.client.PutObject(ctx, bucketName, objectName, reader, objectSize, minio.PutObjectOptions{
-		ContentType: "image/jpeg", // Assume JPEG, but can detect
+        ContentType: contentType,
 	})
 	return err
 }

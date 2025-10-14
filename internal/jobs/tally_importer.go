@@ -5,6 +5,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+    "os"
+    "path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -415,10 +417,99 @@ func (i *TallyImporter) parseInvoiceRow(tenantID uuid.UUID, row []string) (*mode
 // Scheduled import job (for scanning import directory, not implemented)
 func (i *TallyImporter) ScheduledImportJob(ctx context.Context) error {
 	fmt.Printf("Starting scheduled Tally import job in %s mode\n", i.mode)
+    // Import directory configured by env; example: /data/tally_imports
+    importDir := os.Getenv("TALLY_IMPORT_DIR")
+    if importDir == "" {
+        log.Println("Tally import: TALLY_IMPORT_DIR not set; skipping scheduled import")
+        return nil
+    }
 
-	// In a real implementation, this would scan a directory for CSV files
-	// and process them automatically
+    // Tenant ID can be provided via env for single-tenant imports
+    tenantStr := os.Getenv("TALLY_IMPORT_TENANT_ID")
+    var tenantID uuid.UUID
+    var err error
+    if tenantStr != "" {
+        tenantID, err = uuid.Parse(tenantStr)
+        if err != nil {
+            log.Printf("Tally import: invalid TALLY_IMPORT_TENANT_ID '%s': %v", tenantStr, err)
+            return nil
+        }
+    }
 
-	log.Println("Scheduled import job completed (no files to process)")
-	return nil
+    entries, err := os.ReadDir(importDir)
+    if err != nil {
+        log.Printf("Tally import: failed to read import dir %s: %v", importDir, err)
+        return nil
+    }
+
+    processed := 0
+    for _, e := range entries {
+        if e.IsDir() {
+            continue
+        }
+        name := e.Name()
+        if !strings.HasSuffix(strings.ToLower(name), ".csv") {
+            continue
+        }
+
+        fullPath := filepath.Join(importDir, name)
+        data, readErr := os.ReadFile(fullPath)
+        if readErr != nil {
+            log.Printf("Tally import: failed to read file %s: %v", fullPath, readErr)
+            continue
+        }
+
+        // Determine data type from filename
+        lower := strings.ToLower(name)
+        dataType := ""
+        switch {
+        case strings.Contains(lower, "order"):
+            dataType = "orders"
+        case strings.Contains(lower, "invoice"):
+            dataType = "invoices"
+        default:
+            log.Printf("Tally import: skipping %s (unknown type)", name)
+            continue
+        }
+
+        // Determine tenant ID: prefer env; otherwise try to parse UUID in filename
+        tID := tenantID
+        if tID == uuid.Nil {
+            // naive parse: split filename components and try to parse a UUID
+            base := strings.TrimSuffix(name, filepath.Ext(name))
+            parts := strings.FieldsFunc(base, func(r rune) bool { return r == '_' || r == '-' })
+            for _, p := range parts {
+                if id, pErr := uuid.Parse(p); pErr == nil {
+                    tID = id
+                    break
+                }
+            }
+            if tID == uuid.Nil {
+                log.Printf("Tally import: no tenant ID for %s; set TALLY_IMPORT_TENANT_ID or include UUID in filename", name)
+                continue
+            }
+        }
+
+        req := ImportRequest{TenantID: tID, Data: string(data), DataType: dataType}
+        res, impErr := i.importViaCSV(ctx, req)
+        if impErr != nil {
+            log.Printf("Tally import: processing %s failed: %v", name, impErr)
+        }
+        if res != nil {
+            log.Printf("Tally import: %s -> processed=%d imported=%d errors=%d", name, res.RecordsProcessed, res.RecordsImported, len(res.Errors))
+            for _, er := range res.Errors {
+                log.Printf("Tally import error (%s): %s", name, er)
+            }
+        }
+
+        // Mark file as processed
+        newName := fmt.Sprintf("%s.processed.%d", name, time.Now().Unix())
+        if renErr := os.Rename(fullPath, filepath.Join(importDir, newName)); renErr != nil {
+            log.Printf("Tally import: failed to rename %s: %v", name, renErr)
+        }
+        processed++
+    }
+
+    log.Printf("Scheduled import job completed: %d files processed", processed)
+    return nil
 }

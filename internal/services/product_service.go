@@ -40,6 +40,7 @@ type ProductService interface {
 	// Bulk operations
 	BulkUpdateProducts(ctx context.Context, tenantID uuid.UUID, bulkUpdate *models.ProductBulkUpdate) (*models.BulkOperationResult, error)
 	BulkCreateProducts(ctx context.Context, tenantID uuid.UUID, bulkCreate *models.ProductBulkCreate) (*models.BulkOperationResult, error)
+	BulkDeleteProducts(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) (*models.BulkOperationResult, error)
 }
 
 type productService struct {
@@ -121,15 +122,23 @@ func (s *productService) Update(ctx context.Context, tenantID uuid.UUID, product
 	if err != nil {
 		return err
 	}
-	if product.Quantity != existing.Quantity {
-		change := product.Quantity - existing.Quantity
-		s.UpdateStock(ctx, tenantID, product.ID, change)
-	}
+    // Compute quantity delta and persist the full update once
+    var change int
+    if product.Quantity != existing.Quantity {
+        change = product.Quantity - existing.Quantity
+    }
 
-	err = s.productRepo.Update(ctx, product)
+    err = s.productRepo.Update(ctx, product)
 	if err != nil {
 		return err
 	}
+
+    // Adjust inventory for quantity changes after product update
+    if change != 0 {
+        if adjErr := s.adjustInventoryForChange(ctx, tenantID, product.ID, change); adjErr != nil {
+            fmt.Printf("Warning: Failed to adjust inventory for product %s: %v\n", product.ID.String(), adjErr)
+        }
+    }
 
 	// Invalidate cache for this product
 	if cacheErr := s.cacheService.DeleteProduct(ctx, tenantID, product.ID); cacheErr != nil {
@@ -191,33 +200,37 @@ func (s *productService) UpdateStock(ctx context.Context, tenantID, productID uu
 		return err
 	}
 
-	// Integrate with inventory service to update warehouse stock
-	// Get all inventory records for this product
-	inventories, err := s.inventoryRepo.GetByProduct(ctx, tenantID, productID)
-	if err != nil {
-		// Log error but don't fail - inventory integration is optional
-		fmt.Printf("Warning: Failed to get inventory for product %s: %v\n", productID.String(), err)
-		return nil
-	}
-
-	// If product has inventory records, update the first warehouse
-	// In a more sophisticated system, you'd determine which warehouse to update
-	if len(inventories) > 0 {
-		inventory := inventories[0]
-		
-		// Create an inventory service to handle the update
-		// For now, directly update the inventory quantity
-		inventory.Quantity += change
-		if inventory.Quantity < 0 {
-			inventory.Quantity = 0
-		}
-		
-		if err := s.inventoryRepo.Update(ctx, inventory); err != nil {
-			fmt.Printf("Warning: Failed to update inventory for product %s: %v\n", productID.String(), err)
-		}
-	}
+    // Adjust related inventory
+    if adjErr := s.adjustInventoryForChange(ctx, tenantID, productID, change); adjErr != nil {
+        fmt.Printf("Warning: Failed to update inventory for product %s: %v\n", productID.String(), adjErr)
+    }
 
 	return nil
+}
+
+// adjustInventoryForChange updates inventory quantities linked to a product by the change amount
+func (s *productService) adjustInventoryForChange(ctx context.Context, tenantID, productID uuid.UUID, change int) error {
+    inventories, err := s.inventoryRepo.GetByProduct(ctx, tenantID, productID)
+    if err != nil {
+        // Log error but don't fail - inventory integration is optional
+        return fmt.Errorf("get inventory: %w", err)
+    }
+
+    if len(inventories) == 0 {
+        return nil
+    }
+
+    // Update the first warehouse record for backward compatibility
+    inventory := inventories[0]
+    inventory.Quantity += change
+    if inventory.Quantity < 0 {
+        inventory.Quantity = 0
+    }
+
+    if err := s.inventoryRepo.Update(ctx, inventory); err != nil {
+        return err
+    }
+    return nil
 }
 
 // Search products by query string with optional category filter
@@ -277,7 +290,19 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 		optimizedImage = imageData
 	}
 	
-	err = s.minioService.UploadImage(ctx, bucketName, originalKey, bytes.NewReader(optimizedImage), int64(len(optimizedImage)))
+    ct := "image/jpeg"
+    switch strings.ToLower(fileExt) {
+    case ".png":
+        ct = "image/png"
+    case ".gif":
+        ct = "image/gif"
+    case ".webp":
+        ct = "image/webp"
+    default:
+        ct = "image/jpeg"
+    }
+
+    err = s.minioService.UploadImage(ctx, bucketName, originalKey, bytes.NewReader(optimizedImage), int64(len(optimizedImage)), ct)
 	if err != nil {
 		return fmt.Errorf("failed to upload original image: %w", err)
 	}
@@ -288,7 +313,7 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	if err != nil {
 		fmt.Printf("Warning: Thumbnail generation failed: %v\n", err)
 	} else {
-		err = s.minioService.UploadImage(ctx, bucketName, thumbnailKey, bytes.NewReader(thumbnail), int64(len(thumbnail)))
+        err = s.minioService.UploadImage(ctx, bucketName, thumbnailKey, bytes.NewReader(thumbnail), int64(len(thumbnail)), ct)
 		if err != nil {
 			fmt.Printf("Warning: Failed to upload thumbnail: %v\n", err)
 		}
@@ -300,7 +325,7 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	if err != nil {
 		fmt.Printf("Warning: Medium image generation failed: %v\n", err)
 	} else {
-		err = s.minioService.UploadImage(ctx, bucketName, mediumKey, bytes.NewReader(medium), int64(len(medium)))
+        err = s.minioService.UploadImage(ctx, bucketName, mediumKey, bytes.NewReader(medium), int64(len(medium)), ct)
 		if err != nil {
 			fmt.Printf("Warning: Failed to upload medium image: %v\n", err)
 		}
@@ -671,6 +696,77 @@ func (s *productService) BulkCreateProducts(ctx context.Context, tenantID uuid.U
 	if result.FailedItems > 0 && result.ProcessedItems > 0 {
 		result.Status = "partial"
 	}
+	result.CompletionTime = &time.Time{}
+	*result.CompletionTime = time.Now()
+
+	return result, nil
+}
+
+// BulkDeleteProducts performs bulk deletion of multiple products
+func (s *productService) BulkDeleteProducts(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID) (*models.BulkOperationResult, error) {
+	result := &models.BulkOperationResult{
+		OperationID:   fmt.Sprintf("bulk_delete_products_%d", time.Now().UnixNano()),
+		Status:       "processing",
+		TotalItems:    len(productIDs),
+		StartTime:     time.Now(),
+		Progress:      0,
+		Errors:        []models.BulkOperationError{},
+		Items:         []models.BulkOperationItem{},
+	}
+
+	if len(productIDs) == 0 {
+		result.Status = "completed"
+		result.CompletionTime = &time.Time{}
+		*result.CompletionTime = time.Now()
+		return result, nil
+	}
+
+	// Perform bulk deletion
+	rowsAffected, err := s.productRepo.BulkDelete(ctx, tenantID, productIDs)
+	if err != nil {
+		result.Status = "failed"
+		errorMsg := fmt.Sprintf("Bulk delete failed: %v", err)
+		result.Errors = append(result.Errors, models.BulkOperationError{
+			ItemIndex: 0,
+			ItemID:    "bulk_operation",
+			Error:     errorMsg,
+		})
+		
+		// Mark all items as failed
+		for i, productID := range productIDs {
+			result.FailedItems++
+			result.Items = append(result.Items, models.BulkOperationItem{
+				ItemIndex: i,
+				ItemID:    productID.String(),
+				Status:    "failed",
+				Error:     &errorMsg,
+			})
+		}
+		
+		result.CompletionTime = &time.Time{}
+		*result.CompletionTime = time.Now()
+		return result, nil
+	}
+
+	// Mark all items as successful since bulk delete succeeded
+	result.ProcessedItems = int(rowsAffected)
+	for i, productID := range productIDs {
+		result.Items = append(result.Items, models.BulkOperationItem{
+			ItemIndex: i,
+			ItemID:    productID.String(),
+			Status:    "success",
+		})
+
+		// Invalidate cache for this product
+		if cacheErr := s.cacheService.DeleteProduct(ctx, tenantID, productID); cacheErr != nil {
+			fmt.Printf("Failed to invalidate cache for product %s: %v\n", productID.String(), cacheErr)
+		}
+	}
+
+	// Update progress
+	result.Progress = 100
+
+	result.Status = "completed"
 	result.CompletionTime = &time.Time{}
 	*result.CompletionTime = time.Now()
 

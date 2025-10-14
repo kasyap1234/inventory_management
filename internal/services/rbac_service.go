@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"agromart2/internal/caching"
+	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
@@ -17,27 +18,51 @@ type RBACService interface {
 	UserHasPermission(ctx context.Context, userID, tenantID uuid.UUID, permissionName string) (bool, error)
 	GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]string, error)
 	InvalidateUserPermissionsCache(ctx context.Context, userID, tenantID uuid.UUID) error
+
+	// Role CRUD operations
+	CreateRole(ctx context.Context, tenantID uuid.UUID, role *models.Role) error
+	GetRoleByID(ctx context.Context, tenantID, roleID uuid.UUID) (*models.Role, error)
+	GetRoleByName(ctx context.Context, tenantID uuid.UUID, name string) (*models.Role, error)
+	UpdateRole(ctx context.Context, tenantID uuid.UUID, role *models.Role) error
+	DeleteRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) error
+	ListRoles(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Role, error)
+
+	// Permission CRUD operations
+	CreatePermission(ctx context.Context, permission *models.Permission) error
+	GetPermissionByID(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
+	GetPermissionByName(ctx context.Context, name string) (*models.Permission, error)
+	UpdatePermission(ctx context.Context, permission *models.Permission) error
+	DeletePermission(ctx context.Context, permissionID uuid.UUID) error
+	ListPermissions(ctx context.Context, limit, offset int) ([]*models.Permission, error)
+
+	// Role-Permission associations
+	AssignPermissionToRole(ctx context.Context, tenantID, roleID, permissionID uuid.UUID) error
+	RevokePermissionFromRole(ctx context.Context, tenantID, roleID, permissionID uuid.UUID) error
+	GetRolePermissions(ctx context.Context, tenantID, roleID uuid.UUID) ([]*models.Permission, error)
 }
 
 type rbacService struct {
 	userRoleRepo       repositories.UserRoleRepository
+	roleRepo           repositories.RoleRepository
 	rolePermissionRepo repositories.RolePermissionRepository
 	permissionRepo     repositories.PermissionRepository
 	cacheService       caching.CacheService
 }
 
-func NewRBACService(userRoleRepo repositories.UserRoleRepository, rolePermissionRepo repositories.RolePermissionRepository, permissionRepo repositories.PermissionRepository) RBACService {
+func NewRBACService(userRoleRepo repositories.UserRoleRepository, roleRepo repositories.RoleRepository, rolePermissionRepo repositories.RolePermissionRepository, permissionRepo repositories.PermissionRepository) RBACService {
 	return &rbacService{
 		userRoleRepo:       userRoleRepo,
+		roleRepo:           roleRepo,
 		rolePermissionRepo: rolePermissionRepo,
 		permissionRepo:     permissionRepo,
 		cacheService:       nil, // Optional: can be nil for backward compatibility
 	}
 }
 
-func NewRBACServiceWithCache(userRoleRepo repositories.UserRoleRepository, rolePermissionRepo repositories.RolePermissionRepository, permissionRepo repositories.PermissionRepository, cacheService caching.CacheService) RBACService {
+func NewRBACServiceWithCache(userRoleRepo repositories.UserRoleRepository, roleRepo repositories.RoleRepository, rolePermissionRepo repositories.RolePermissionRepository, permissionRepo repositories.PermissionRepository, cacheService caching.CacheService) RBACService {
 	return &rbacService{
 		userRoleRepo:       userRoleRepo,
+		roleRepo:           roleRepo,
 		rolePermissionRepo: rolePermissionRepo,
 		permissionRepo:     permissionRepo,
 		cacheService:       cacheService,
@@ -178,6 +203,25 @@ func (s *rbacService) cachePermissionResult(ctx context.Context, userID, tenantI
 	if err := s.cacheService.SetString(ctx, cacheKey, value, 10*time.Minute); err != nil {
 		log.Printf("RBAC: Failed to cache permission result - User: %s, Permission: %s, Error: %v", userID, permissionName, err)
 	}
+
+    // Maintain an index of cached permission keys per user to allow precise invalidation
+    indexKey := fmt.Sprintf("agromart:rbac:permission:index:%s:%s", tenantID.String(), userID.String())
+    if existing, err := s.cacheService.GetString(ctx, indexKey); err == nil {
+        var m map[string]bool
+        if existing == "" {
+            m = map[string]bool{}
+        } else {
+            if uerr := json.Unmarshal([]byte(existing), &m); uerr != nil {
+                m = map[string]bool{}
+            }
+        }
+        if !m[permissionName] {
+            m[permissionName] = true
+            if data, merr := json.Marshal(m); merr == nil {
+                _ = s.cacheService.SetString(ctx, indexKey, string(data), 10*time.Minute)
+            }
+        }
+    }
 }
 
 // InvalidateUserPermissionsCache invalidates all cached permissions for a user
@@ -194,10 +238,142 @@ func (s *rbacService) InvalidateUserPermissionsCache(ctx context.Context, userID
 		log.Printf("RBAC: Failed to invalidate permissions cache - Key: %s, Error: %v", permissionsKey, err)
 	}
 
-	// Note: Individual permission checks are cached separately with pattern:
-	// agromart:rbac:permission:{tenantID}:{userID}:{permissionName}
-	// For complete invalidation, we would need to track all permission names or use a pattern-based delete
-	// For now, we rely on the TTL to expire these caches
+    // Invalidate individual permission check keys using the maintained index
+    indexKey := fmt.Sprintf("agromart:rbac:permission:index:%s:%s", tenantID.String(), userID.String())
+    if existing, err := s.cacheService.GetString(ctx, indexKey); err == nil && existing != "" {
+        var m map[string]bool
+        if uerr := json.Unmarshal([]byte(existing), &m); uerr == nil {
+            for perm := range m {
+                k := fmt.Sprintf("agromart:rbac:permission:%s:%s:%s", tenantID.String(), userID.String(), perm)
+                if delErr := s.cacheService.Delete(ctx, k); delErr != nil {
+                    log.Printf("RBAC: Failed to delete permission cache key %s: %v", k, delErr)
+                }
+            }
+        }
+    }
+    // Delete the index key itself
+    if err := s.cacheService.Delete(ctx, indexKey); err != nil {
+        log.Printf("RBAC: Failed to delete permission index key %s: %v", indexKey, err)
+    }
 
 	return nil
+}
+
+// Role CRUD operations
+func (s *rbacService) CreateRole(ctx context.Context, tenantID uuid.UUID, role *models.Role) error {
+	if role.TenantID != tenantID {
+		return fmt.Errorf("role tenant_id does not match provided tenant_id")
+	}
+	return s.roleRepo.Create(ctx, role)
+}
+
+func (s *rbacService) GetRoleByID(ctx context.Context, tenantID, roleID uuid.UUID) (*models.Role, error) {
+	return s.roleRepo.GetByID(ctx, tenantID, roleID)
+}
+
+func (s *rbacService) GetRoleByName(ctx context.Context, tenantID uuid.UUID, name string) (*models.Role, error) {
+	return s.roleRepo.GetByName(ctx, tenantID, name)
+}
+
+func (s *rbacService) UpdateRole(ctx context.Context, tenantID uuid.UUID, role *models.Role) error {
+	if role.TenantID != tenantID {
+		return fmt.Errorf("role tenant_id does not match provided tenant_id")
+	}
+	return s.roleRepo.Update(ctx, role)
+}
+
+func (s *rbacService) DeleteRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) error {
+	return s.roleRepo.Delete(ctx, tenantID, roleID)
+}
+
+func (s *rbacService) ListRoles(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Role, error) {
+	return s.roleRepo.List(ctx, tenantID, limit, offset)
+}
+
+// Permission CRUD operations
+func (s *rbacService) CreatePermission(ctx context.Context, permission *models.Permission) error {
+	return s.permissionRepo.Create(ctx, permission)
+}
+
+func (s *rbacService) GetPermissionByID(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error) {
+	return s.permissionRepo.GetByID(ctx, permissionID)
+}
+
+func (s *rbacService) GetPermissionByName(ctx context.Context, name string) (*models.Permission, error) {
+	return s.permissionRepo.GetByName(ctx, name)
+}
+
+func (s *rbacService) UpdatePermission(ctx context.Context, permission *models.Permission) error {
+	return s.permissionRepo.Update(ctx, permission)
+}
+
+func (s *rbacService) DeletePermission(ctx context.Context, permissionID uuid.UUID) error {
+	return s.permissionRepo.Delete(ctx, permissionID)
+}
+
+func (s *rbacService) ListPermissions(ctx context.Context, limit, offset int) ([]*models.Permission, error) {
+	return s.permissionRepo.List(ctx, limit, offset)
+}
+
+// Role-Permission associations
+func (s *rbacService) AssignPermissionToRole(ctx context.Context, tenantID, roleID, permissionID uuid.UUID) error {
+	// Verify role exists and belongs to tenant
+	role, err := s.roleRepo.GetByID(ctx, tenantID, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to verify role: %w", err)
+	}
+	if role == nil {
+		return fmt.Errorf("role not found")
+	}
+
+	// Verify permission exists
+	permission, err := s.permissionRepo.GetByID(ctx, permissionID)
+	if err != nil {
+		return fmt.Errorf("failed to verify permission: %w", err)
+	}
+	if permission == nil {
+		return fmt.Errorf("permission not found")
+	}
+
+	// Create the association
+	rolePermission := &models.RolePermission{
+		ID:           uuid.New(),
+		RoleID:       roleID,
+		PermissionID: permissionID,
+	}
+
+	return s.rolePermissionRepo.Create(ctx, tenantID, rolePermission)
+}
+
+func (s *rbacService) RevokePermissionFromRole(ctx context.Context, tenantID, roleID, permissionID uuid.UUID) error {
+	return s.rolePermissionRepo.Delete(ctx, tenantID, roleID, permissionID)
+}
+
+func (s *rbacService) GetRolePermissions(ctx context.Context, tenantID, roleID uuid.UUID) ([]*models.Permission, error) {
+	// Verify role exists and belongs to tenant
+	_, err := s.roleRepo.GetByID(ctx, tenantID, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify role: %w", err)
+	}
+
+	// Get role-permission associations
+	rolePermissions, err := s.rolePermissionRepo.ListByRole(ctx, tenantID, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role permissions: %w", err)
+	}
+
+	// Get actual permissions
+	var permissions []*models.Permission
+	for _, rp := range rolePermissions {
+		permission, err := s.permissionRepo.GetByID(ctx, rp.PermissionID)
+		if err != nil {
+			log.Printf("Warning: failed to get permission %s: %v", rp.PermissionID, err)
+			continue
+		}
+		if permission != nil {
+			permissions = append(permissions, permission)
+		}
+	}
+
+	return permissions, nil
 }

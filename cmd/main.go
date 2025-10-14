@@ -254,7 +254,7 @@ func main() {
 	analyticsSvc := analytics.NewAnalyticsService(orderRepo, invoiceRepo, inventoryRepo, productRepo, cacheSvc, pool)
 
 	// Create RBAC service with caching for improved performance
-	rbacService := services.NewRBACServiceWithCache(userRoleRepo, rolePermissionRepo, permissionRepo, cacheSvc)
+	rbacService := services.NewRBACServiceWithCache(userRoleRepo, roleRepo, rolePermissionRepo, permissionRepo, cacheSvc)
 
 	// RBAC middleware
 	rbacMiddleware := middleware.NewRBACMiddleware(rbacService)
@@ -293,6 +293,11 @@ func main() {
 	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware)
 	tenantHandlers := handlers.NewTenantHandlers(tenantService, rbacMiddleware)
 	categoryHandlers := handlers.NewCategoryHandlers(categoryRepo, rbacMiddleware)
+	
+	// Create role and permission handlers
+	roleHandlers := handlers.NewRoleHandlers(rbacService, rbacMiddleware)
+	permissionHandlers := handlers.NewPermissionHandlers(rbacService, rbacMiddleware)
+	
 	warehouseHandlers := handlers.NewWarehouseHandlers(
 		services.NewWarehouseService(warehouseRepo),
 		rbacMiddleware,
@@ -395,6 +400,48 @@ func main() {
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(jobs.TypeTallyExport, tallyExporter.TallyExportHandler)
 	mux.HandleFunc(jobs.TypeTallyImport, tallyImporter.TallyImportHandler)
+	mux.HandleFunc(jobs.TypeTallyImportScan, tallyImporter.TallyImportScanHandler)
+
+	// Optional: background scheduler for Tally CSV imports (file-based), controlled by env
+	if os.Getenv("TALLY_IMPORT_ENABLE") == "true" {
+		intervalMinutes := 15
+		if v := os.Getenv("TALLY_IMPORT_INTERVAL_MINUTES"); v != "" {
+			if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+				intervalMinutes = parsed
+			}
+		}
+
+		// Prefer Asynq Scheduler when CRON provided; otherwise fallback to ticker
+		cron := os.Getenv("TALLY_IMPORT_SCHEDULER_CRON")
+		if cron != "" {
+			log.Printf("INFO: Tally scheduled import (Asynq) enabled: cron=%s", cron)
+			scheduler := asynq.NewScheduler(asynq.RedisClientOpt{Addr: redisAddr, Password: redisPassword, DB: redisDB}, &asynq.SchedulerOpts{})
+			if _, err := scheduler.Register(cron, jobs.NewTallyImportScanTask(), asynq.Queue("default")); err != nil {
+				log.Printf("ERROR: Failed to register Tally import scan schedule: %v", err)
+			} else {
+				go func() {
+					if err := scheduler.Run(); err != nil {
+						log.Printf("ERROR: Tally scheduler stopped: %v", err)
+					}
+				}()
+				defer scheduler.Shutdown()
+			}
+		} else {
+			log.Printf("INFO: Tally scheduled import (ticker) enabled: every %d minute(s)", intervalMinutes)
+			go func() {
+				ticker := time.NewTicker(time.Duration(intervalMinutes) * time.Minute)
+				defer ticker.Stop()
+				if err := tallyImporter.ScheduledImportJob(context.Background()); err != nil {
+					log.Printf("WARN: Tally scheduled import run failed: %v", err)
+				}
+				for range ticker.C {
+					if err := tallyImporter.ScheduledImportJob(context.Background()); err != nil {
+						log.Printf("WARN: Tally scheduled import run failed: %v", err)
+					}
+				}
+			}()
+		}
+	}
 
 	// Create Echo instance with optimized settings
 	e := echo.New()
@@ -506,15 +553,32 @@ func main() {
 	protected.PUT("/categories/:id", categoryHandlers.UpdateCategory)
 	protected.DELETE("/categories/:id", categoryHandlers.DeleteCategory)
 
+	// Role routes
+	protected.GET("/roles", roleHandlers.ListRoles)
+	protected.POST("/roles", roleHandlers.CreateRole)
+	protected.GET("/roles/:id", roleHandlers.GetRole)
+	protected.PUT("/roles/:id", roleHandlers.UpdateRole)
+	protected.DELETE("/roles/:id", roleHandlers.DeleteRole)
+
+	// Permission routes
+	protected.GET("/permissions", permissionHandlers.ListPermissions)
+	
+	// Role-Permission association routes
+	protected.POST("/roles/:id/permissions", permissionHandlers.AssignPermissionsToRole)
+	protected.DELETE("/roles/:id/permissions/:permissionId", permissionHandlers.RevokePermissionFromRole)
+	protected.GET("/roles/:id/permissions", permissionHandlers.GetRolePermissions)
+
 	// Product routes
 	protected.GET("/products", productHandlers.ListProducts)
 	protected.POST("/products", productHandlers.CreateProduct)
 	protected.GET("/products/:id", productHandlers.GetProduct)
+	protected.GET("/products/barcode/:barcode", productHandlers.GetProductByBarcode)
 	protected.PUT("/products/:id", productHandlers.UpdateProduct)
 	protected.DELETE("/products/:id", productHandlers.DeleteProduct)
 	protected.GET("/products/search", productHandlers.SearchProducts)
 	protected.POST("/products/bulk/update", productHandlers.BulkUpdateProducts)
 	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts)
+	protected.DELETE("/products/bulk/delete", productHandlers.BulkDeleteProducts)
 	protected.POST("/products/bulk-price-update", productHandlers.BulkPriceUpdate)
 
 	// Product image routes
