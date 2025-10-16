@@ -1,0 +1,192 @@
+import axios from 'axios';
+
+import { csrfTokenManager, tokenStorage } from '@/lib/security';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/v1';
+
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+api.interceptors.request.use(
+  async (config) => {
+    const headers = config.headers ?? {};
+
+    const accessToken = tokenStorage.getAccessToken();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const method = config.method?.toLowerCase();
+    if (method && !['get', 'head', 'options'].includes(method)) {
+      const csrfToken = await csrfTokenManager.getToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
+    config.headers = headers;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error.response?.status;
+    const requestConfig = error.config as typeof error.config & { __isRetryRequest?: boolean };
+
+    if (status === 401 && requestConfig && !requestConfig.__isRetryRequest) {
+      const refreshToken = tokenStorage.getRefreshToken();
+      if (!refreshToken) {
+        tokenStorage.clear();
+        csrfTokenManager.clearToken();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      try {
+        requestConfig.__isRetryRequest = true;
+        const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
+        const { access_token, refresh_token: newRefreshToken } = response.data;
+        tokenStorage.setTokens(access_token, newRefreshToken);
+        csrfTokenManager.clearToken();
+
+        requestConfig.headers = {
+          ...(requestConfig.headers ?? {}),
+          Authorization: `Bearer ${access_token}`,
+        };
+
+        return api(requestConfig);
+      } catch (refreshError) {
+        tokenStorage.clear();
+        csrfTokenManager.clearToken();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// Role Management API
+export const roleAPI = {
+  list: () => api.get('/roles'),
+  get: (id: string) => api.get(`/roles/${id}`),
+  create: (data: { name: string; description?: string }) => api.post('/roles', data),
+  update: (id: string, data: { name: string; description?: string }) => api.put(`/roles/${id}`, data),
+  delete: (id: string) => api.delete(`/roles/${id}`),
+  getPermissions: (id: string) => api.get(`/roles/${id}/permissions`),
+  assignPermissions: (id: string, permissionIds: string[]) => 
+    api.post(`/roles/${id}/permissions`, { permission_ids: permissionIds }),
+  removePermission: (id: string, permissionId: string) => 
+    api.delete(`/roles/${id}/permissions/${permissionId}`),
+};
+
+// Permission API
+export const permissionAPI = {
+  list: () => api.get('/permissions'),
+};
+
+// Notification Template API
+export const notificationTemplateAPI = {
+  list: (eventType?: string) => 
+    api.get('/notification-templates', { params: eventType ? { event_type: eventType } : {} }),
+  get: (id: string) => api.get(`/notification-templates/${id}`),
+  create: (data: {
+    name: string;
+    type: 'email' | 'sms' | 'webhook' | 'in_app';
+    event_type: string;
+    subject?: string;
+    body_template: string;
+    variables?: Record<string, any>;
+    is_active: boolean;
+  }) => api.post('/notification-templates', data),
+  update: (id: string, data: {
+    name: string;
+    type: 'email' | 'sms' | 'webhook' | 'in_app';
+    event_type: string;
+    subject?: string;
+    body_template: string;
+    variables?: Record<string, any>;
+    is_active: boolean;
+  }) => api.put(`/notification-templates/${id}`, data),
+  delete: (id: string) => api.delete(`/notification-templates/${id}`),
+  test: (id: string, testData: Record<string, any>) => 
+    api.post(`/notification-templates/${id}/test`, { test_data: testData }),
+};
+
+// Alert Rule API
+export const alertRuleAPI = {
+  list: (eventType?: string) => 
+    api.get('/alert-rules', { params: eventType ? { event_type: eventType } : {} }),
+  get: (id: string) => api.get(`/alert-rules/${id}`),
+  create: (data: {
+    name: string;
+    description?: string;
+    event_type: string;
+    conditions: Record<string, any>;
+    actions: Array<{
+      type: string;
+      target: string;
+      template_id?: string;
+      custom_data?: Record<string, any>;
+    }>;
+    is_active: boolean;
+  }) => api.post('/alert-rules', data),
+  update: (id: string, data: {
+    name?: string;
+    description?: string;
+    event_type?: string;
+    conditions?: Record<string, any>;
+    actions?: Array<{
+      type: string;
+      target: string;
+      template_id?: string;
+      custom_data?: Record<string, any>;
+    }>;
+    is_active?: boolean;
+  }) => api.put(`/alert-rules/${id}`, data),
+  delete: (id: string) => api.delete(`/alert-rules/${id}`),
+  test: (id: string, testData: Record<string, any>) => 
+    api.post(`/alert-rules/${id}/test`, { test_data: testData }),
+};
+
+type WebhookTestRequest = {
+  target_url: string;
+  method?: 'POST' | 'PUT' | 'PATCH';
+  headers?: Record<string, string>;
+  payload?: Record<string, any>;
+  secret_id?: string;
+  secret?: string;
+  event_type?: string;
+};
+
+type WebhookTestResponse = {
+  success: boolean;
+  target_status?: number;
+  response_headers?: Record<string, string>;
+  response_body_snippet?: string;
+  duration_ms: number;
+  signature: { algorithm: string; header_name: string };
+  error?: string;
+};
+
+// Attach webhooks helper to axios instance for convenient usage as api.webhooks.test(...)
+(api as any).webhooks = {
+  test: async (payload: WebhookTestRequest): Promise<WebhookTestResponse> => {
+    const { data } = await api.post('/webhooks/test', payload);
+    return data as WebhookTestResponse;
+  },
+};
+
+export default api;
