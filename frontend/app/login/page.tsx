@@ -35,16 +35,16 @@ function LoginContent() {
   return (
     <div className="flex min-h-screen">
       {/* Left side - Form */}
-      <div className="flex flex-1 items-center justify-center p-8 bg-white">
+      <div className="flex flex-1 items-center justify-center p-8 bg-gradient-to-br from-white via-indigo-50/10 to-purple-50/10">
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Agromart</h1>
-            <p className="text-gray-600">Welcome back! Please sign in to continue.</p>
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl font-bold gradient-text mb-3">Agromart</h1>
+            <p className="text-gray-600 text-lg">Welcome back! Please sign in to continue.</p>
           </div>
 
           {/* Form Card */}
-          <Card className="shadow-xl">
+          <Card className="shadow-elegant-lg border-0">
             <CardContent className="p-8">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {resetSuccessful && (
@@ -99,7 +99,7 @@ function LoginContent() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
+                  className="w-full h-12 btn-modern bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-sm font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
                   disabled={login.isPending}
                 >
                   {login.isPending ? (
@@ -132,11 +132,12 @@ function LoginContent() {
       </div>
 
       {/* Right side - Brand */}
-      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
-        <div className="max-w-md space-y-8 animate-slide-in">
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 animated-gradient opacity-30"></div>
+        <div className="max-w-md space-y-8 animate-slide-in relative z-10">
           <div className="inline-block">
-            <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-md">
-              <Sparkles className="w-5 h-5 text-blue-600" />
+            <div className="flex items-center gap-2 glass px-4 py-2 rounded-full shadow-elegant">
+              <Sparkles className="w-5 h-5 text-indigo-600" />
               <span className="text-sm font-semibold text-gray-900">Modern Inventory System</span>
             </div>
           </div>
@@ -150,21 +151,21 @@ function LoginContent() {
           </p>
 
           <div className="space-y-4 pt-4">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Shield className="w-5 h-5 text-blue-600" />
+            <div className="flex items-start gap-4 group">
+              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
+                <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Secure & Reliable</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Secure & Reliable</h3>
                 <p className="text-sm text-gray-600">Enterprise-grade security for your data</p>
               </div>
             </div>
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-purple-600" />
+            <div className="flex items-start gap-4 group">
+              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
+                <Zap className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Lightning Fast</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Lightning Fast</h3>
                 <p className="text-sm text-gray-600">Real-time updates and instant synchronization</p>
               </div>
             </div>

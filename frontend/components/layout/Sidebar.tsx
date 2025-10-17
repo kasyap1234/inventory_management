@@ -46,10 +46,10 @@ export function Sidebar() {
   const { logout, user } = useAuth();
 
   return (
-    <div className="flex flex-col w-64 bg-gradient-to-b from-slate-50 to-white border-r border-gray-200 h-screen fixed left-0 top-0 shadow-sm">
+    <div className="flex flex-col w-64 bg-gradient-to-b from-slate-50 via-white to-slate-50 border-r border-gray-200/60 h-screen fixed left-0 top-0 shadow-elegant">
       {/* Logo section with gradient */}
-      <div className="flex items-center gap-3 h-20 px-6 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl shadow-md">
+      <div className="flex items-center gap-3 h-20 px-6 border-b border-gray-200/60 bg-white/80 backdrop-blur-sm">
+        <div className="flex items-center justify-center w-11 h-11 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-xl shadow-colored pulse-glow">
           <Sprout className="w-6 h-6 text-white" />
         </div>
         <h1 className="text-2xl font-bold gradient-text">Agromart</h1>
@@ -65,21 +65,21 @@ export function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'group flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200',
+                  'group flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-300',
                   isActive
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 hover:translate-x-1'
+                    ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-colored scale-[1.02]'
+                    : 'text-gray-700 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:translate-x-1 hover:shadow-sm'
                 )}
               >
                 <div className="flex items-center">
                   <item.icon className={cn(
-                    "mr-3 h-5 w-5",
-                    isActive ? "text-white" : "text-gray-500 group-hover:text-blue-600"
+                    "mr-3 h-5 w-5 transition-transform duration-300",
+                    isActive ? "text-white" : "text-gray-500 group-hover:text-indigo-600 group-hover:scale-110"
                   )} />
                   <span>{item.name}</span>
                 </div>
                 {isActive && (
-                  <ChevronRight className="h-4 w-4 text-white" />
+                  <ChevronRight className="h-4 w-4 text-white animate-pulse" />
                 )}
               </Link>
             );
@@ -88,9 +88,9 @@ export function Sidebar() {
       </div>
       
       {/* User section with modern card */}
-      <div className="border-t border-gray-200 p-4 bg-white">
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl">
-          <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full text-white font-semibold text-sm shadow-md">
+      <div className="border-t border-gray-200/60 p-4 bg-white/80 backdrop-blur-sm">
+        <div className="flex items-center gap-3 mb-3 px-3 py-2.5 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-xl border border-indigo-100/50">
+          <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full text-white font-semibold text-sm shadow-colored">
             {user?.first_name?.[0]}{user?.last_name?.[0]}
           </div>
           <div className="flex-1 min-w-0">
@@ -102,7 +102,7 @@ export function Sidebar() {
         </div>
         <button
           onClick={() => logout.mutate()}
-          className="flex items-center justify-center w-full px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white hover:bg-gradient-to-r hover:from-red-600 hover:to-red-700 rounded-xl transition-all duration-200 border border-red-200 hover:border-transparent hover:shadow-md"
+          className="flex items-center justify-center w-full px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 rounded-xl transition-all duration-300 border border-red-200 hover:border-transparent hover:shadow-md hover:scale-[1.02]"
         >
           <LogOut className="mr-2 h-4 w-4" />
           Logout

@@ -21,16 +21,18 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="text-center">
-          <div className="relative">
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 relative overflow-hidden">
+        <div className="absolute inset-0 animated-gradient opacity-40"></div>
+        <div className="text-center relative z-10">
+          <div className="relative mb-8">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-indigo-600 mx-auto"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 opacity-20 animate-pulse"></div>
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 opacity-30 animate-pulse pulse-glow"></div>
             </div>
           </div>
-          <p className="mt-6 text-gray-700 font-medium">Loading your workspace...</p>
-          <p className="mt-2 text-sm text-gray-500">Please wait</p>
+          <h1 className="text-3xl font-bold gradient-text mb-3">Agromart</h1>
+          <p className="text-gray-700 font-medium text-lg">Loading your workspace...</p>
+          <p className="mt-2 text-sm text-gray-600">Please wait</p>
         </div>
       </div>
     );
@@ -41,7 +43,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-indigo-50/20">
       <Sidebar />
       <main className="flex-1 ml-64 overflow-y-auto">
         <div className="min-h-full">
