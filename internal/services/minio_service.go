@@ -14,6 +14,7 @@ type MinioService interface {
 	GetPresignedURL(bucketName, objectName string, expiry time.Duration) (string, error)
 	DeleteImage(ctx context.Context, bucketName, objectName string) error
 	EnsureBucketExists(ctx context.Context, bucketName string) error
+	HealthCheck(ctx context.Context) error
 }
 
 type minioClient struct {
@@ -59,4 +60,10 @@ func (m *minioClient) EnsureBucketExists(ctx context.Context, bucketName string)
 		return m.client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
 	}
 	return nil
+}
+
+func (m *minioClient) HealthCheck(ctx context.Context) error {
+	// Try to list buckets to verify connectivity
+	_, err := m.client.ListBuckets(ctx)
+	return err
 }

@@ -70,7 +70,7 @@ type LoginResponse struct {
 // LoginRequest represents the login request payload
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email,max=255" sanitize:"trim,lower"`
-	Password string `json:"password" validate:"required,min=6,max=128" sanitize:"trim"`
+	Password string `json:"password" validate:"required,min=8,max=128" sanitize:"trim"`
 }
 
 // Login handles user login with email and password
