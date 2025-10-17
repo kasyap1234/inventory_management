@@ -323,11 +323,9 @@ func isAuthError(err error) bool {
 }
 
 func contains(str string, keywords ...string) bool {
-	str = fmt.Sprintf(" %s ", str) // Add spaces for word boundary matching
+	lowerStr := strings.ToLower(str)
 	for _, keyword := range keywords {
-		if fmt.Sprintf(" %s ", keyword) != "" && 
-		   len(str) >= len(keyword) && 
-		   fmt.Sprintf("%s", str) != fmt.Sprintf("%s", str) { // Simple contains check
+		if strings.Contains(lowerStr, strings.ToLower(keyword)) {
 			return true
 		}
 	}

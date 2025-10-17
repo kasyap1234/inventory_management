@@ -149,9 +149,13 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 
 	limit := 10 // default
 	offset := 0 // default
+	maxLimit := 1000 // Maximum items per page
 
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
 		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			if l > maxLimit {
+				return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Limit cannot exceed %d", maxLimit))
+			}
 			limit = l
 		}
 	}
@@ -164,7 +168,8 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 
 	products, err := h.productService.List(ctx, tenantID, limit, offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to list products for tenant %s: %v", tenantID, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve products")
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -268,7 +273,11 @@ func (h *ProductHandlers) GetProductByID(c echo.Context) error {
 
 	product, err := h.productService.GetByID(ctx, tenantID, productID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to get product %s for tenant %s: %v", productID, tenantID, err)
+		if strings.Contains(err.Error(), "not found") {
+			return echo.NewHTTPError(http.StatusNotFound, "Product not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve product")
 	}
 
 	return c.JSON(http.StatusOK, product)
@@ -316,7 +325,11 @@ func (h *ProductHandlers) UpdateProduct(c echo.Context) error {
 
 	existing, err := h.productService.GetByID(ctx, tenantID, productID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to get product %s for update: %v", productID, err)
+		if strings.Contains(err.Error(), "not found") {
+			return echo.NewHTTPError(http.StatusNotFound, "Product not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve product")
 	}
 
 	existing.Name = req.Name
@@ -344,7 +357,8 @@ func (h *ProductHandlers) UpdateProduct(c echo.Context) error {
 	}
 
 	if err := h.productService.Update(ctx, tenantID, existing); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to update product %s: %v", productID, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update product")
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -368,7 +382,14 @@ func (h *ProductHandlers) DeleteProduct(c echo.Context) error {
 	}
 
 	if err := h.productService.Delete(ctx, tenantID, productID); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to delete product %s: %v", productID, err)
+		if strings.Contains(err.Error(), "not found") {
+			return echo.NewHTTPError(http.StatusNotFound, "Product not found")
+		}
+		if strings.Contains(err.Error(), "constraint") || strings.Contains(err.Error(), "foreign key") {
+			return echo.NewHTTPError(http.StatusConflict, "Cannot delete product as it is referenced by other records")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to delete product")
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
@@ -415,7 +436,8 @@ func (h *ProductHandlers) SearchProducts(c echo.Context) error {
 
 	products, err := h.productService.Search(ctx, tenantID, query, categoryID, limit, offset)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to search products for tenant %s: %v", tenantID, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to search products")
 	}
 
 	// Record search usage (non-blocking via event)
@@ -649,7 +671,8 @@ func (h *ProductHandlers) BulkUpdateProducts(c echo.Context) error {
 
 	result, err := h.productService.BulkUpdateProducts(ctx, tenantID, &req)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to bulk update products: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to bulk update products")
 	}
 
 	statusCode := http.StatusOK
@@ -680,7 +703,8 @@ func (h *ProductHandlers) BulkCreateProducts(c echo.Context) error {
 
 	result, err := h.productService.BulkCreateProducts(ctx, tenantID, &req)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		log.Printf("Failed to bulk create products: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to bulk create products")
 	}
 
 	statusCode := http.StatusCreated
