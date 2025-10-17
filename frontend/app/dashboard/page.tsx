@@ -53,30 +53,34 @@ export default function DashboardPage() {
       title: 'Total Sales',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      color: 'text-emerald-600',
+      bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
+      iconBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
       helper: analytics?.lastUpdated,
     },
     {
       title: 'Inventory Value',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: 'text-indigo-600',
+      bgColor: 'bg-gradient-to-br from-indigo-50 to-indigo-100/50',
+      iconBg: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
     },
     {
       title: 'Orders Processed',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
+      color: 'text-purple-600',
+      bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100/50',
+      iconBg: 'bg-gradient-to-br from-purple-500 to-purple-600',
     },
     {
       title: 'Unpaid Invoices',
       value: unpaidInvoiceItems.length,
       icon: FileText,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      color: 'text-pink-600',
+      bgColor: 'bg-gradient-to-br from-pink-50 to-pink-100/50',
+      iconBg: 'bg-gradient-to-br from-pink-500 to-pink-600',
     },
   ];
 
@@ -85,10 +89,10 @@ export default function DashboardPage() {
       {/* Header with gradient */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold gradient-text mb-2">
             Dashboard
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
+          <p className="text-gray-600 text-lg">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
         </div>
       </div>
 
@@ -97,27 +101,28 @@ export default function DashboardPage() {
         {statCards.map((stat, index) => (
           <Card 
             key={stat.title}
-            className="card-hover border-0 shadow-md bg-white overflow-hidden"
+            className="hover-lift border-0 shadow-elegant bg-white overflow-hidden relative group"
             style={{ animationDelay: `${index * 100}ms` }}
           >
-            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-6">
+            <div className={`absolute inset-0 ${stat.bgColor} opacity-50 group-hover:opacity-70 transition-opacity duration-300`}></div>
+            <CardHeader className="relative flex flex-row items-center justify-between pb-3 pt-6">
               <CardTitle className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
                 {stat.title}
               </CardTitle>
-              <div className={`p-3 rounded-xl ${stat.bgColor} shadow-sm`}>
-                <stat.icon className={`h-6 w-6 ${stat.color}`} />
+              <div className={`p-3 rounded-xl ${stat.iconBg} shadow-colored`}>
+                <stat.icon className="h-6 w-6 text-white" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 mb-1">
+            <CardContent className="relative">
+              <div className={`text-3xl font-bold mb-1 ${stat.color}`}>
                 {isLoading ? (
-                  <div className="h-9 w-24 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-9 w-24 skeleton rounded"></div>
                 ) : (
                   stat.value
                 )}
               </div>
               {stat.helper && !isLoading && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-600">
                   Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
                 </p>
               )}
@@ -128,9 +133,9 @@ export default function DashboardPage() {
 
       {/* Activity and Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-md">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-gray-900">Recent Activity</CardTitle>
+        <Card className="border-0 shadow-elegant hover-lift">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+            <CardTitle className="text-lg font-bold gradient-text">Recent Activity</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
             {invoicesLoading ? (
@@ -167,9 +172,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-md">
-          <CardHeader className="border-b border-gray-100">
-            <CardTitle className="text-lg font-bold text-gray-900">Low Stock Alerts</CardTitle>
+        <Card className="border-0 shadow-elegant hover-lift">
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-amber-50/50 to-orange-50/50">
+            <CardTitle className="text-lg font-bold gradient-text">Low Stock Alerts</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
             {lowStockLoading ? (
@@ -207,47 +212,47 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions with modern cards */}
-      <Card className="border-0 shadow-md bg-gradient-to-br from-white to-gray-50">
+      <Card className="border-0 shadow-elegant hover-lift bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/20">
         <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold text-gray-900">Quick Actions</CardTitle>
+          <CardTitle className="text-lg font-bold gradient-text">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a
               href="/dashboard/products"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border border-blue-100"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-indigo-100 hover:border-indigo-200"
             >
-              <div className="p-3 bg-blue-600 rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 shadow-md">
+              <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
                 <Package className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-blue-900">Add Product</span>
+              <span className="text-sm font-semibold text-indigo-900">Add Product</span>
             </a>
             <a
               href="/dashboard/orders"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border border-green-100"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-emerald-100 hover:border-emerald-200"
             >
-              <div className="p-3 bg-green-600 rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 shadow-md">
+              <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
                 <ShoppingCart className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-green-900">New Order</span>
+              <span className="text-sm font-semibold text-emerald-900">New Order</span>
             </a>
             <a
               href="/dashboard/inventory"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border border-purple-100"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-purple-100 hover:border-purple-200"
             >
-              <div className="p-3 bg-purple-600 rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 shadow-md">
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
                 <Warehouse className="h-6 w-6 text-white" />
               </div>
               <span className="text-sm font-semibold text-purple-900">Check Inventory</span>
             </a>
             <a
               href="/dashboard/invoices"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl hover:shadow-lg hover:-translate-y-1 transition-all duration-200 border border-orange-100"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-pink-100 hover:border-pink-200"
             >
-              <div className="p-3 bg-orange-600 rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 shadow-md">
+              <div className="p-3 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
                 <FileText className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-orange-900">View Invoices</span>
+              <span className="text-sm font-semibold text-pink-900">View Invoices</span>
             </a>
           </div>
         </CardContent>
