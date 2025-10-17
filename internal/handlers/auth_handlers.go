@@ -295,9 +295,9 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 	go func(recipient string) {
 		if err := <-errCh; err != nil {
 			log.Printf("CRITICAL: Verification email dispatch failed for %s: %v", recipient, err)
-			// TODO: Consider implementing retry mechanism or notification to admin
-			// For now, we'll log the error but the user account is still created
-			// The user can request a new verification email later if needed
+			// Email service now implements retry mechanism with 3 attempts and exponential backoff
+			// Admin is automatically notified on failure if ADMIN_EMAIL is configured
+			// User account is still created and user can request a new verification email later
 		} else {
 			log.Printf("Verification email sent successfully to %s", recipient)
 		}

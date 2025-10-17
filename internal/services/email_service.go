@@ -84,30 +84,63 @@ func SendVerificationEmailAsync(ctx context.Context, toEmail string, token strin
 	errCh := make(chan error, 1)
 	go func() {
 		defer close(errCh)
-		if err := initResendClient(); err != nil {
-			log.Printf("resend init failed for %s: %v", toEmail, err)
-			errCh <- err
-			return
+		
+		// Attempt with retry logic (3 attempts with exponential backoff)
+		maxRetries := 3
+		var lastErr error
+		
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			if attempt > 1 {
+				// Exponential backoff: 2s, 4s, 8s
+				backoffDuration := time.Duration(1<<uint(attempt-1)) * time.Second
+				log.Printf("Retrying email send to %s after %v (attempt %d/%d)", toEmail, backoffDuration, attempt, maxRetries)
+				time.Sleep(backoffDuration)
+			}
+			
+			err := sendVerificationEmailWithRetry(ctx, toEmail, token, frontendURL)
+			if err == nil {
+				log.Printf("Verification email sent successfully to %s on attempt %d", toEmail, attempt)
+				return
+			}
+			
+			lastErr = err
+			log.Printf("Email send attempt %d/%d failed for %s: %v", attempt, maxRetries, toEmail, err)
 		}
-		sanitizedRecipient := strings.TrimSpace(toEmail)
-		if sanitizedRecipient == "" {
-			err := errors.New("recipient email not provided")
-			log.Printf("resend send aborted for empty recipient")
-			errCh <- err
-			return
-		}
-		fromEmail := strings.TrimSpace(os.Getenv("FROM_EMAIL"))
-		if fromEmail == "" {
-			err := errors.New("FROM_EMAIL not set")
-			log.Printf("resend send aborted for %s: %v", sanitizedRecipient, err)
-			errCh <- err
-			return
-		}
-		if frontendURL == "" {
-			frontendURL = "http://localhost:3000"
-		}
-		verificationURL := fmt.Sprintf("%s/verify-email?token=%s", strings.TrimSuffix(frontendURL, "/"), url.QueryEscape(token))
-		htmlContent := fmt.Sprintf(`<!DOCTYPE html>
+		
+		// All retries failed - log critical error and notify admin
+		log.Printf("CRITICAL: Failed to send verification email to %s after %d attempts. Error: %v", toEmail, maxRetries, lastErr)
+		
+		// Send admin notification in background (non-blocking)
+		go notifyAdminOfEmailFailure(toEmail, lastErr)
+		
+		errCh <- fmt.Errorf("failed to send verification email after %d attempts: %w", maxRetries, lastErr)
+	}()
+	return errCh
+}
+
+// sendVerificationEmailWithRetry attempts to send verification email once
+func sendVerificationEmailWithRetry(ctx context.Context, toEmail string, token string, frontendURL string) error {
+	if err := initResendClient(); err != nil {
+		log.Printf("resend init failed for %s: %v", toEmail, err)
+		return err
+	}
+	
+	sanitizedRecipient := strings.TrimSpace(toEmail)
+	if sanitizedRecipient == "" {
+		return errors.New("recipient email not provided")
+	}
+	
+	fromEmail := strings.TrimSpace(os.Getenv("FROM_EMAIL"))
+	if fromEmail == "" {
+		return errors.New("FROM_EMAIL not set")
+	}
+	
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+	
+	verificationURL := fmt.Sprintf("%s/verify-email?token=%s", strings.TrimSuffix(frontendURL, "/"), url.QueryEscape(token))
+	htmlContent := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -165,44 +198,72 @@ func SendVerificationEmailAsync(ctx context.Context, toEmail string, token strin
     </table>
 </body>
 </html>`, verificationURL, verificationURL, verificationURL, time.Now().Year())
-		// Try Resend first
-		log.Printf("sendVerificationEmail: attempting to send via Resend to %s with from=%s subject='Verify Your Email Address'", sanitizedRecipient, fromEmail)
-		resp, err := resendClient.Emails.SendWithContext(ctx, &resend.SendEmailRequest{
-			From:    fromEmail,
-			To:      []string{sanitizedRecipient},
-			Subject: "Verify Your Email Address",
-			Html:    htmlContent,
-		})
+	
+	// Try Resend first
+	log.Printf("sendVerificationEmail: attempting to send via Resend to %s with from=%s subject='Verify Your Email Address'", sanitizedRecipient, fromEmail)
+	resp, err := resendClient.Emails.SendWithContext(ctx, &resend.SendEmailRequest{
+		From:    fromEmail,
+		To:      []string{sanitizedRecipient},
+		Subject: "Verify Your Email Address",
+		Html:    htmlContent,
+	})
 
-		if err == nil {
-			log.Printf("sendVerificationEmail: Resend send succeeded for %s: email_id=%s", sanitizedRecipient, resp.Id)
-			return
+	if err == nil {
+		log.Printf("sendVerificationEmail: Resend send succeeded for %s: email_id=%s", sanitizedRecipient, resp.Id)
+		return nil
+	}
+
+	log.Printf("sendVerificationEmail: Resend send failed for %s: %v", sanitizedRecipient, err)
+
+	// Try SMTP fallback if Resend fails
+	initSMTPConfig()
+	if smtpConfig != nil && smtpConfig.Host != "" {
+		log.Printf("sendVerificationEmail: attempting SMTP fallback for %s", sanitizedRecipient)
+		smtpErr := sendEmailViaSMTP(sanitizedRecipient, "Verify Your Email Address", htmlContent)
+		if smtpErr == nil {
+			log.Printf("sendVerificationEmail: SMTP fallback succeeded for %s", sanitizedRecipient)
+			return nil
 		}
+		log.Printf("sendVerificationEmail: SMTP fallback failed for %s: %v", sanitizedRecipient, smtpErr)
+		return fmt.Errorf("both Resend and SMTP failed: Resend error: %v, SMTP error: %v", err, smtpErr)
+	}
+	
+	log.Printf("sendVerificationEmail: No SMTP configuration available for fallback")
+	return fmt.Errorf("email send failed via Resend and no SMTP fallback configured: %w", err)
+}
 
-		log.Printf("sendVerificationEmail: Resend send failed for %s: %v", sanitizedRecipient, err)
-
-		// Try SMTP fallback if Resend fails
-		initSMTPConfig()
-		if smtpConfig != nil && smtpConfig.Host != "" {
-			log.Printf("sendVerificationEmail: attempting SMTP fallback for %s", sanitizedRecipient)
-			smtpErr := sendEmailViaSMTP(sanitizedRecipient, "Verify Your Email Address", htmlContent)
-			if smtpErr == nil {
-				log.Printf("sendVerificationEmail: SMTP fallback succeeded for %s", sanitizedRecipient)
-				return
-			}
-			log.Printf("sendVerificationEmail: SMTP fallback failed for %s: %v", sanitizedRecipient, smtpErr)
+// notifyAdminOfEmailFailure sends a notification to admin about email failure
+func notifyAdminOfEmailFailure(recipientEmail string, err error) {
+	adminEmail := strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))
+	if adminEmail == "" {
+		log.Printf("ADMIN_EMAIL not configured - cannot notify admin of email failure for %s", recipientEmail)
+		return
+	}
+	
+	subject := fmt.Sprintf("CRITICAL: Verification Email Failure for %s", recipientEmail)
+	body := fmt.Sprintf(`
+<html>
+<body>
+<h2>Critical Email Delivery Failure</h2>
+<p><strong>Recipient:</strong> %s</p>
+<p><strong>Error:</strong> %v</p>
+<p><strong>Timestamp:</strong> %s</p>
+<p><strong>Action Required:</strong> Please investigate email service configuration and consider manually resending verification email to the user.</p>
+</body>
+</html>
+`, recipientEmail, err, time.Now().Format(time.RFC3339))
+	
+	// Try to send admin notification via SMTP
+	initSMTPConfig()
+	if smtpConfig != nil && smtpConfig.Host != "" {
+		if err := sendEmailViaSMTP(adminEmail, subject, body); err != nil {
+			log.Printf("Failed to notify admin about email failure: %v", err)
 		} else {
-			log.Printf("sendVerificationEmail: No SMTP configuration available for fallback")
+			log.Printf("Admin notification sent successfully for failed email to %s", recipientEmail)
 		}
-
-		// Both Resend and SMTP failed
-		err = fmt.Errorf("both Resend and SMTP failed: Resend error: %v", err)
-		if smtpConfig != nil {
-			err = fmt.Errorf("both Resend and SMTP failed: Resend error: %v, SMTP error: %v", err, "SMTP not configured")
-		}
-		errCh <- err
-	}()
-	return errCh
+	} else {
+		log.Printf("Cannot notify admin - SMTP not configured")
+	}
 }
 
 // sendEmailViaSMTP sends email using SMTP protocol
