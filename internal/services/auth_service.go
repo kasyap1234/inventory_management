@@ -247,6 +247,10 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string, cli
 // ValidateToken validates JWT access token
 func (s *authService) ValidateToken(ctx context.Context, token string) (*TokenClaims, error) {
 	jwtToken, err := jwt.ParseWithClaims(token, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Verify the signing method is HMAC
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return s.jwtSecret, nil
 	})
 
@@ -255,6 +259,11 @@ func (s *authService) ValidateToken(ctx context.Context, token string) (*TokenCl
 	}
 
 	if claims, ok := jwtToken.Claims.(*TokenClaims); ok && jwtToken.Valid {
+		// Check if token is blacklisted
+		blacklistKey := fmt.Sprintf("token_blacklist:%s", claims.TokenID)
+		if val, err := s.cacheSvc.GetString(ctx, blacklistKey); err == nil && val == "revoked" {
+			return nil, fmt.Errorf("token has been revoked")
+		}
 		return claims, nil
 	}
 
@@ -577,7 +586,13 @@ func (s *authService) ClearFailedLoginAttempts(ctx context.Context, userID uuid.
 // generateSecureToken generates a cryptographically secure random token
 func (s *authService) generateSecureToken() string {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// This should never happen with crypto/rand, but handle it gracefully
+		log.Printf("CRITICAL: Failed to generate secure random bytes: %v", err)
+		// Fallback: use timestamp + UUID as entropy source (not ideal but better than panic)
+		fallback := fmt.Sprintf("%d-%s", time.Now().UnixNano(), uuid.New().String())
+		return base64.URLEncoding.EncodeToString([]byte(fallback))
+	}
 	return base64.URLEncoding.EncodeToString(bytes)
 }
 
