@@ -39,8 +39,12 @@ func NewValidator() *RequestValidator {
 		_, err := uuid.Parse(value)
 		return err == nil
 	}); err != nil {
+
 		// Log the error but continue - validation will still work without custom uuid4 validator
 		fmt.Printf("WARNING: Failed to register uuid4 validation: %v\n", err)
+
+		// Log the error but don't panic - allow server to continue with basic validation
+	
 	}
 
 	return &RequestValidator{validate: v}
