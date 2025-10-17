@@ -40,6 +40,10 @@ func ParseJWTPayload(c echo.Context, dst *JWTCustomClaims, jwtSecret string) err
 	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Verify the signing method is HMAC
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, echo.NewHTTPError(http.StatusUnauthorized, "Unexpected signing method")
+		}
 		return []byte(jwtSecret), nil
 	})
 	if err != nil {
@@ -55,9 +59,24 @@ func ParseJWTPayload(c echo.Context, dst *JWTCustomClaims, jwtSecret string) err
 		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid claims")
 	}
 
-	dst.Subject = claims["sub"].(string)
-	dst.UserID = claims["user_id"].(string)
-	dst.TenantID = claims["tenant_id"].(string)
+	// Safe type assertion with checks
+	if sub, ok := claims["sub"].(string); ok {
+		dst.Subject = sub
+	} else {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid subject claim")
+	}
+
+	if userID, ok := claims["user_id"].(string); ok {
+		dst.UserID = userID
+	} else {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid user_id claim")
+	}
+
+	if tenantID, ok := claims["tenant_id"].(string); ok {
+		dst.TenantID = tenantID
+	} else {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid tenant_id claim")
+	}
 
 	if scope, ok := claims["scope"].(string); ok {
 		scopePtr := &scope
@@ -95,6 +114,10 @@ func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.Middlewar
 			}
 
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				// Verify the signing method is HMAC
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, echo.NewHTTPError(http.StatusUnauthorized, "Unexpected signing method")
+				}
 				return []byte(jwtSecret), nil
 			})
 			if err != nil {

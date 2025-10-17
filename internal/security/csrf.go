@@ -31,7 +31,11 @@ func NewCSRFTokenManager(secret string, ttl time.Duration) *CSRFTokenManager {
 	}
 	if secret == "" {
 		generated := make([]byte, csrfDefaultTokenLength)
-		if _, err := rand.Read(generated); err == nil {
+		if _, err := rand.Read(generated); err != nil {
+			// Critical security error: fall back to time-based entropy (not ideal but better than empty)
+			timeStr := fmt.Sprintf("%d", time.Now().UnixNano())
+			secret = base64.RawURLEncoding.EncodeToString([]byte(timeStr))
+		} else {
 			secret = base64.RawURLEncoding.EncodeToString(generated)
 		}
 	}
