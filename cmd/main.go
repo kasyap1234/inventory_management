@@ -510,7 +510,11 @@ func main() {
 	e.Use(perfMiddleware.Timeout(30 * time.Second)) // Request timeout
 	e.Use(perfMiddleware.BodyLimit("10M"))          // Limit request body size
 	e.Use(echoMiddleware.Logger())
-	e.Use(echoMiddleware.CORS())
+	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
+		AllowOrigins: []string{"http://localhost:3000", "http://localhost:3001", "https://app.agromart.com"},
+		AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-CSRF-Token"},
+	}))
 	e.Use(echoMiddleware.RemoveTrailingSlash())
 
 	// Request ID for tracing
@@ -831,20 +835,20 @@ func main() {
 	protected.POST("/analytics/refresh", analyticsHandlers.RefreshAnalytics)
 
 	// Start server
-	portStr := os.Getenv("PORT")
-	if portStr == "" {
-		portStr = "8080"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		log.Fatalf("Invalid port %s: %v", portStr, err)
+	// Validate that the port is a number.
+	if _, err := strconv.Atoi(port); err != nil {
+		log.Fatalf("Invalid port %s: %v", port, err)
 	}
 
-    log.Printf("🚀 Agromart2 server v%s starting on port %d", version, port)
+	log.Printf("🚀 Agromart2 server v%s starting on port %s", version, port)
 	log.Printf("Database connected: %t", databaseURL != "") // Don't log the actual URL for security
 
-	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
+	e.Logger.Fatal(e.Start(":" + port))
 }
 
 // verifySchema checks if all required tables exist in the database.

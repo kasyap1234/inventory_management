@@ -7,7 +7,7 @@ echo "=== AGROMART2 COMPREHENSIVE SYSTEM VALIDATION TESTING ==="
 echo "Testing all implemented features and validating system integration"
 echo ""
 
-BASE_URL="http://localhost:8081"
+BASE_URL="http://localhost:8080"
 API_VERSION="v1"
 TEST_PASSED=0
 TEST_FAILED=0

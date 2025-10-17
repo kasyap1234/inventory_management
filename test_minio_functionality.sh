@@ -7,7 +7,7 @@ echo "=== MinIO Functionality Test Script ==="
 echo "Testing product image upload, storage, and retrieval"
 echo ""
 
-BASE_URL="http://localhost:8081"
+BASE_URL="http://localhost:8080"
 TEST_IMAGE_PATH="test_image.jpg"
 
 # Step 1: Check if required tools are available

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Debug script for MinIO functionality hotspot
-BASE_URL="http://localhost:8081"
+BASE_URL="http://localhost:8080"
 # Get fresh token
 echo "Getting fresh JWT token..."
 LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/api/auth/login" \

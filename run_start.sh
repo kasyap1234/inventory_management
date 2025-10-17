@@ -129,7 +129,7 @@ fi
 echo -e "${BLUE}Step 2: Building and starting the backend...${NC}"
 
 # Set environment variables for the backend
-export PORT="${PORT:-8081}"
+export PORT="8080"
 export DATABASE_URL="${DATABASE_URL:-postgresql://testuser:testpass@localhost:5440/testdb}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 export JWT_SECRET="${JWT_SECRET:-development_secret_key_not_for_production}"
@@ -146,7 +146,7 @@ fi
 echo -e "${GREEN}✓ Backend built successfully${NC}"
 
 # Start the backend in the background
-echo -e "${YELLOW}Starting backend server on port 8081...${NC}"
+echo -e "${YELLOW}Starting backend server on port 8080...${NC}"
 nohup ./main > backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > backend.pid
@@ -154,7 +154,7 @@ echo -e "${GREEN}✓ Backend started (PID: $BACKEND_PID)${NC}\n"
 
 # Wait for backend to be ready
 sleep 3
-wait_for_service localhost 8081 "Backend API"
+wait_for_service localhost 8080 "Backend API"
 
 # Step 3: Start the frontend
 echo -e "${BLUE}Step 3: Starting the frontend...${NC}"
@@ -191,7 +191,7 @@ echo -e "${GREEN}========================================${NC}\n"
 
 echo -e "${BLUE}Service URLs:${NC}"
 echo -e "  Frontend:          ${GREEN}http://localhost:3000${NC}"
-echo -e "  Backend API:       ${GREEN}http://localhost:8081${NC}"
+echo -e "  Backend API:       ${GREEN}http://localhost:8080${NC}"
 echo -e "  PostgreSQL:        ${GREEN}localhost:5440${NC}"
 echo -e "  Redis:             ${GREEN}localhost:6379${NC}"
 echo -e "  MinIO Console:     ${GREEN}http://localhost:9004${NC}"

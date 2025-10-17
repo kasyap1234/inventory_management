@@ -18,7 +18,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/pquerna/otp v1.5.0
 	github.com/redis/go-redis/v9 v9.12.1
-	github.com/resend/resend-go/v2 v2.26.0
+	github.com/resend/resend-go/v2 v2.27.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.41.0
 )

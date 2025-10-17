@@ -9,6 +9,9 @@ interface PasswordStrengthMeterProps {
 const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
 
 export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
+  if (!password) {
+    return null;
+  }
   const strength = evaluatePasswordStrength(password);
 
   return (
@@ -27,11 +30,9 @@ export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) 
         <span className="text-xs font-medium text-gray-600 w-20 text-right">{strength.label}</span>
       </div>
       {!strength.isAcceptable && strength.suggestions.length > 0 && (
-        <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
-          {strength.suggestions.slice(0, 3).map((suggestion, index) => (
-            <li key={index}>{suggestion}</li>
-          ))}
-        </ul>
+        <p className="text-xs text-gray-500">
+          Suggestions: {strength.suggestions.join(', ')}
+        </p>
       )}
     </div>
   );

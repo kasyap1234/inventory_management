@@ -167,6 +167,45 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
+// TestEmailRequest represents the test email request payload
+type TestEmailRequest struct {
+	Email string `json:"email" validate:"required,email" sanitize:"trim,lower"`
+}
+
+// TestEmailSending tests email functionality by sending a test email
+func (h *AuthHandlers) TestEmailSending(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req TestEmailRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	validation.SanitizeStruct(&req)
+
+	if err := c.Validate(&req); err != nil {
+		return err
+	}
+
+	// Generate a test token for demonstration
+	testToken := "test-token-12345"
+
+	errCh := services.SendVerificationEmailAsync(ctx, req.Email, testToken, h.frontendBaseURL)
+	go func(recipient string) {
+		if err := <-errCh; err != nil {
+			log.Printf("Test email failed for %s: %v", recipient, err)
+		} else {
+			log.Printf("Test email sent successfully to %s", recipient)
+		}
+	}(req.Email)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Test email sent. Please check your inbox and spam folder.",
+		"email":   req.Email,
+		"note":    "This is a test email to verify your email configuration is working correctly.",
+	})
+}
+
 // SignupRequest represents the signup request payload
 type SignupRequest struct {
 	Email     string  `json:"email" validate:"required,email,max=255" sanitize:"trim,lower"`
@@ -252,16 +291,17 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to initiate email verification")
 	}
 
-	verificationURL := h.buildEmailVerificationURL(verificationToken)
-	emailBody := fmt.Sprintf(
-		"<p>Hello %s,</p><p>Welcome to Agromart! Please confirm your email address to activate your account.</p><p><a href=\"%s\">Verify Email</a></p><p>This link expires in 24 hours.</p>",
-		user.FirstName,
-		verificationURL,
-	)
-
-	if err := h.notificationService.SendEmail(ctx, user.TenantID, user.Email, "Verify your Agromart account", emailBody); err != nil {
-		log.Printf("Failed to send verification email to %s: %v", user.Email, err)
-	}
+	errCh := services.SendVerificationEmailAsync(ctx, user.Email, verificationToken, h.frontendBaseURL)
+	go func(recipient string) {
+		if err := <-errCh; err != nil {
+			log.Printf("CRITICAL: Verification email dispatch failed for %s: %v", recipient, err)
+			// TODO: Consider implementing retry mechanism or notification to admin
+			// For now, we'll log the error but the user account is still created
+			// The user can request a new verification email later if needed
+		} else {
+			log.Printf("Verification email sent successfully to %s", recipient)
+		}
+	}(user.Email)
 
 	response := SignupResponse{
 		User:                 user,

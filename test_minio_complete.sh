@@ -6,7 +6,7 @@ echo "=== Complete MinIO Functionality Test Script ==="
 echo "Testing product image upload, storage, and retrieval with actual MinIO integration"
 echo ""
 
-BASE_URL="http://localhost:8081"
+BASE_URL="http://localhost:8080"
 TEST_IMAGE_PATH="test_minio_image.jpg"
 
 # Redis issue - let's use direct test approach
