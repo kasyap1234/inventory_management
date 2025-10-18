@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, RefreshCcw, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, RefreshCcw, ShieldCheck, AlertCircle, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -180,8 +180,7 @@ export default function TenantsPage() {
                   <TableHead>License</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead className="w-36">Actions</TableHead>
+                  <TableHead className="w-48">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -198,9 +197,20 @@ export default function TenantsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDate(tenant.created_at)}</TableCell>
-                    <TableCell>{formatDate(tenant.updated_at)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Navigate to users page with tenant filter
+                            window.location.href = `/dashboard/users?tenant=${tenant.id}`;
+                          }}
+                          title="View users in this tenant"
+                        >
+                          <Users className="h-4 w-4 mr-1" />
+                          Users
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"

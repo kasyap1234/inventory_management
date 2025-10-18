@@ -343,6 +343,7 @@ func main() {
 	razorpayService := services.NewRazorpayService(razorpayKeyID, razorpayKeySecret, razorpayWebhookSecret)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
 	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, rbacMiddleware)
+	webhookHandlers := handlers.NewWebhookHandlers(subscriptionService, razorpayService, razorpayWebhookSecret, rbacMiddleware)
 
 	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
 
@@ -587,6 +588,10 @@ func main() {
 
 	// Security utilities
 	v1.GET("/security/csrf", securityHandlers.GetCSRFToken)
+
+	// Webhook routes (no auth required, verified by signature)
+	webhooks := v1.Group("/webhooks")
+	webhooks.POST("/razorpay", webhookHandlers.RazorpayWebhook)
 
 	// Authentication routes (no JWT required for signup/login)
 	auth := v1.Group("/auth")
@@ -835,7 +840,13 @@ func main() {
 	protected.GET("/roles/:id/permissions", roleHandlers.GetRolePermissions)
 	protected.POST("/roles/:id/permissions", roleHandlers.AssignPermissionsToRole)
 	protected.DELETE("/roles/:id/permissions/:permissionId", roleHandlers.RemovePermissionFromRole)
+	protected.GET("/roles/:id/users", roleHandlers.GetRoleUsers)
 	protected.GET("/permissions", roleHandlers.ListPermissions)
+	
+	// User role management routes
+	protected.GET("/users/:id/roles", roleHandlers.GetUserRoles)
+	protected.POST("/users/:id/roles", roleHandlers.AssignRolesToUser)
+	protected.DELETE("/users/:id/roles/:roleId", roleHandlers.RemoveRoleFromUser)
 
 	// Job management routes
 	protected.GET("/jobs", jobHandlers.ListJobs)

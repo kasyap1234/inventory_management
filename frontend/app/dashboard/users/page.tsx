@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
-import { User, Role, Permission } from '@/types';
+import { tenantService } from '@/lib/services';
+import { User, Role, Permission, Tenant } from '@/types';
 import { formatDate } from '@/lib/utils';
 
 type TabType = 'users' | 'roles' | 'permissions';
@@ -434,8 +435,17 @@ function UserFormDialog({ open, onOpenChange, user }: {
     email: user?.email || '',
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
+    tenant_id: user?.tenant_id || '',
     password: '',
     status: user?.status || 'active',
+  });
+
+  const { data: tenantsData } = useQuery<{ tenants: Tenant[] }>({
+    queryKey: ['tenants'],
+    queryFn: async () => {
+      const response = await tenantService.list();
+      return response.data;
+    },
   });
 
   const saveMutation = useMutation({
@@ -490,6 +500,26 @@ function UserFormDialog({ open, onOpenChange, user }: {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Tenant *</label>
+            <select
+              required
+              value={formData.tenant_id}
+              onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
+              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              disabled={!!user}
+            >
+              <option value="">Select a tenant</option>
+              {tenantsData?.tenants?.map((tenant) => (
+                <option key={tenant.id} value={tenant.id}>
+                  {tenant.name} ({tenant.subdomain})
+                </option>
+              ))}
+            </select>
+            {user && (
+              <p className="text-xs text-gray-500">Tenant cannot be changed after user creation</p>
+            )}
           </div>
           {!user && (
             <div className="space-y-2">

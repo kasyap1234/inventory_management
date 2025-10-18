@@ -95,9 +95,12 @@ export default function SubscriptionsPage() {
             Manage your subscription plans and billing
           </p>
         </div>
-        <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transition-all">
+        <Button 
+          onClick={() => window.location.href = '/dashboard/subscriptions/plans'}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transition-all"
+        >
           <CreditCard className="h-4 w-4 mr-2" />
-          New Subscription
+          View Plans
         </Button>
       </div>
 
@@ -248,7 +251,10 @@ export default function SubscriptionsPage() {
                 <p className="text-gray-500 mb-6">
                   Get started by subscribing to a plan
                 </p>
-                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                <Button 
+                  onClick={() => window.location.href = '/dashboard/subscriptions/plans'}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                >
                   View Plans
                 </Button>
               </div>

@@ -146,6 +146,7 @@ export type SubscriptionListResult = {
 };
 
 export type SubscriptionPlanConfig = {
+  id: string;
   name: string;
   amount: number;
   currency: string;
@@ -489,20 +490,11 @@ export const subscriptionService = {
   },
   getAvailablePlans: async (): Promise<SubscriptionPlanConfig[]> => {
     const { data } = await api.get('/subscriptions/plans');
-    const plansSource = data?.plans ?? [];
+    const plansSource = data?.plans ?? {};
 
-    if (Array.isArray(plansSource)) {
-      return plansSource.map((plan: SubscriptionPlanConfig) => ({
-        name: plan.name,
-        amount: plan.amount,
-        currency: plan.currency,
-        interval: plan.interval,
-        description: plan.description,
-        features: plan.features ?? [],
-      }));
-    }
-
-    return Object.values(plansSource as Record<string, SubscriptionPlanConfig>).map((plan) => ({
+    // Backend returns object with plan IDs as keys
+    return Object.entries(plansSource as Record<string, any>).map(([id, plan]) => ({
+      id: id,
       name: plan.name,
       amount: plan.amount,
       currency: plan.currency,

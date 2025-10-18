@@ -19,7 +19,8 @@ import {
   BarChart3,
   Bell,
   Shield,
-  CreditCard
+  CreditCard,
+  User as UserIcon
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -35,9 +36,13 @@ const navigation = [
   { name: 'Warehouses', href: '/dashboard/warehouses', icon: Building2 },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: Truck },
   { name: 'Distributors', href: '/dashboard/distributors', icon: Users },
+  { name: 'Users & Roles', href: '/dashboard/users', icon: Users },
+  { name: 'RBAC Management', href: '/dashboard/rbac', icon: Shield },
+  { name: 'Tenants', href: '/dashboard/tenants', icon: Building2 },
   { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
   { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: Shield },
+  { name: 'My Profile', href: '/dashboard/profile', icon: UserIcon },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -89,17 +94,19 @@ export function Sidebar() {
       
       {/* User section with modern card */}
       <div className="border-t border-gray-200 p-4">
-        <div className="flex items-center gap-3 mb-3 px-3 py-2.5 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-center w-9 h-9 gradient-primary rounded-full text-white font-semibold text-xs">
-            {user?.first_name?.[0]}{user?.last_name?.[0]}
+        <Link href="/dashboard/profile">
+          <div className="flex items-center gap-3 mb-3 px-3 py-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+            <div className="flex items-center justify-center w-9 h-9 gradient-primary rounded-full text-white font-semibold text-xs">
+              {user?.first_name?.[0]}{user?.last_name?.[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">
+                {user?.first_name} {user?.last_name}
+              </p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">
-              {user?.first_name} {user?.last_name}
-            </p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-          </div>
-        </div>
+        </Link>
         <button
           onClick={() => logout.mutate()}
           className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-gray-200 hover:border-red-200"

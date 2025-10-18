@@ -301,3 +301,136 @@ func (h *RoleHandlers) RemovePermissionFromRole(c echo.Context) error {
 		"message": "Permission removed successfully",
 	})
 }
+
+// GetUserRoles returns all roles assigned to a user
+func (h *RoleHandlers) GetUserRoles(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+	}
+
+	roles, err := h.roleRepo.GetUserRoles(ctx, tenantID, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user roles")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "User roles retrieved successfully",
+		"roles":   roles,
+	})
+}
+
+// AssignRolesToUser assigns roles to a user
+func (h *RoleHandlers) AssignRolesToUser(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+	}
+
+	var req struct {
+		RoleIDs []string `json:"role_ids" validate:"required"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Remove all existing roles first
+	existingRoles, err := h.roleRepo.GetUserRoles(ctx, tenantID, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch existing roles")
+	}
+
+	for _, role := range existingRoles {
+		if err := h.roleRepo.RemoveUserFromRole(ctx, tenantID, userID, role.ID); err != nil {
+			// Continue even if removal fails
+		}
+	}
+
+	// Assign new roles
+	for _, roleIDStr := range req.RoleIDs {
+		roleID, err := uuid.Parse(roleIDStr)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID: "+roleIDStr)
+		}
+
+		if err := h.roleRepo.AssignUserToRole(ctx, tenantID, userID, roleID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign role")
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Roles assigned successfully",
+	})
+}
+
+// RemoveRoleFromUser removes a role from a user
+func (h *RoleHandlers) RemoveRoleFromUser(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+	}
+
+	roleID, err := uuid.Parse(c.Param("roleId"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
+	}
+
+	if err := h.roleRepo.RemoveUserFromRole(ctx, tenantID, userID, roleID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to remove role from user")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Role removed from user successfully",
+	})
+}
+
+// GetRoleUsers returns all users assigned to a role
+func (h *RoleHandlers) GetRoleUsers(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	roleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
+	}
+
+	users, err := h.roleRepo.GetRoleUsers(ctx, tenantID, roleID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch role users")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Role users retrieved successfully",
+		"users":   users,
+	})
+}
