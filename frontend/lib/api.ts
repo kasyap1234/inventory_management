@@ -9,6 +9,8 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 seconds
+  validateStatus: (status) => status >= 200 && status < 500, // Don't throw on 4xx errors
 });
 
 api.interceptors.request.use(
@@ -35,8 +37,28 @@ api.interceptors.request.use(
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Handle 4xx errors that didn't throw
+    if (response.status >= 400 && response.status < 500) {
+      const error = new Error(response.data?.message || 'Request failed');
+      (error as any).response = response;
+      throw error;
+    }
+    return response;
+  },
   async (error) => {
+    // Handle network errors
+    if (!error.response) {
+      console.error('Network error:', error.message);
+      return Promise.reject(new Error('Network error. Please check your connection.'));
+    }
+    
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout');
+      return Promise.reject(new Error('Request timeout. Please try again.'));
+    }
+    
     const status = error.response?.status;
     const requestConfig = error.config as typeof error.config & { __isRetryRequest?: boolean };
 

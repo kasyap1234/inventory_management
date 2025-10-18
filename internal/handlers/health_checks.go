@@ -17,11 +17,11 @@ import (
 type HealthCheckService struct {
 	db       *pgxpool.Pool
 	cache    caching.CacheService
-	minioSvc *services.MinioService
+	minioSvc services.MinioService
 }
 
 // NewHealthCheckService creates a new health check service
-func NewHealthCheckService(db *pgxpool.Pool, cache caching.CacheService, minioSvc *services.MinioService) *HealthCheckService {
+func NewHealthCheckService(db *pgxpool.Pool, cache caching.CacheService, minioSvc services.MinioService) *HealthCheckService {
 	return &HealthCheckService{
 		db:       db,
 		cache:    cache,

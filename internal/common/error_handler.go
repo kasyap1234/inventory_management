@@ -5,6 +5,7 @@ import (
     "fmt"
     "net/http"
     "runtime"
+    "strings"
     "time"
 
     "github.com/google/uuid"
@@ -304,25 +305,25 @@ func (h *EnhancedErrorHandler) getStackTrace() string {
 func isValidationError(err error) bool {
 	// Check for validation-related error messages or types
 	errMsg := err.Error()
-	return contains(errMsg, "validation", "invalid", "required", "format")
+	return containsKeywords(errMsg, "validation", "invalid", "required", "format")
 }
 
 func isDatabaseError(err error) bool {
 	errMsg := err.Error()
-	return contains(errMsg, "database", "sql", "connection", "timeout", "deadlock")
+	return containsKeywords(errMsg, "database", "sql", "connection", "timeout", "deadlock")
 }
 
 func isExternalServiceError(err error) bool {
 	errMsg := err.Error()
-	return contains(errMsg, "connection refused", "timeout", "network", "service unavailable")
+	return containsKeywords(errMsg, "connection refused", "timeout", "network", "service unavailable")
 }
 
 func isAuthError(err error) bool {
 	errMsg := err.Error()
-	return contains(errMsg, "unauthorized", "forbidden", "authentication", "authorization", "token")
+	return containsKeywords(errMsg, "unauthorized", "forbidden", "authentication", "authorization", "token")
 }
 
-func contains(str string, keywords ...string) bool {
+func containsKeywords(str string, keywords ...string) bool {
 	lowerStr := strings.ToLower(str)
 	for _, keyword := range keywords {
 		if strings.Contains(lowerStr, strings.ToLower(keyword)) {

@@ -246,6 +246,7 @@ func GetTenantIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	return tenantID, ok
 }
 // SanitizeHTMLElement escapes HTML characters to prevent XSS attacks
+// Deprecated: Use validation.SanitizeHTMLElement instead
 func SanitizeHTMLElement(input string) string {
 	return html.EscapeString(input)
 }

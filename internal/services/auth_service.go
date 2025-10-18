@@ -291,7 +291,7 @@ func (s *authService) RevokeToken(ctx context.Context, token string, tokenType *
 
 	// Blacklist the token
 	blacklistKey := fmt.Sprintf("token_blacklist:%s", claims.TokenID)
-	if err := s.cacheSvc.SetString(ctx, blacklistKey, "revoked", claims.ExpiresAt.Sub(time.Now())); err != nil {
+	if err := s.cacheSvc.SetString(ctx, blacklistKey, "revoked", time.Until(claims.ExpiresAt.Time)); err != nil {
 		log.Printf("Failed to blacklist token: %v", err)
 	}
 

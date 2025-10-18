@@ -64,11 +64,21 @@ func NewProductService(productRepo repositories.ProductRepository, inventoryRepo
 }
 
 func (s *productService) Create(ctx context.Context, tenantID uuid.UUID, product *models.Product) error {
+	// Comprehensive validation
+	if product == nil {
+		return errors.New("product cannot be nil")
+	}
 	if product.Name == "" {
 		return errors.New("product name is required")
 	}
+	if len(product.Name) > 255 {
+		return errors.New("product name cannot exceed 255 characters")
+	}
 	if product.UnitPrice <= 0 {
 		return errors.New("unit price must be positive")
+	}
+	if product.UnitPrice > 999999999 {
+		return errors.New("unit price exceeds maximum allowed value")
 	}
 	if product.Quantity < 0 {
 		return errors.New("quantity cannot be negative")
@@ -117,10 +127,33 @@ func (s *productService) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*
 }
 
 func (s *productService) Update(ctx context.Context, tenantID uuid.UUID, product *models.Product) error {
+	// Validate input
+	if product == nil {
+		return errors.New("product cannot be nil")
+	}
+	if product.ID == uuid.Nil {
+		return errors.New("product ID is required")
+	}
+	if product.Name != "" && len(product.Name) > 255 {
+		return errors.New("product name cannot exceed 255 characters")
+	}
+	if product.UnitPrice < 0 {
+		return errors.New("unit price cannot be negative")
+	}
+	if product.UnitPrice > 999999999 {
+		return errors.New("unit price exceeds maximum allowed value")
+	}
+	if product.Quantity < 0 {
+		return errors.New("quantity cannot be negative")
+	}
+
 	product.TenantID = tenantID
 	existing, err := s.productRepo.GetByID(ctx, tenantID, product.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get existing product: %w", err)
+	}
+	if existing == nil {
+		return errors.New("product not found")
 	}
 	if product.Quantity != existing.Quantity {
 		change := product.Quantity - existing.Quantity
@@ -175,17 +208,26 @@ func (s *productService) GetByBarcode(ctx context.Context, tenantID uuid.UUID, b
 }
 
 func (s *productService) UpdateStock(ctx context.Context, tenantID, productID uuid.UUID, change int) error {
+	// Validate input
+	if change == 0 {
+		return nil // No change needed
+	}
+
 	// Get product to verify it exists
 	product, err := s.productRepo.GetByID(ctx, tenantID, productID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get product: %w", err)
+	}
+	if product == nil {
+		return errors.New("product not found")
 	}
 
 	// Update main product quantity for backward compatibility
-	product.Quantity += change
-	if product.Quantity < 0 {
-		product.Quantity = 0
+	newQuantity := product.Quantity + change
+	if newQuantity < 0 {
+		return fmt.Errorf("stock update would result in negative quantity: current=%d, change=%d", product.Quantity, change)
 	}
+	product.Quantity = newQuantity
 
 	// Update product record
 	if err := s.productRepo.Update(ctx, product); err != nil {
@@ -244,10 +286,27 @@ func (s *productService) CategoryAnalytics(ctx context.Context, tenantID uuid.UU
 
 // UploadProductImage uploads and processes a product image with optimization
 func (s *productService) UploadProductImage(ctx context.Context, tenantID, productID uuid.UUID, filename string, reader io.Reader, size int64, altText *string) error {
+	// Validate inputs
+	if filename == "" {
+		return errors.New("filename is required")
+	}
+	if reader == nil {
+		return errors.New("image reader is required")
+	}
+	if size <= 0 {
+		return errors.New("invalid file size")
+	}
+	if size > 10*1024*1024 { // 10MB limit
+		return errors.New("file size exceeds 10MB limit")
+	}
+
 	// Verify product exists
-	_, err := s.productRepo.GetByID(ctx, tenantID, productID)
+	product, err := s.productRepo.GetByID(ctx, tenantID, productID)
 	if err != nil {
 		return fmt.Errorf("product not found: %w", err)
+	}
+	if product == nil {
+		return errors.New("product not found")
 	}
 
 	// Read the image data into memory for processing

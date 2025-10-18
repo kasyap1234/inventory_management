@@ -2,7 +2,6 @@ package validation
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"unicode"
 )
@@ -221,8 +220,13 @@ func hasSequentialCharacters(password string) bool {
 
 // hasRepeatedCharacters checks if password contains repeated characters
 func hasRepeatedCharacters(password string) bool {
-	repeated := regexp.MustCompile(`(.)\1{2,}`)
-	return repeated.MatchString(password)
+	// Check for 3 or more consecutive identical characters
+	for i := 0; i < len(password)-2; i++ {
+		if password[i] == password[i+1] && password[i] == password[i+2] {
+			return true
+		}
+	}
+	return false
 }
 
 // GetPasswordStrengthDescription returns a human-readable description of password strength

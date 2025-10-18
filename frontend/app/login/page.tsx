@@ -35,12 +35,18 @@ function LoginContent() {
   return (
     <div className="flex min-h-screen">
       {/* Left side - Form */}
-      <div className="flex flex-1 items-center justify-center p-8 bg-gradient-to-br from-white via-indigo-50/10 to-purple-50/10">
+      <div className="flex flex-1 items-center justify-center p-8 bg-gradient-to-br from-white via-green-50/30 to-amber-50/20 agro-pattern">
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold gradient-text mb-3">Agromart</h1>
-            <p className="text-gray-600 text-lg">Welcome back! Please sign in to continue.</p>
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="w-14 h-14 rounded-2xl gradient-agro flex items-center justify-center shadow-growth">
+                <span className="text-3xl">🌾</span>
+              </div>
+              <h1 className="text-4xl font-bold gradient-text">AgroMart</h1>
+            </div>
+            <p className="text-gray-700 text-lg font-medium">Agrotech Solutions Platform</p>
+            <p className="text-gray-600 text-sm mt-1">Pesticides • Chemicals • Fertilizers</p>
           </div>
 
           {/* Form Card */}
@@ -84,7 +90,7 @@ function LoginContent() {
                     <label htmlFor="password" className="text-sm font-medium text-gray-700">
                       Password
                     </label>
-                    <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <Link href="/forgot-password" className="text-sm text-green-700 hover:text-green-800 font-medium">
                       Forgot?
                     </Link>
                   </div>
@@ -99,7 +105,7 @@ function LoginContent() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-sm font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
+                  className="w-full h-12 btn-modern gradient-agro text-white text-sm font-semibold shadow-growth hover:shadow-growth hover:scale-[1.02] transition-all duration-300"
                   disabled={login.isPending}
                 >
                   {login.isPending ? (
@@ -124,7 +130,7 @@ function LoginContent() {
           {/* Sign up link */}
           <p className="text-center text-sm text-gray-600 mt-6">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/signup" className="text-green-700 hover:text-green-800 font-semibold">
               Create a free account
             </Link>
           </p>
@@ -132,41 +138,51 @@ function LoginContent() {
       </div>
 
       {/* Right side - Brand */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 animated-gradient opacity-30"></div>
+      <div className="hidden lg:flex flex-1 gradient-natural items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 animated-gradient opacity-20"></div>
+        <div className="absolute inset-0 agro-pattern"></div>
         <div className="max-w-md space-y-8 animate-slide-in relative z-10">
           <div className="inline-block">
             <div className="flex items-center gap-2 glass px-4 py-2 rounded-full shadow-elegant">
-              <Sparkles className="w-5 h-5 text-indigo-600" />
-              <span className="text-sm font-semibold text-gray-900">Modern Inventory System</span>
+              <span className="text-xl">🌱</span>
+              <span className="text-sm font-semibold gradient-text-green">Agricultural Excellence</span>
             </div>
           </div>
           
           <h2 className="text-4xl font-bold text-gray-900 leading-tight">
-            Manage your inventory with confidence
+            Complete Agrotech Inventory Management
           </h2>
           
           <p className="text-lg text-gray-700">
-            Track products, manage warehouses, and streamline your supply chain all in one place.
+            Professional-grade system for managing pesticides, chemicals, and fertilizers. Track batches, ensure compliance, and optimize your agricultural supply chain.
           </p>
 
           <div className="space-y-4 pt-4">
             <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
+              <div className="flex-shrink-0 w-12 h-12 gradient-growth rounded-xl flex items-center justify-center shadow-growth group-hover:scale-110 transition-transform duration-300">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Secure & Reliable</h3>
-                <p className="text-sm text-gray-600">Enterprise-grade security for your data</p>
+                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Regulatory Compliance</h3>
+                <p className="text-sm text-gray-600">Meet safety standards for chemical & pesticide handling</p>
               </div>
             </div>
             <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
+              <div className="flex-shrink-0 w-12 h-12 gradient-harvest rounded-xl flex items-center justify-center shadow-harvest group-hover:scale-110 transition-transform duration-300">
                 <Zap className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Lightning Fast</h3>
-                <p className="text-sm text-gray-600">Real-time updates and instant synchronization</p>
+                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Batch Tracking</h3>
+                <p className="text-sm text-gray-600">Complete traceability for chemicals and fertilizers</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4 group">
+              <div className="flex-shrink-0 w-12 h-12 gradient-emerald rounded-xl flex items-center justify-center shadow-growth group-hover:scale-110 transition-transform duration-300">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1 text-lg">Safety Management</h3>
+                <p className="text-sm text-gray-600">Hazard tracking and safety protocol enforcement</p>
               </div>
             </div>
           </div>

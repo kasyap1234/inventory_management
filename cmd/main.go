@@ -180,6 +180,7 @@ func main() {
 	distributorRepo := repositories.NewDistributorRepository(pool)
 	inventoryRepo := repositories.NewInventoryRepo(pool)
 	orderRepo := repositories.NewOrderRepo(pool)
+	orderStatusHistoryRepo := repositories.NewOrderStatusHistoryRepo(pool)
 	invoiceRepo := repositories.NewInvoiceRepo(pool)
 	productImageRepo := repositories.NewProductImageRepo(pool)
 	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
@@ -188,6 +189,9 @@ func main() {
 
 	// Create cache service
 	cacheSvc := caching.NewRedisCacheService(redisAddr, redisPassword, redisDB)
+
+	// Create database optimizer
+	dbOptimizer := common.NewDBOptimizer(pool)
 
 	// Notification service configuration
 	resendAPIKey := os.Getenv("RESEND_API_KEY")
@@ -305,7 +309,7 @@ func main() {
 	inventoryService := services.NewInventoryService(inventoryAdapter, logger)
 	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
 
-	orderSvc := services.NewOrderService(orderRepo, inventoryRepo, inventoryService)
+	orderSvc := services.NewOrderService(pool, orderRepo, inventoryRepo, inventoryService, orderStatusHistoryRepo, logger)
 
 	invoiceSvc := services.NewInvoiceService(invoiceRepo, orderRepo, analyticsSvc, pool, tenantService, productSvc, supplierService, distributorService)
 	inventoryHandlers := handlers.NewInventoryHandlers(
@@ -414,6 +418,7 @@ func main() {
 	// Create analytics handlers
 	analyticsHandlers := handlers.NewAnalyticsHandlers(analyticsSvc, rbacMiddleware)
 	securityHandlers := handlers.NewSecurityHandlers(csrfManager)
+	dbOptimizationHandlers := handlers.NewDBOptimizationHandlers(dbOptimizer, rbacMiddleware)
 
 	// Create Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -465,6 +470,39 @@ func main() {
 		log.Fatalf("Failed to start job scheduler: %v", err)
 	}
 	defer jobScheduler.Stop()
+
+	// Schedule periodic materialized view refresh (every 5 minutes)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			if err := dbOptimizer.RefreshMaterializedViews(ctx); err != nil {
+				log.Printf("Failed to refresh materialized views: %v", err)
+			} else {
+				log.Println("Materialized views refreshed successfully")
+			}
+			cancel()
+		}
+	}()
+
+	// Schedule periodic database maintenance (daily at 2 AM)
+	go func() {
+		for {
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day()+1, 2, 0, 0, 0, now.Location())
+			time.Sleep(time.Until(next))
+			
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			tables := []string{"products", "inventory", "orders", "invoices", "audit_logs"}
+			if err := dbOptimizer.VacuumAnalyze(ctx, tables); err != nil {
+				log.Printf("Failed to vacuum analyze: %v", err)
+			} else {
+				log.Println("Database maintenance completed successfully")
+			}
+			cancel()
+		}
+	}()
 
 	// Create Asynq server
 	asynqSrv := asynq.NewServer(asynq.RedisClientOpt{
@@ -658,62 +696,59 @@ func main() {
         ticker := time.NewTicker(10 * time.Minute)
         defer ticker.Stop()
 
-        for {
-            select {
-            case <-ticker.C:
-                ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-                defer cancel()
+        for range ticker.C {
+            ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+            defer cancel()
 
-                tenants, err := tenantRepo.List(ctx, 1000, 0)
-                if err != nil {
-                    logger.ErrorWithContext(ctx, "Retry deliveries: failed to list tenants", err, nil)
+            tenants, err := tenantRepo.List(ctx, 1000, 0)
+            if err != nil {
+                logger.ErrorWithContext(ctx, "Retry deliveries: failed to list tenants", err, nil)
+                continue
+            }
+
+            for _, t := range tenants {
+                if t.Status != "active" {
                     continue
                 }
 
-                for _, t := range tenants {
-                    if t.Status != "active" {
-                        continue
-                    }
+                retryCount := 0
+                delay := baseDelay
 
-                    retryCount := 0
-                    delay := baseDelay
-
-                    for retryCount < maxRetries {
-                        if err := deliverySvc.RetryFailedDeliveries(ctx, t.ID); err != nil {
-                            retryCount++
-                            if retryCount < maxRetries {
-                                logger.WarnWithContext(ctx, "Retry failed, backing off",
-                                    map[string]interface{}{
-                                        "tenant_id":   t.ID.String(),
-                                        "retry_count": retryCount,
-                                        "delay":       delay.String(),
-                                        "error":       err.Error(),
-                                    })
-
-                                select {
-                                case <-time.After(delay):
-                                    delay *= 2 // Exponential backoff
-                                    if delay > maxDelay {
-                                        delay = maxDelay
-                                    }
-                                    // Add jitter
-                                    jitter := time.Duration(float64(delay) * 0.1)
-                                    delay += time.Duration(time.Now().UnixNano() % int64(jitter))
-                                case <-ctx.Done():
-                                    return
-                                }
-                                continue
-                            }
-
-                            logger.ErrorWithContext(ctx, "Exhausted retries for tenant notification delivery",
-                                errors.New("max retries exceeded"), map[string]interface{}{
+                for retryCount < maxRetries {
+                    if err := deliverySvc.RetryFailedDeliveries(ctx, t.ID); err != nil {
+                        retryCount++
+                        if retryCount < maxRetries {
+                            logger.WarnWithContext(ctx, "Retry failed, backing off",
+                                map[string]interface{}{
                                     "tenant_id":   t.ID.String(),
-                                    "max_retries": maxRetries,
-                                    "final_error": err.Error(),
+                                    "retry_count": retryCount,
+                                    "delay":       delay.String(),
+                                    "error":       err.Error(),
                                 })
+
+                            select {
+                            case <-time.After(delay):
+                                delay *= 2 // Exponential backoff
+                                if delay > maxDelay {
+                                    delay = maxDelay
+                                }
+                                // Add jitter
+                                jitter := time.Duration(float64(delay) * 0.1)
+                                delay += time.Duration(time.Now().UnixNano() % int64(jitter))
+                            case <-ctx.Done():
+                                return
+                            }
+                            continue
                         }
-                        break // Success, exit retry loop
+
+                        logger.ErrorWithContext(ctx, "Exhausted retries for tenant notification delivery",
+                            errors.New("max retries exceeded"), map[string]interface{}{
+                                "tenant_id":   t.ID.String(),
+                                "max_retries": maxRetries,
+                                "final_error": err.Error(),
+                            })
                     }
+                    break // Success, exit retry loop
                 }
             }
         }
@@ -833,6 +868,31 @@ func main() {
 	protected.GET("/analytics/revenue-by-category", analyticsHandlers.GetRevenueByCategory)
 	protected.GET("/analytics/order-status", analyticsHandlers.GetOrderStatusDistribution)
 	protected.POST("/analytics/refresh", analyticsHandlers.RefreshAnalytics)
+
+	// Database optimization routes (admin only)
+	dbOptimization := protected.Group("/db-optimization")
+	dbOptimization.Use(rbacMiddleware.RequirePermission("system:admin"))
+	dbOptimization.POST("/refresh-views", dbOptimizationHandlers.RefreshMaterializedViews)
+	dbOptimization.GET("/slow-queries", dbOptimizationHandlers.GetSlowQueries)
+	dbOptimization.GET("/unused-indexes", dbOptimizationHandlers.GetUnusedIndexes)
+	dbOptimization.GET("/table-sizes", dbOptimizationHandlers.GetTableSizes)
+	dbOptimization.GET("/cache-hit-ratio", dbOptimizationHandlers.GetCacheHitRatio)
+	dbOptimization.GET("/stats", dbOptimizationHandlers.GetDatabaseStats)
+	dbOptimization.POST("/vacuum", dbOptimizationHandlers.VacuumAnalyze)
+
+	// WebSocket route
+	wsHub := handlers.NewWebSocketHub()
+	go wsHub.Run()
+	wsHandlers := handlers.NewWebSocketHandlers(wsHub)
+	protected.GET("/ws", wsHandlers.HandleWebSocket)
+
+	// Export routes
+	exportHandlers := handlers.NewExportHandlers()
+	protected.POST("/export/excel", exportHandlers.ExportToExcel)
+
+	// Search routes
+	searchHandlers := handlers.NewSearchHandlers(pool)
+	protected.POST("/search", searchHandlers.UnifiedSearch)
 
 	// Start server
 	port := os.Getenv("PORT")

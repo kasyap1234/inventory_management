@@ -39,6 +39,11 @@ func (m *MockMinioServiceForMinioTest) EnsureBucketExists(ctx context.Context, b
 	return args.Error(0)
 }
 
+func (m *MockMinioServiceForMinioTest) HealthCheck(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 type MinioServiceTestSuite struct {
 	suite.Suite
 	service MinioService

@@ -1,10 +1,9 @@
 package validation
 
 import (
+	"html"
 	"reflect"
 	"strings"
-
-	"agromart2/internal/common"
 )
 
 // SanitizeStruct trims and cleans string fields based on `sanitize` struct tags.
@@ -91,10 +90,15 @@ func applyDirectives(value, tag string) string {
 	}
 
 	if directives.html {
-		clean = common.SanitizeHTMLElement(clean)
+		clean = SanitizeHTMLElement(clean)
 	}
 
 	return clean
+}
+
+// SanitizeHTMLElement escapes HTML characters to prevent XSS attacks
+func SanitizeHTMLElement(input string) string {
+	return html.EscapeString(input)
 }
 
 type directiveSet struct {

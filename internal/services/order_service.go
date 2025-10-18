@@ -12,6 +12,8 @@ import (
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // OrderServiceInterface defines the interface for order service operations
@@ -30,6 +32,7 @@ type OrderServiceInterface interface {
 	DeliverOrder(ctx context.Context, tenantID, orderID uuid.UUID) error
 	CancelOrder(ctx context.Context, tenantID, orderID uuid.UUID) error
 	GetOrderHistory(ctx context.Context, tenantID, orderID uuid.UUID) ([]*models.Order, error)
+	GetOrderStatusHistory(ctx context.Context, tenantID, orderID uuid.UUID) ([]*models.OrderStatusHistory, error)
 }
 
 // OrderFilters defines filters for order queries
@@ -40,9 +43,13 @@ type OrderFilters struct {
 }
 
 type orderService struct {
-	orderRepo        repositories.OrderRepository
-	inventoryRepo    repositories.InventoryRepository
-	inventoryService InventoryService
+	db                     *pgxpool.Pool
+	orderRepo              repositories.OrderRepository
+	inventoryRepo          repositories.InventoryRepository
+	inventoryService       InventoryService
+	orderStatusHistoryRepo repositories.OrderStatusHistoryRepository
+	logger                 *common.StructuredLogger
+	transactionMgr         *common.TransactionManager
 }
 
 // validOrderStatusTransitions defines allowed status transitions
@@ -56,11 +63,22 @@ var validOrderStatusTransitions = map[string][]string{
 }
 
 // NewOrderService creates a new order service instance
-func NewOrderService(orderRepo repositories.OrderRepository, inventoryRepo repositories.InventoryRepository, inventoryService InventoryService) OrderServiceInterface {
+func NewOrderService(
+	db *pgxpool.Pool,
+	orderRepo repositories.OrderRepository,
+	inventoryRepo repositories.InventoryRepository,
+	inventoryService InventoryService,
+	orderStatusHistoryRepo repositories.OrderStatusHistoryRepository,
+	logger *common.StructuredLogger,
+) OrderServiceInterface {
 	return &orderService{
-		orderRepo:        orderRepo,
-		inventoryRepo:    inventoryRepo,
-		inventoryService: inventoryService,
+		db:                     db,
+		orderRepo:              orderRepo,
+		inventoryRepo:          inventoryRepo,
+		inventoryService:       inventoryService,
+		orderStatusHistoryRepo: orderStatusHistoryRepo,
+		logger:                 logger,
+		transactionMgr:         common.NewTransactionManager(db, logger),
 	}
 }
 
@@ -168,6 +186,18 @@ func (s *orderService) CreateOrder(ctx context.Context, tenantID uuid.UUID, orde
 	// Save the order
 	if err := s.orderRepo.Create(ctx, order); err != nil {
 		return common.SecureErrorMessage("save order", err)
+	}
+
+	// Record initial status in history
+	notes := "Order created"
+	if err := s.recordStatusChange(ctx, tenantID, order.ID, "", "pending", &notes); err != nil {
+		// Log but don't fail order creation
+		if s.logger != nil {
+			s.logger.WarnWithContext(ctx, "Failed to record order creation history", map[string]interface{}{
+				"order_id": order.ID,
+				"error":    err.Error(),
+			})
+		}
 	}
 
 	return nil
@@ -332,7 +362,7 @@ func (s *orderService) SearchOrders(ctx context.Context, tenantID uuid.UUID, fil
 	return orders, nil
 }
 
-// ApproveOrder changes order status to approved with validation
+// ApproveOrder changes order status to approved with validation and history tracking
 func (s *orderService) ApproveOrder(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	// Get the order
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
@@ -343,6 +373,8 @@ func (s *orderService) ApproveOrder(ctx context.Context, tenantID, orderID uuid.
 		return fmt.Errorf("order not found")
 	}
 
+	oldStatus := order.Status
+
 	// Validate status transition
 	if err := s.ValidateStatusTransition(order.Status, "approved"); err != nil {
 		return err
@@ -351,11 +383,107 @@ func (s *orderService) ApproveOrder(ctx context.Context, tenantID, orderID uuid.
 	order.Status = "approved"
 	order.UpdatedAt = time.Now()
 
-	return s.orderRepo.Update(ctx, order)
+	if err := s.orderRepo.Update(ctx, order); err != nil {
+		return err
+	}
+
+	// Record status change
+	notes := "Order approved"
+	if err := s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "approved", &notes); err != nil {
+		if s.logger != nil {
+			s.logger.WarnWithContext(ctx, "Failed to record approval history", map[string]interface{}{
+				"order_id": orderID,
+				"error":    err.Error(),
+			})
+		}
+	}
+
+	return nil
 }
 
-// ProcessOrder changes order status to processing and reserves inventory with security checks
+// ProcessOrder changes order status to processing and reserves inventory with transaction support
 func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.UUID) error {
+	if s.transactionMgr == nil {
+		return s.processOrderLegacy(ctx, tenantID, orderID)
+	}
+
+	return s.transactionMgr.ExecuteInTransaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		// Get the order
+		order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
+		if err != nil {
+			return fmt.Errorf("failed to get order: %w", err)
+		}
+		if order == nil {
+			return fmt.Errorf("order not found")
+		}
+
+		oldStatus := order.Status
+
+		// Validate status transition
+		if err := s.ValidateStatusTransition(order.Status, "processing"); err != nil {
+			return err
+		}
+
+		// Additional validation
+		if order.Quantity <= 0 || order.UnitPrice <= 0 {
+			return fmt.Errorf("invalid order data: quantity and price must be positive")
+		}
+
+		// Check and reserve inventory
+		inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
+		if err != nil {
+			if errors.Is(err, repositories.ErrInventoryNotFound) {
+				return fmt.Errorf("insufficient inventory")
+			}
+			return fmt.Errorf("failed to retrieve inventory: %w", err)
+		}
+
+		if inventory.Quantity < order.Quantity {
+			return fmt.Errorf("insufficient inventory: available %d, required %d", inventory.Quantity, order.Quantity)
+		}
+
+		// Update inventory
+		newQuantity := inventory.Quantity - order.Quantity
+		inventory.Quantity = newQuantity
+		inventory.LastUpdated = time.Now()
+
+		if err := s.inventoryRepo.Update(ctx, inventory); err != nil {
+			return fmt.Errorf("failed to update inventory: %w", err)
+		}
+
+		// Update order status
+		order.Status = "processing"
+		order.UpdatedAt = time.Now()
+
+		if err := s.orderRepo.Update(ctx, order); err != nil {
+			return fmt.Errorf("failed to update order status: %w", err)
+		}
+
+		// Record status change
+		notes := fmt.Sprintf("Order processed, inventory reserved: %d units", order.Quantity)
+		if err := s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "processing", &notes); err != nil {
+			if s.logger != nil {
+				s.logger.WarnWithContext(ctx, "Failed to record status history", map[string]interface{}{
+					"order_id": orderID,
+					"error":    err.Error(),
+				})
+			}
+		}
+
+		if s.logger != nil {
+			s.logger.InfoWithContext(ctx, "Order processed successfully", map[string]interface{}{
+				"order_id":        orderID,
+				"quantity":        order.Quantity,
+				"inventory_after": newQuantity,
+			})
+		}
+
+		return nil
+	})
+}
+
+// processOrderLegacy is the fallback method without transaction support
+func (s *orderService) processOrderLegacy(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
 	if err != nil {
 		return common.SecureErrorMessage("retrieve order for processing", err)
@@ -364,17 +492,16 @@ func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.
 		return common.SecureErrorMessage("order lookup", fmt.Errorf("order not found"))
 	}
 
-	// Validate status transition
+	oldStatus := order.Status
+
 	if err := s.ValidateStatusTransition(order.Status, "processing"); err != nil {
 		return common.SecureErrorMessage("validate order status for processing", err)
 	}
 
-	// Additional validation: ensure data integrity
 	if order.Quantity <= 0 || order.UnitPrice <= 0 {
 		return common.SecureErrorMessage("validate order data", fmt.Errorf("invalid order data"))
 	}
 
-	// Reserve inventory with additional validation
 	inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrInventoryNotFound) {
@@ -386,7 +513,6 @@ func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.
 		return common.SecureErrorMessage("inventory validation", fmt.Errorf("insufficient inventory"))
 	}
 
-	// Calculate new quantity with overflow protection
 	newQuantity := inventory.Quantity - order.Quantity
 	if newQuantity < 0 {
 		return common.SecureErrorMessage("inventory calculation", fmt.Errorf("negative inventory calculation"))
@@ -405,6 +531,9 @@ func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.
 	if err := s.orderRepo.Update(ctx, order); err != nil {
 		return common.SecureErrorMessage("update order status", err)
 	}
+
+	notes := fmt.Sprintf("Order processed, inventory reserved: %d units", order.Quantity)
+	_ = s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "processing", &notes)
 
 	return nil
 }
@@ -441,7 +570,7 @@ func (s *orderService) ReceiveOrder(ctx context.Context, tenantID, orderID uuid.
 	return s.orderRepo.Update(ctx, order)
 }
 
-// ShipOrder changes status to shipped
+// ShipOrder changes status to shipped with history tracking
 func (s *orderService) ShipOrder(ctx context.Context, tenantID, orderID uuid.UUID, expectedDelivery *time.Time) error {
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
 	if err != nil {
@@ -450,6 +579,8 @@ func (s *orderService) ShipOrder(ctx context.Context, tenantID, orderID uuid.UUI
 	if order == nil {
 		return fmt.Errorf("order not found")
 	}
+
+	oldStatus := order.Status
 
 	// Validate status transition
 	if err := s.ValidateStatusTransition(order.Status, "shipped"); err != nil {
@@ -462,10 +593,28 @@ func (s *orderService) ShipOrder(ctx context.Context, tenantID, orderID uuid.UUI
 	}
 	order.UpdatedAt = time.Now()
 
-	return s.orderRepo.Update(ctx, order)
+	if err := s.orderRepo.Update(ctx, order); err != nil {
+		return err
+	}
+
+	// Record status change
+	notes := "Order shipped"
+	if expectedDelivery != nil {
+		notes = fmt.Sprintf("Order shipped, expected delivery: %s", expectedDelivery.Format("2006-01-02"))
+	}
+	if err := s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "shipped", &notes); err != nil {
+		if s.logger != nil {
+			s.logger.WarnWithContext(ctx, "Failed to record shipping history", map[string]interface{}{
+				"order_id": orderID,
+				"error":    err.Error(),
+			})
+		}
+	}
+
+	return nil
 }
 
-// DeliverOrder changes status to delivered
+// DeliverOrder changes status to delivered with history tracking
 func (s *orderService) DeliverOrder(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
 	if err != nil {
@@ -475,6 +624,8 @@ func (s *orderService) DeliverOrder(ctx context.Context, tenantID, orderID uuid.
 		return fmt.Errorf("order not found")
 	}
 
+	oldStatus := order.Status
+
 	// Validate status transition
 	if err := s.ValidateStatusTransition(order.Status, "delivered"); err != nil {
 		return err
@@ -483,11 +634,108 @@ func (s *orderService) DeliverOrder(ctx context.Context, tenantID, orderID uuid.
 	order.Status = "delivered"
 	order.UpdatedAt = time.Now()
 
-	return s.orderRepo.Update(ctx, order)
+	if err := s.orderRepo.Update(ctx, order); err != nil {
+		return err
+	}
+
+	// Record status change
+	notes := "Order delivered"
+	if err := s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "delivered", &notes); err != nil {
+		if s.logger != nil {
+			s.logger.WarnWithContext(ctx, "Failed to record delivery history", map[string]interface{}{
+				"order_id": orderID,
+				"error":    err.Error(),
+			})
+		}
+	}
+
+	return nil
 }
 
-// CancelOrder cancels an order and restores inventory if needed with secure validation
+// CancelOrder cancels an order and restores inventory with transaction support
 func (s *orderService) CancelOrder(ctx context.Context, tenantID, orderID uuid.UUID) error {
+	if s.transactionMgr == nil {
+		return s.cancelOrderLegacy(ctx, tenantID, orderID)
+	}
+
+	return s.transactionMgr.ExecuteInTransaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		// Get the order
+		order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
+		if err != nil {
+			return fmt.Errorf("failed to get order: %w", err)
+		}
+		if order == nil {
+			return fmt.Errorf("order not found")
+		}
+
+		oldStatus := order.Status
+
+		// Validate status transition
+		if err := s.ValidateStatusTransition(order.Status, "cancelled"); err != nil {
+			return err
+		}
+
+		// Restore inventory if order was processing or approved
+		if order.Status == "processing" || order.Status == "approved" {
+			inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
+			if err != nil {
+				if !errors.Is(err, repositories.ErrInventoryNotFound) {
+					return fmt.Errorf("failed to retrieve inventory for restoration: %w", err)
+				}
+			} else {
+				newQuantity := inventory.Quantity + order.Quantity
+				if newQuantity < inventory.Quantity {
+					return fmt.Errorf("inventory restoration would cause overflow")
+				}
+
+				inventory.Quantity = newQuantity
+				inventory.LastUpdated = time.Now()
+
+				if err := s.inventoryRepo.Update(ctx, inventory); err != nil {
+					return fmt.Errorf("failed to restore inventory: %w", err)
+				}
+
+				if s.logger != nil {
+					s.logger.InfoWithContext(ctx, "Inventory restored for cancelled order", map[string]interface{}{
+						"order_id":     orderID,
+						"restored_qty": order.Quantity,
+						"new_inventory": newQuantity,
+					})
+				}
+			}
+		}
+
+		// Update order status
+		order.Status = "cancelled"
+		order.UpdatedAt = time.Now()
+
+		if err := s.orderRepo.Update(ctx, order); err != nil {
+			return fmt.Errorf("failed to update order status: %w", err)
+		}
+
+		// Record status change
+		notes := "Order cancelled"
+		if err := s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "cancelled", &notes); err != nil {
+			if s.logger != nil {
+				s.logger.WarnWithContext(ctx, "Failed to record cancellation history", map[string]interface{}{
+					"order_id": orderID,
+					"error":    err.Error(),
+				})
+			}
+		}
+
+		if s.logger != nil {
+			s.logger.InfoWithContext(ctx, "Order cancelled successfully", map[string]interface{}{
+				"order_id": orderID,
+			})
+		}
+
+		return nil
+	})
+}
+
+// cancelOrderLegacy is the fallback method without transaction support
+func (s *orderService) cancelOrderLegacy(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
 	if err != nil {
 		return common.SecureErrorMessage("retrieve order for cancellation", err)
@@ -496,12 +744,12 @@ func (s *orderService) CancelOrder(ctx context.Context, tenantID, orderID uuid.U
 		return common.SecureErrorMessage("order lookup", fmt.Errorf("order not found"))
 	}
 
-	// Validate status transition (any status can be cancelled except terminal states)
+	oldStatus := order.Status
+
 	if err := s.ValidateStatusTransition(order.Status, "cancelled"); err != nil {
 		return common.SecureErrorMessage("validate cancellation eligibility", err)
 	}
 
-	// Restore inventory if order was processing with validation
 	if order.Status == "processing" || order.Status == "approved" {
 		inventory, err := s.inventoryRepo.GetByWarehouseAndProduct(ctx, tenantID, order.WarehouseID, order.ProductID)
 		if err != nil {
@@ -528,12 +776,15 @@ func (s *orderService) CancelOrder(ctx context.Context, tenantID, orderID uuid.U
 		return common.SecureErrorMessage("update order status for cancellation", err)
 	}
 
+	notes := "Order cancelled"
+	_ = s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "cancelled", &notes)
+
 	return nil
 }
 
-// GetOrderHistory returns order state changes (simplified implementation)
+// GetOrderHistory returns order state changes (deprecated - use GetOrderStatusHistory)
 func (s *orderService) GetOrderHistory(ctx context.Context, tenantID, orderID uuid.UUID) ([]*models.Order, error) {
-	// For now, just return the current order state
+	// For backward compatibility, return the current order state
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order: %w", err)
@@ -543,4 +794,53 @@ func (s *orderService) GetOrderHistory(ctx context.Context, tenantID, orderID uu
 	}
 
 	return []*models.Order{order}, nil
+}
+
+// GetOrderStatusHistory retrieves the complete status history for an order
+func (s *orderService) GetOrderStatusHistory(ctx context.Context, tenantID, orderID uuid.UUID) ([]*models.OrderStatusHistory, error) {
+	if s.orderStatusHistoryRepo == nil {
+		return nil, fmt.Errorf("order status history repository not available")
+	}
+
+	history, err := s.orderStatusHistoryRepo.GetByOrderID(ctx, tenantID, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order status history: %w", err)
+	}
+
+	return history, nil
+}
+
+// recordStatusChange records order status changes in history
+func (s *orderService) recordStatusChange(ctx context.Context, tenantID, orderID uuid.UUID, oldStatus, newStatus string, notes *string) error {
+	if s.orderStatusHistoryRepo == nil {
+		return nil // Silently skip if repository not available
+	}
+
+	userID, _ := common.GetUserIDFromContext(ctx)
+	
+	history := &models.OrderStatusHistory{
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		OrderID:   orderID,
+		OldStatus: &oldStatus,
+		NewStatus: newStatus,
+		ChangedBy: &userID,
+		Notes:     notes,
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.orderStatusHistoryRepo.Create(ctx, history); err != nil {
+		return fmt.Errorf("failed to record status change: %w", err)
+	}
+
+	if s.logger != nil {
+		s.logger.InfoWithContext(ctx, "Order status change recorded", map[string]interface{}{
+			"order_id":   orderID,
+			"old_status": oldStatus,
+			"new_status": newStatus,
+			"changed_by": userID,
+		})
+	}
+
+	return nil
 }

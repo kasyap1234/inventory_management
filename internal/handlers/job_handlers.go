@@ -317,10 +317,80 @@ func (h *JobHandlers) ListJobs(c echo.Context) error {
 }
 
 func (h *JobHandlers) GetJob(c echo.Context) error {
-	return c.JSON(http.StatusNotImplemented, map[string]interface{}{
-		"message": "Fetching a single job by ID is not supported by asynq's public API. Please list jobs by queue and state.",
-		"job_id":  c.Param("id"),
-		"suggestion": "Use GET /jobs?queue=<queue>&state=<state> to list jobs",
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	jobID := c.Param("id")
+	if jobID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "job_id is required")
+	}
+
+	// Get queue parameter (optional, if not provided we'll search all queues)
+	queue := c.QueryParam("queue")
+	if queue == "" {
+		queue = "default"
+	}
+
+	// Search through different states to find the job
+	states := []string{"pending", "active", "scheduled", "retry", "archived", "completed"}
+	
+	for _, state := range states {
+		var tasks []*asynq.TaskInfo
+		var err error
+
+		switch state {
+		case "pending":
+			tasks, err = h.inspector.ListPendingTasks(queue, asynq.PageSize(100))
+		case "active":
+			tasks, err = h.inspector.ListActiveTasks(queue, asynq.PageSize(100))
+		case "scheduled":
+			tasks, err = h.inspector.ListScheduledTasks(queue, asynq.PageSize(100))
+		case "retry":
+			tasks, err = h.inspector.ListRetryTasks(queue, asynq.PageSize(100))
+		case "archived":
+			tasks, err = h.inspector.ListArchivedTasks(queue, asynq.PageSize(100))
+		case "completed":
+			tasks, err = h.inspector.ListCompletedTasks(queue, asynq.PageSize(100))
+		}
+
+		if err != nil {
+			continue // Skip this state if there's an error
+		}
+
+		// Search for the job in this state
+		for _, task := range tasks {
+			if task.ID == jobID {
+				// Found the job!
+				return c.JSON(http.StatusOK, map[string]interface{}{
+					"tenant_id":      tenantID,
+					"id":             task.ID,
+					"type":           task.Type,
+					"queue":          task.Queue,
+					"state":          state,
+					"payload":        string(task.Payload),
+					"max_retry":      task.MaxRetry,
+					"retried":        task.Retried,
+					"last_error":     task.LastErr,
+					"last_failed_at": task.LastFailedAt,
+					"next_process":   task.NextProcessAt,
+					"completed_at":   task.CompletedAt,
+					"timeout":        task.Timeout,
+					"deadline":       task.Deadline,
+				})
+			}
+		}
+	}
+
+	// Job not found in any state
+	return echo.NewHTTPError(http.StatusNotFound, map[string]interface{}{
+		"message": "Job not found",
+		"job_id":  jobID,
+		"queue":   queue,
+		"suggestion": "The job may have been deleted or the ID is incorrect. Try listing jobs with GET /jobs?queue=<queue>&state=<state>",
 	})
 }
 

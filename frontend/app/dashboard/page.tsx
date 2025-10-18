@@ -2,10 +2,14 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Warehouse, ShoppingCart, FileText, DollarSign } from 'lucide-react';
+import { Package, Warehouse, ShoppingCart, FileText, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
 import { analyticsService, invoiceService, type AnalyticsDashboard, type LowStockItem } from '@/lib/services';
 import { formatCurrency } from '@/lib/utils';
 import { format, formatDistance } from 'date-fns';
+import { DashboardSkeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useMemo } from 'react';
 
 type InvoiceSummary = {
   id: string;
@@ -22,35 +26,51 @@ type UnpaidInvoicesResponse = {
 };
 
 export default function DashboardPage() {
-  const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsDashboard>({
+  const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useQuery<AnalyticsDashboard>({
     queryKey: ['dashboard-analytics'],
     queryFn: analyticsService.getDashboardAnalytics,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    staleTime: 60000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
   });
 
-  const { data: lowStock, isLoading: lowStockLoading } = useQuery<LowStockItem[]>({
+  const { data: lowStock, isLoading: lowStockLoading, error: lowStockError } = useQuery<LowStockItem[]>({
     queryKey: ['dashboard-low-stock'],
     queryFn: () => analyticsService.getLowStockReport({ threshold: 10 }),
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  const { data: unpaidInvoices, isLoading: invoicesLoading } = useQuery<UnpaidInvoicesResponse>({
+  const { data: unpaidInvoices, isLoading: invoicesLoading, error: invoicesError } = useQuery<UnpaidInvoicesResponse>({
     queryKey: ['dashboard-unpaid-invoices'],
     queryFn: async () => {
       const response = await invoiceService.getUnpaid();
       return response.data;
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    staleTime: 60000, // 1 minute
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  const unpaidInvoiceItems: InvoiceSummary[] = Array.isArray(unpaidInvoices?.invoices)
-    ? unpaidInvoices.invoices
-    : [];
+  const unpaidInvoiceItems: InvoiceSummary[] = useMemo(
+    () => (Array.isArray(unpaidInvoices?.invoices) ? unpaidInvoices.invoices : []),
+    [unpaidInvoices]
+  );
 
-  const lowStockItems: LowStockItem[] = lowStock ?? [];
+  const lowStockItems: LowStockItem[] = useMemo(() => lowStock ?? [], [lowStock]);
 
   const isLoading = analyticsLoading || lowStockLoading || invoicesLoading;
 
-  const statCards = [
+  const statCards = useMemo(() => [
     {
-      title: 'Total Sales',
+      title: 'Revenue',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
       color: 'text-emerald-600',
@@ -59,40 +79,68 @@ export default function DashboardPage() {
       helper: analytics?.lastUpdated,
     },
     {
-      title: 'Inventory Value',
+      title: 'Stock Value',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-indigo-600',
-      bgColor: 'bg-gradient-to-br from-indigo-50 to-indigo-100/50',
-      iconBg: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
+      color: 'text-green-700',
+      bgColor: 'bg-gradient-to-br from-green-50 to-green-100/50',
+      iconBg: 'gradient-growth',
     },
     {
-      title: 'Orders Processed',
+      title: 'Orders',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-purple-600',
-      bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100/50',
-      iconBg: 'bg-gradient-to-br from-purple-500 to-purple-600',
+      color: 'text-amber-700',
+      bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100/50',
+      iconBg: 'gradient-harvest',
     },
     {
-      title: 'Unpaid Invoices',
+      title: 'Pending Invoices',
       value: unpaidInvoiceItems.length,
       icon: FileText,
-      color: 'text-pink-600',
-      bgColor: 'bg-gradient-to-br from-pink-50 to-pink-100/50',
-      iconBg: 'bg-gradient-to-br from-pink-500 to-pink-600',
+      color: 'text-orange-700',
+      bgColor: 'bg-gradient-to-br from-orange-50 to-orange-100/50',
+      iconBg: 'bg-gradient-to-br from-orange-500 to-orange-600',
     },
-  ];
+  ], [analytics, unpaidInvoiceItems.length]);
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  const hasErrors = analyticsError || lowStockError || invoicesError;
+
+  if (hasErrors) {
+    const errorMessage = analyticsError?.message || lowStockError?.message || invoicesError?.message || 'Unknown error';
+    return (
+      <div className="space-y-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Dashboard</AlertTitle>
+          <AlertDescription>
+            {errorMessage.includes('Network') 
+              ? 'Network error. Please check your connection and try again.'
+              : 'We encountered an error while loading your dashboard data. Please try refreshing the page.'}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
       {/* Header with gradient */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">
-            Dashboard
-          </h1>
-          <p className="text-gray-600 text-lg">Welcome back! Here&rsquo;s what&rsquo;s happening today.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl gradient-agro flex items-center justify-center shadow-growth">
+              <span className="text-xl">🌾</span>
+            </div>
+            <h1 className="text-4xl font-bold gradient-text">
+              Dashboard
+            </h1>
+          </div>
+          <p className="text-gray-600 text-lg">Agrotech Operations Overview • Pesticides, Chemicals & Fertilizers</p>
         </div>
       </div>
 
@@ -115,13 +163,9 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="relative">
               <div className={`text-3xl font-bold mb-1 ${stat.color}`}>
-                {isLoading ? (
-                  <div className="h-9 w-24 skeleton rounded"></div>
-                ) : (
-                  stat.value
-                )}
+                {stat.value}
               </div>
-              {stat.helper && !isLoading && (
+              {stat.helper && (
                 <p className="text-sm text-gray-600">
                   Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
                 </p>
@@ -134,17 +178,11 @@ export default function DashboardPage() {
       {/* Activity and Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-0 shadow-elegant hover-lift">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
-            <CardTitle className="text-lg font-bold gradient-text">Recent Activity</CardTitle>
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-green-50/50 to-emerald-50/50">
+            <CardTitle className="text-lg font-bold gradient-text-green">Recent Activity</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            {invoicesLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((item) => (
-                  <div key={item} className="h-14 bg-gray-200 rounded-lg animate-pulse"></div>
-                ))}
-              </div>
-            ) : unpaidInvoiceItems.length ? (
+            {unpaidInvoiceItems.length ? (
               <div className="space-y-4">
                 {unpaidInvoiceItems.slice(0, 5).map((invoice) => (
                   <div
@@ -164,26 +202,21 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="space-y-4 text-center py-12 text-gray-500">
-                <Warehouse className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                No unpaid invoices at the moment
-              </div>
+              <EmptyState
+                icon={FileText}
+                title="No Unpaid Invoices"
+                description="All invoices are paid or no invoices exist yet."
+              />
             )}
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-elegant hover-lift">
           <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-amber-50/50 to-orange-50/50">
-            <CardTitle className="text-lg font-bold gradient-text">Low Stock Alerts</CardTitle>
+            <CardTitle className="text-lg font-bold gradient-text-harvest">Low Stock Alerts</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            {lowStockLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((item) => (
-                  <div key={item} className="h-14 bg-gray-200 rounded-lg animate-pulse"></div>
-                ))}
-              </div>
-            ) : lowStockItems.length > 0 ? (
+            {lowStockItems.length > 0 ? (
               <div className="space-y-4">
                 {lowStockItems.slice(0, 5).map((item) => (
                   <div
@@ -202,17 +235,18 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="space-y-4 text-center py-12 text-gray-500">
-                <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                All items are well stocked
-              </div>
+              <EmptyState
+                icon={Package}
+                title="All Items Well Stocked"
+                description="No low stock alerts at this time. Great job!"
+              />
             )}
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions with modern cards */}
-      <Card className="border-0 shadow-elegant hover-lift bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/20">
+      <Card className="border-0 shadow-elegant hover-lift gradient-natural">
         <CardHeader className="border-b border-gray-100">
           <CardTitle className="text-lg font-bold gradient-text">Quick Actions</CardTitle>
         </CardHeader>
@@ -220,12 +254,12 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a
               href="/dashboard/products"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-indigo-100 hover:border-indigo-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl hover:shadow-growth hover:-translate-y-2 transition-all duration-300 border border-green-100 hover:border-green-200"
             >
-              <div className="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
+              <div className="p-3 gradient-growth rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-growth">
                 <Package className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-indigo-900">Add Product</span>
+              <span className="text-sm font-semibold text-green-900">Add Chemical/Fertilizer</span>
             </a>
             <a
               href="/dashboard/orders"
@@ -234,25 +268,25 @@ export default function DashboardPage() {
               <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
                 <ShoppingCart className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-emerald-900">New Order</span>
+              <span className="text-sm font-semibold text-emerald-900">Process Order</span>
             </a>
             <a
               href="/dashboard/inventory"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-purple-100 hover:border-purple-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl hover:shadow-harvest hover:-translate-y-2 transition-all duration-300 border border-amber-100 hover:border-amber-200"
             >
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
+              <div className="p-3 gradient-harvest rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-harvest">
                 <Warehouse className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-purple-900">Check Inventory</span>
+              <span className="text-sm font-semibold text-amber-900">Stock Levels</span>
             </a>
             <a
               href="/dashboard/invoices"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-pink-100 hover:border-pink-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-orange-100 hover:border-orange-200"
             >
-              <div className="p-3 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
+              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
                 <FileText className="h-6 w-6 text-white" />
               </div>
-              <span className="text-sm font-semibold text-pink-900">View Invoices</span>
+              <span className="text-sm font-semibold text-orange-900">Billing</span>
             </a>
           </div>
         </CardContent>

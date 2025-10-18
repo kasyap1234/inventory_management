@@ -146,8 +146,9 @@ func ValidateBulkUpdateQuantity(quantity *int, fieldName string) error {
 	return nil
 }
 
-// ValidatePassword validates password strength requirements
-func ValidatePassword(password string) error {
+// ValidatePasswordStrength validates password strength requirements
+// Deprecated: Use validation.ValidatePasswordSimple or ValidatePassword from password_validation.go
+func ValidatePasswordStrength(password string) error {
 	if len(password) < 12 {
 		return fmt.Errorf("password must be at least 12 characters long")
 	}

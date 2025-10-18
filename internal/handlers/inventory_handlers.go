@@ -10,6 +10,7 @@ import (
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
+	"agromart2/internal/validation"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -319,7 +320,7 @@ func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Adjustment must be non-zero")
 	}
 
-	req.Reason = common.SanitizeHTMLElement(strings.TrimSpace(req.Reason))
+	req.Reason = validation.SanitizeHTMLElement(strings.TrimSpace(req.Reason))
 
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {

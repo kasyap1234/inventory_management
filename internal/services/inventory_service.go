@@ -98,14 +98,36 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 
 // ReserveStock reserves stock for a specific reservation
 func (s *inventoryService) ReserveStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int, reservationID string) error {
+	// Validate inputs
+	if quantity <= 0 {
+		return common.CreateValidationError("reserve_stock", map[string]interface{}{
+			"quantity": "Quantity must be positive",
+		})
+	}
+	if reservationID == "" {
+		return common.CreateValidationError("reserve_stock", map[string]interface{}{
+			"reservation_id": "Reservation ID is required",
+		})
+	}
+
 	// Get current stock
 	stock, err := s.repository.GetStock(ctx, tenantID, productID)
 	if err != nil {
 		return common.CreateDatabaseError("reserve_stock", err)
 	}
 
+	// Validate stock exists and is not nil
+	if stock == nil {
+		return common.CreateValidationError("reserve_stock", map[string]interface{}{
+			"product": "Product not found in inventory",
+		})
+	}
+
 	// Check if enough stock is available
 	availableStock := stock.Quantity - stock.ReservedQuantity
+	if availableStock < 0 {
+		availableStock = 0
+	}
 	if availableStock < quantity {
 		return common.CreateValidationError("reserve_stock", map[string]interface{}{
 			"stock": fmt.Sprintf("Insufficient stock. Available: %d, Requested: %d", availableStock, quantity),
@@ -277,10 +299,27 @@ func (s *inventoryService) CommitStock(ctx context.Context, tenantID uuid.UUID, 
 
 // AdjustStock adjusts stock levels (increase or decrease)
 func (s *inventoryService) AdjustStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, adjustment int, reason string, adjustedBy uuid.UUID) error {
+	// Validate inputs
+	if adjustment == 0 {
+		return common.CreateValidationError("adjust_stock", map[string]interface{}{
+			"adjustment": "Adjustment cannot be zero",
+		})
+	}
+	if reason == "" {
+		reason = "Manual adjustment"
+	}
+
 	// Get current stock
 	stock, err := s.repository.GetStock(ctx, tenantID, productID)
 	if err != nil {
 		return common.CreateDatabaseError("adjust_stock", err)
+	}
+
+	// Validate stock exists
+	if stock == nil {
+		return common.CreateValidationError("adjust_stock", map[string]interface{}{
+			"product": "Product not found in inventory",
+		})
 	}
 
 	// Calculate new stock level
@@ -288,6 +327,14 @@ func (s *inventoryService) AdjustStock(ctx context.Context, tenantID uuid.UUID, 
 	if newQuantity < 0 {
 		return common.CreateValidationError("adjust_stock", map[string]interface{}{
 			"stock": fmt.Sprintf("Adjustment would result in negative stock. Current: %d, Adjustment: %d", stock.Quantity, adjustment),
+		})
+	}
+
+	// Check if adjustment would make available stock negative
+	availableStock := newQuantity - stock.ReservedQuantity
+	if availableStock < 0 {
+		return common.CreateValidationError("adjust_stock", map[string]interface{}{
+			"stock": fmt.Sprintf("Adjustment would result in negative available stock. Reserved: %d, New Total: %d", stock.ReservedQuantity, newQuantity),
 		})
 	}
 
@@ -336,7 +383,7 @@ func (s *inventoryService) AdjustStock(ctx context.Context, tenantID uuid.UUID, 
 	})
 
 	// Check for low stock alerts
-	availableStock := newQuantity - stock.ReservedQuantity
+	availableStock = newQuantity - stock.ReservedQuantity
 	s.checkLowStockAlert(ctx, tenantID, productID, availableStock)
 
 	// Audit log
@@ -355,8 +402,21 @@ func (s *inventoryService) GetAvailableStock(ctx context.Context, tenantID uuid.
 		return 0, common.CreateDatabaseError("get_available_stock", err)
 	}
 
+	// Handle nil stock
+	if stock == nil {
+		return 0, common.CreateValidationError("get_available_stock", map[string]interface{}{
+			"product": "Product not found in inventory",
+		})
+	}
+
 	availableStock := stock.Quantity - stock.ReservedQuantity
 	if availableStock < 0 {
+		// Log inconsistency but return 0
+		s.logger.WarnWithContext(ctx, "Negative available stock detected", map[string]interface{}{
+			"product_id":        productID,
+			"quantity":          stock.Quantity,
+			"reserved_quantity": stock.ReservedQuantity,
+		})
 		availableStock = 0
 	}
 
