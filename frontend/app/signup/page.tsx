@@ -196,7 +196,7 @@ export default function SignupPage() {
                 
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white text-sm font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
+                  className="w-full h-12 btn-modern gradient-primary text-white text-sm font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
                   disabled={signup.isPending || !passwordStrength.isAcceptable}
                 >
                   {signup.isPending ? (
@@ -233,13 +233,13 @@ export default function SignupPage() {
       </div>
 
       {/* Right side - Features */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 animated-gradient opacity-30"></div>
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-gray-50 to-blue-50/30 items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 animated-gradient opacity-10"></div>
         <div className="max-w-md space-y-8 animate-slide-in relative z-10">
           <div className="inline-block">
             <div className="flex items-center gap-2 glass px-4 py-2 rounded-full shadow-elegant">
-              <TrendingUp className="w-5 h-5 text-indigo-600" />
-              <span className="text-sm font-semibold text-gray-900">Trusted by 500+ businesses</span>
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <span className="text-sm font-semibold gradient-text-blue">Trusted by 500+ businesses</span>
             </div>
           </div>
           
@@ -247,42 +247,42 @@ export default function SignupPage() {
             Everything you need to manage inventory
           </h2>
           
-          <p className="text-lg text-gray-700">
-            Join thousands of businesses streamlining their operations with Agromart.
+          <p className="text-lg text-gray-600">
+            Join thousands of businesses streamlining their operations with AgroMart.
           </p>
 
           <div className="space-y-4 pt-4">
             {features.map((feature, index) => (
               <div key={index} className="flex items-center gap-3 group">
-                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
+                <div className="flex-shrink-0 w-8 h-8 gradient-primary rounded-full flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
                   <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-gray-900 font-semibold text-lg">{feature}</span>
+                <span className="text-gray-900 font-medium">{feature}</span>
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-3 gap-6 pt-8">
             <div className="text-center group">
-              <div className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl mx-auto mb-2 shadow-colored group-hover:scale-110 transition-transform duration-300">
-                <Users className="w-7 h-7 text-white" />
+              <div className="flex items-center justify-center w-12 h-12 gradient-blue rounded-xl mx-auto mb-2 shadow-colored group-hover:scale-110 transition-transform duration-300">
+                <Users className="w-6 h-6 text-white" />
               </div>
               <div className="text-2xl font-bold gradient-text">500+</div>
-              <div className="text-sm text-gray-700 font-medium">Active Users</div>
+              <div className="text-sm text-gray-600 font-medium">Active Users</div>
             </div>
             <div className="text-center group">
-              <div className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl mx-auto mb-2 shadow-colored group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 className="w-7 h-7 text-white" />
+              <div className="flex items-center justify-center w-12 h-12 gradient-purple rounded-xl mx-auto mb-2 shadow-purple group-hover:scale-110 transition-transform duration-300">
+                <BarChart3 className="w-6 h-6 text-white" />
               </div>
               <div className="text-2xl font-bold gradient-text">98%</div>
-              <div className="text-sm text-gray-700 font-medium">Satisfaction</div>
+              <div className="text-sm text-gray-600 font-medium">Satisfaction</div>
             </div>
             <div className="text-center group">
-              <div className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl mx-auto mb-2 shadow-colored group-hover:scale-110 transition-transform duration-300">
-                <TrendingUp className="w-7 h-7 text-white" />
+              <div className="flex items-center justify-center w-12 h-12 gradient-emerald rounded-xl mx-auto mb-2 shadow-emerald group-hover:scale-110 transition-transform duration-300">
+                <TrendingUp className="w-6 h-6 text-white" />
               </div>
               <div className="text-2xl font-bold gradient-text">24/7</div>
-              <div className="text-sm text-gray-700 font-medium">Support</div>
+              <div className="text-sm text-gray-600 font-medium">Support</div>
             </div>
           </div>
         </div>

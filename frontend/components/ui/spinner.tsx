@@ -15,7 +15,7 @@ export function Spinner({ size = "md", className }: SpinnerProps) {
   return (
     <div
       className={cn(
-        "animate-spin rounded-full border-gray-300 border-t-green-600",
+        "animate-spin rounded-full border-gray-200 border-t-blue-600",
         sizes[size],
         className
       )}
@@ -29,7 +29,7 @@ export function Spinner({ size = "md", className }: SpinnerProps) {
 
 export function LoadingScreen({ message = "Loading..." }: { message?: string }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-white to-gray-50">
       <Spinner size="lg" />
       <p className="mt-4 text-gray-600 font-medium">{message}</p>
     </div>

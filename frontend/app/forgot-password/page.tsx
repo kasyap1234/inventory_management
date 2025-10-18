@@ -93,10 +93,10 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
-        <div className="max-w-md space-y-6 animate-slide-in text-white">
-          <h2 className="text-4xl font-bold leading-tight">We keep your account secure</h2>
-          <p className="text-lg text-white/90">
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-gray-50 to-blue-50/30 items-center justify-center p-12">
+        <div className="max-w-md space-y-6 animate-slide-in">
+          <h2 className="text-4xl font-bold leading-tight text-gray-900">We keep your account secure</h2>
+          <p className="text-lg text-gray-600">
             Reset your password safely knowing your account is protected with enterprise-grade security.
           </p>
         </div>

@@ -73,34 +73,34 @@ export default function DashboardPage() {
       title: 'Revenue',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
-      color: 'text-emerald-600',
-      bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
-      iconBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
+      color: 'text-blue-600',
+      bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100/50',
+      iconBg: 'gradient-blue',
       helper: analytics?.lastUpdated,
     },
     {
       title: 'Stock Value',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-green-700',
-      bgColor: 'bg-gradient-to-br from-green-50 to-green-100/50',
-      iconBg: 'gradient-growth',
+      color: 'text-purple-600',
+      bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100/50',
+      iconBg: 'gradient-purple',
     },
     {
       title: 'Orders',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-amber-700',
-      bgColor: 'bg-gradient-to-br from-amber-50 to-amber-100/50',
-      iconBg: 'gradient-harvest',
+      color: 'text-emerald-600',
+      bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
+      iconBg: 'gradient-emerald',
     },
     {
       title: 'Pending Invoices',
       value: unpaidInvoiceItems.length,
       icon: FileText,
-      color: 'text-orange-700',
-      bgColor: 'bg-gradient-to-br from-orange-50 to-orange-100/50',
-      iconBg: 'bg-gradient-to-br from-orange-500 to-orange-600',
+      color: 'text-pink-600',
+      bgColor: 'bg-gradient-to-br from-pink-50 to-pink-100/50',
+      iconBg: 'gradient-pink',
     },
   ], [analytics, unpaidInvoiceItems.length]);
 
@@ -133,14 +133,14 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl gradient-agro flex items-center justify-center shadow-growth">
-              <span className="text-xl">🌾</span>
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-colored">
+              <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-4xl font-bold gradient-text">
               Dashboard
             </h1>
           </div>
-          <p className="text-gray-600 text-lg">Agrotech Operations Overview • Pesticides, Chemicals & Fertilizers</p>
+          <p className="text-gray-500 text-base">Operations Overview</p>
         </div>
       </div>
 
@@ -178,8 +178,8 @@ export default function DashboardPage() {
       {/* Activity and Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-0 shadow-elegant hover-lift">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-green-50/50 to-emerald-50/50">
-            <CardTitle className="text-lg font-bold gradient-text-green">Recent Activity</CardTitle>
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30">
+            <CardTitle className="text-lg font-bold gradient-text-blue">Recent Activity</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
             {unpaidInvoiceItems.length ? (
@@ -212,8 +212,8 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="border-0 shadow-elegant hover-lift">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-amber-50/50 to-orange-50/50">
-            <CardTitle className="text-lg font-bold gradient-text-harvest">Low Stock Alerts</CardTitle>
+          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-amber-50/30 to-orange-50/30">
+            <CardTitle className="text-lg font-bold text-amber-700">Low Stock Alerts</CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
             {lowStockItems.length > 0 ? (
@@ -246,7 +246,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions with modern cards */}
-      <Card className="border-0 shadow-elegant hover-lift gradient-natural">
+      <Card className="border-0 shadow-elegant hover-lift bg-gradient-to-br from-gray-50/50 to-white">
         <CardHeader className="border-b border-gray-100">
           <CardTitle className="text-lg font-bold gradient-text">Quick Actions</CardTitle>
         </CardHeader>
@@ -254,39 +254,39 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <a
               href="/dashboard/products"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl hover:shadow-growth hover:-translate-y-2 transition-all duration-300 border border-green-100 hover:border-green-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl hover:shadow-colored hover:-translate-y-1 transition-all duration-300 border border-blue-100 hover:border-blue-200"
             >
-              <div className="p-3 gradient-growth rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-growth">
-                <Package className="h-6 w-6 text-white" />
+              <div className="p-3 gradient-blue rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300 shadow-colored">
+                <Package className="h-5 w-5 text-white" />
               </div>
-              <span className="text-sm font-semibold text-green-900">Add Chemical/Fertilizer</span>
+              <span className="text-sm font-semibold text-gray-700">Add Product</span>
             </a>
             <a
               href="/dashboard/orders"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-emerald-100 hover:border-emerald-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl hover:shadow-purple hover:-translate-y-1 transition-all duration-300 border border-purple-100 hover:border-purple-200"
             >
-              <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
-                <ShoppingCart className="h-6 w-6 text-white" />
+              <div className="p-3 gradient-purple rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300 shadow-purple">
+                <ShoppingCart className="h-5 w-5 text-white" />
               </div>
-              <span className="text-sm font-semibold text-emerald-900">Process Order</span>
+              <span className="text-sm font-semibold text-gray-700">Process Order</span>
             </a>
             <a
               href="/dashboard/inventory"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl hover:shadow-harvest hover:-translate-y-2 transition-all duration-300 border border-amber-100 hover:border-amber-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl hover:shadow-emerald hover:-translate-y-1 transition-all duration-300 border border-emerald-100 hover:border-emerald-200"
             >
-              <div className="p-3 gradient-harvest rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-harvest">
-                <Warehouse className="h-6 w-6 text-white" />
+              <div className="p-3 gradient-emerald rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300 shadow-emerald">
+                <Warehouse className="h-5 w-5 text-white" />
               </div>
-              <span className="text-sm font-semibold text-amber-900">Stock Levels</span>
+              <span className="text-sm font-semibold text-gray-700">Stock Levels</span>
             </a>
             <a
               href="/dashboard/invoices"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl hover:shadow-colored hover:-translate-y-2 transition-all duration-300 border border-orange-100 hover:border-orange-200"
+              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 rounded-xl hover:shadow-colored hover:-translate-y-1 transition-all duration-300 border border-pink-100 hover:border-pink-200"
             >
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl mb-3 group-hover:scale-125 transition-transform duration-300 shadow-colored">
-                <FileText className="h-6 w-6 text-white" />
+              <div className="p-3 gradient-pink rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300">
+                <FileText className="h-5 w-5 text-white" />
               </div>
-              <span className="text-sm font-semibold text-orange-900">Billing</span>
+              <span className="text-sm font-semibold text-gray-700">Billing</span>
             </a>
           </div>
         </CardContent>
