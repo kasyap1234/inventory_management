@@ -778,6 +778,13 @@ export const productService = {
   search: (query: string) => api.get('/products/search', { params: { q: query } }),
   bulkCreate: (data: Record<string, unknown>[]) => api.post('/products/bulk/create', { products: data }),
   bulkUpdate: (data: Record<string, unknown>[]) => api.post('/products/bulk/update', { products: data }),
+  bulkPriceUpdate: (data: {
+    product_ids: string[];
+    adjustment: {
+      type: 'percentage' | 'fixed';
+      value: number;
+    };
+  }) => api.post('/products/bulk-price-update', data),
   uploadImage: (id: string, file: File) => {
     const formData = new FormData();
     formData.append('image', file);
@@ -838,6 +845,14 @@ export const inventoryService = {
   delete: (id: string) => api.delete(`/inventory/${id}`),
   search: (params: { product_id?: string; warehouse_id?: string }) => 
     api.get('/inventory/search', { params }),
+  adjustStock: (data: {
+    warehouse_id: string;
+    product_id: string;
+    quantity_change: number;
+    reason?: string;
+  }) => api.post('/inventory/adjust', data),
+  getHistory: (id: string, params?: { limit?: number; offset?: number }) => 
+    api.get(`/inventory/${id}/history`, { params }),
 };
 
 // Order Services
@@ -848,6 +863,35 @@ export const orderService = {
   create: (data: Record<string, unknown>) => api.post('/orders', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/orders/${id}`, data),
   delete: (id: string) => api.delete(`/orders/${id}`),
+  // Status transition methods
+  approve: (id: string) => api.post(`/orders/${id}/approve`),
+  process: (id: string) => api.post(`/orders/${id}/process`),
+  receive: (id: string) => api.post(`/orders/${id}/receive`),
+  ship: (id: string, expectedDelivery?: string) => 
+    api.post(`/orders/${id}/ship`, expectedDelivery ? { expected_delivery: expectedDelivery } : {}),
+  deliver: (id: string) => api.post(`/orders/${id}/deliver`),
+  cancel: (id: string, notes?: string) => 
+    api.post(`/orders/${id}/cancel`, notes ? { notes } : {}),
+  // Advanced features
+  search: (params: {
+    query?: string;
+    status?: string;
+    order_type?: string;
+    supplier_id?: string;
+    distributor_id?: string;
+    product_id?: string;
+    warehouse_id?: string;
+    min_quantity?: number;
+    max_quantity?: number;
+    order_date_from?: string;
+    order_date_to?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get('/orders/search', { params }),
+  getHistory: (id: string, params?: { limit?: number; offset?: number }) => 
+    api.get(`/orders/${id}/history`, { params }),
+  getAnalytics: (params?: { start_date?: string; end_date?: string }) => 
+    api.get('/orders/analytics', { params }),
 };
 
 // Invoice Services
@@ -856,6 +900,8 @@ export const invoiceService = {
     api.get('/invoices', { params }),
   getById: (id: string) => api.get(`/invoices/${id}`),
   create: (data: Record<string, unknown>) => api.post('/invoices', data),
+  bulkCreate: (data: Record<string, unknown>[]) => 
+    api.post('/invoices/bulk-create', { invoices: data }),
   update: (id: string, data: Record<string, unknown>) => api.put(`/invoices/${id}`, data),
   updateStatus: (id: string, status: string) => 
     api.put(`/invoices/${id}/status`, { status }),

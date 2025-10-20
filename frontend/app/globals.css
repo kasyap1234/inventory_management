@@ -36,10 +36,10 @@
   --gradient-via: #8b5cf6;   /* Purple */
   --gradient-to: #ec4899;    /* Pink */
   
-  /* Clean Surface colors */
+  /* Clean Surface colors - Ultra minimal */
   --surface-primary: #ffffff;
-  --surface-secondary: #fafafa;
-  --surface-tertiary: #f4f4f5;
+  --surface-secondary: #fcfcfc;
+  --surface-tertiary: #f8f8f8;
   
   /* Accent colors */
   --blue: #3b82f6;
@@ -81,11 +81,13 @@
 }
 
 body {
-  background: #fafafa;
+  background: #ffffff;
   color: var(--foreground);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+  letter-spacing: -0.011em;
 }
 
 /* Minimal scrollbar */
