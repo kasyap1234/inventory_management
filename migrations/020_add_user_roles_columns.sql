@@ -54,7 +54,16 @@ DO $$ BEGIN
     END IF;
 END $$;
 
-ALTER TABLE user_roles ADD CONSTRAINT user_roles_user_id_tenant_id_role_id_key UNIQUE (user_id, tenant_id, role_id);
+-- Add the new unique constraint if it doesn't exist
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'user_roles_user_id_tenant_id_role_id_key'
+        AND table_name = 'user_roles'
+    ) THEN
+        ALTER TABLE user_roles ADD CONSTRAINT user_roles_user_id_tenant_id_role_id_key UNIQUE (user_id, tenant_id, role_id);
+    END IF;
+END $$;
 
 -- Add comments
 COMMENT ON COLUMN user_roles.tenant_id IS 'Tenant ID for multi-tenancy support';

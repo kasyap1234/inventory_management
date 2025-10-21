@@ -57,6 +57,10 @@ wait_for_service() {
 echo -e "${BLUE}Checking prerequisites...${NC}"
 MISSING_DEPS=0
 
+# Add architecture detection
+ARCH=$(uname -m)
+echo -e "${GREEN}✓ System architecture: $ARCH${NC}"
+
 if ! command_exists docker; then
     echo -e "${RED}✗ Docker is not installed${NC}"
     MISSING_DEPS=1

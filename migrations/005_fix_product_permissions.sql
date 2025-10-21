@@ -42,11 +42,34 @@ WHERE r.name = 'admin'
   );
 
 -- Assign 'user' role to existing users who don't have any role assigned
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id as user_id, r.id as role_id
-FROM users u
-JOIN roles r ON r.tenant_id = u.tenant_id AND r.name = 'user'
-WHERE NOT EXISTS (
-    SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id
-)
-ON CONFLICT (user_id, role_id) DO NOTHING;
+-- Note: Works with or without tenant_id column (added in migration 020)
+DO $$ 
+DECLARE
+    has_tenant_id boolean;
+BEGIN
+    -- Check if tenant_id column exists in user_roles
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user_roles' AND column_name = 'tenant_id'
+    ) INTO has_tenant_id;
+    
+    IF has_tenant_id THEN
+        -- Insert with tenant_id if column exists
+        INSERT INTO user_roles (user_id, role_id, tenant_id)
+        SELECT u.id as user_id, r.id as role_id, u.tenant_id
+        FROM users u
+        JOIN roles r ON r.tenant_id = u.tenant_id AND r.name = 'user'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = r.id
+        );
+    ELSE
+        -- Insert without tenant_id if column doesn't exist yet
+        INSERT INTO user_roles (user_id, role_id)
+        SELECT u.id as user_id, r.id as role_id
+        FROM users u
+        JOIN roles r ON r.tenant_id = u.tenant_id AND r.name = 'user'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = r.id
+        );
+    END IF;
+END $$;

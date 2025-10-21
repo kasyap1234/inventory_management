@@ -18,7 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_status ON orders(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);
+-- Note: orders table does not have customer_id, it uses supplier_id/distributor_id instead
 
 -- Order items table indexes
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
@@ -33,13 +33,15 @@ CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at DESC);
 -- Inventory table indexes  
 CREATE INDEX IF NOT EXISTS idx_inventory_tenant_warehouse ON inventory(tenant_id, warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory(product_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_low_stock ON inventory(quantity) WHERE quantity <= reorder_level;
+-- Note: inventory table doesn't have reorder_level column
+-- CREATE INDEX IF NOT EXISTS idx_inventory_low_stock ON inventory(quantity) WHERE quantity <= reorder_level;
 
 -- Audit logs table indexes (for performance of history queries)
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_table ON audit_logs(tenant_id, table_name);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_record_id ON audit_logs(record_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
+-- Note: audit_logs uses changed_by not user_id, and created_at not timestamp
+CREATE INDEX IF NOT EXISTS idx_audit_logs_changed_by ON audit_logs(changed_by);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at_desc ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 
 -- User roles indexes
@@ -59,7 +61,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created
 -- Subscriptions table indexes
 CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_id ON subscriptions(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_next_billing ON subscriptions(next_billing_date) WHERE status = 'active';
+-- Note: next_billing_date doesn't exist, subscriptions uses current_period_end instead
+CREATE INDEX IF NOT EXISTS idx_subscriptions_period_end ON subscriptions(current_period_end) WHERE status = 'active';
 
 -- Warehouses table indexes
 CREATE INDEX IF NOT EXISTS idx_warehouses_tenant_id ON warehouses(tenant_id);
@@ -80,9 +83,11 @@ CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(produ
 CREATE INDEX IF NOT EXISTS idx_product_images_tenant_id ON product_images(tenant_id);
 
 -- Add composite indexes for common query patterns
-CREATE INDEX IF NOT EXISTS idx_products_tenant_status ON products(tenant_id, deleted_at) WHERE deleted_at IS NULL;
+-- Note: products table doesn't have deleted_at column
+-- CREATE INDEX IF NOT EXISTS idx_products_tenant_status ON products(tenant_id, deleted_at) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_dates ON orders(tenant_id, created_at DESC, status);
-CREATE INDEX IF NOT EXISTS idx_invoices_tenant_dates ON invoices(tenant_id, invoice_date DESC, status);
+-- Note: invoices uses issued_date not invoice_date
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant_dates ON invoices(tenant_id, issued_date DESC, status);
 
 -- Add partial indexes for filtered queries
 CREATE INDEX IF NOT EXISTS idx_orders_pending ON orders(tenant_id, created_at DESC) WHERE status = 'pending';
@@ -90,12 +95,14 @@ CREATE INDEX IF NOT EXISTS idx_orders_approved ON orders(tenant_id, created_at D
 CREATE INDEX IF NOT EXISTS idx_invoices_unpaid ON invoices(tenant_id, due_date) WHERE status IN ('pending', 'overdue');
 
 -- Add GIN index for JSON columns if they exist
--- This is useful for notification_data or metadata columns
-CREATE INDEX IF NOT EXISTS idx_notifications_data ON notifications USING gin(notification_data) WHERE notification_data IS NOT NULL;
+-- Note: notifications table doesn't have notification_data column
+-- CREATE INDEX IF NOT EXISTS idx_notifications_data ON notifications USING gin(notification_data) WHERE notification_data IS NOT NULL;
 
 -- Add indexes for timestamp columns used in analytics
-CREATE INDEX IF NOT EXISTS idx_orders_completed_at ON orders(completed_at DESC) WHERE completed_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_invoices_paid_at ON invoices(paid_at DESC) WHERE paid_at IS NOT NULL;
+-- Note: orders doesn't have completed_at, using created_at for completed orders
+-- CREATE INDEX IF NOT EXISTS idx_orders_completed_at ON orders(completed_at DESC) WHERE completed_at IS NOT NULL;
+-- Note: invoices uses paid_date not paid_at
+CREATE INDEX IF NOT EXISTS idx_invoices_paid_date ON invoices(paid_date DESC) WHERE paid_date IS NOT NULL;
 
 -- Analyze tables after index creation to update statistics
 ANALYZE users;
