@@ -9,6 +9,8 @@ import (
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
+	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/messaging"
 	"github.com/google/uuid"
 )
 
@@ -41,6 +43,9 @@ type notificationDeliveryService struct {
 	logger           *common.StructuredLogger
 	notificationSvc  NotificationService
 	userRepo         repositories.UserRepository
+	deviceTokenRepo  repositories.DeviceTokenRepository
+	fcmClient        *messaging.Client
+	fcmEnabled       bool
 }
 
 // NewNotificationDeliveryService creates a new notification delivery service
@@ -52,7 +57,20 @@ func NewNotificationDeliveryService(
 	logger *common.StructuredLogger,
 	notificationSvc NotificationService,
 	userRepo repositories.UserRepository,
+	deviceTokenRepo repositories.DeviceTokenRepository,
+	firebaseApp *firebase.App,
+	fcmEnabled bool,
 ) NotificationDeliveryService {
+	var fcmClient *messaging.Client
+	if firebaseApp != nil && fcmEnabled {
+		var err error
+		fcmClient, err = firebaseApp.Messaging(context.Background())
+		if err != nil {
+			logger.Error("Failed to initialize FCM client", err)
+			fcmEnabled = false
+		}
+	}
+
 	return &notificationDeliveryService{
 		deliveryRepo:     deliveryRepo,
 		notificationRepo: nil, // Can be injected if needed for enhanced functionality
@@ -62,6 +80,9 @@ func NewNotificationDeliveryService(
 		logger:           logger,
 		notificationSvc:  notificationSvc,
 		userRepo:         userRepo,
+		deviceTokenRepo:  deviceTokenRepo,
+		fcmClient:        fcmClient,
+		fcmEnabled:       fcmEnabled,
 	}
 }
 
@@ -415,62 +436,137 @@ func (s *notificationDeliveryService) deliverSMS(ctx context.Context, delivery *
 
 // deliverPush delivers a notification via push notification
 func (s *notificationDeliveryService) deliverPush(ctx context.Context, delivery *models.NotificationDelivery, notification *models.EnhancedNotification) error {
-	// NOTE: This is a basic implementation. For production, you need to:
-	// 1. Integrate with Firebase Cloud Messaging (FCM) for Android
-	// 2. Integrate with Apple Push Notification Service (APNs) for iOS
-	// 3. Store device tokens in a separate table
-	// 4. Handle token registration/unregistration
-	// 5. Implement retry logic for failed deliveries
-	//
-	// Example FCM integration:
-	// - Install: go get firebase.google.com/go/v4
-	// - Set up Firebase project and download service account JSON
-	// - Initialize FCM client with credentials
-	// - Use client.Send() to deliver push notifications
-	//
-	// For now, we'll log the notification and mark it as delivered in test/dev environments
+	// Check if FCM is enabled
+	if !s.fcmEnabled || s.fcmClient == nil {
+		s.logger.InfoWithContext(ctx, "FCM not enabled, push notification would be delivered in production", map[string]interface{}{
+			"delivery_id": delivery.ID,
+			"recipient":   delivery.Recipient,
+			"title":       notification.Title,
+			"message":     notification.Message,
+		})
+		return nil // Return success in dev/test mode
+	}
 
-	s.logger.InfoWithContext(ctx, "Push notification would be delivered in production", map[string]interface{}{
-		"delivery_id": delivery.ID,
-		"recipient":   delivery.Recipient,
-		"title":       notification.Title,
-		"message":     notification.Message,
-		"priority":    notification.Priority,
-	})
+	// Check if device token repository is available
+	if s.deviceTokenRepo == nil {
+		return fmt.Errorf("device token repository not configured")
+	}
 
-	// In development/test mode, consider it delivered
-	// In production, you would send the actual push notification here
-	// Example pseudo-code for FCM:
-	/*
-		fcmMessage := &messaging.Message{
-			Token: delivery.Recipient, // FCM device token
+	// Get active device tokens for the user
+	tokens, err := s.deviceTokenRepo.GetActiveTokensByUser(ctx, notification.TenantID, notification.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to get device tokens: %w", err)
+	}
+
+	if len(tokens) == 0 {
+		return fmt.Errorf("no active device tokens found for user")
+	}
+
+	// Track successful deliveries
+	successCount := 0
+
+	// Prepare and send FCM message to each device
+	for _, token := range tokens {
+		message := &messaging.Message{
+			Token: token.DeviceToken,
 			Notification: &messaging.Notification{
 				Title: notification.Title,
 				Body:  notification.Message,
 			},
 			Data: map[string]string{
 				"notification_id": notification.ID.String(),
-				"event_type":      *notification.EventType,
+				"tenant_id":       notification.TenantID.String(),
 				"priority":        notification.Priority,
 			},
-			Android: &messaging.AndroidConfig{
+		}
+
+		// Add event type if available
+		if notification.EventType != nil {
+			message.Data["event_type"] = *notification.EventType
+		}
+
+		// Platform-specific configurations
+		if token.DeviceType == "android" {
+			message.Android = &messaging.AndroidConfig{
 				Priority: "high",
-			},
-			APNS: &messaging.APNSConfig{
+				Notification: &messaging.AndroidNotification{
+					Sound:       "default",
+					Color:       "#007bff",
+					ChannelID:   "default",
+					ClickAction: "FLUTTER_NOTIFICATION_CLICK",
+				},
+			}
+		} else if token.DeviceType == "ios" {
+			message.APNS = &messaging.APNSConfig{
 				Headers: map[string]string{
 					"apns-priority": "10",
 				},
-			},
+				Payload: &messaging.APNSPayload{
+					Aps: &messaging.Aps{
+						Sound: "default",
+						Badge: s.getBadgeCount(ctx, notification.UserID),
+						Alert: &messaging.ApsAlert{
+							Title: notification.Title,
+							Body:  notification.Message,
+						},
+					},
+				},
+			}
 		}
 
-		response, err := fcmClient.Send(ctx, fcmMessage)
+		// Send the message
+		response, err := s.fcmClient.Send(ctx, message)
 		if err != nil {
-			return fmt.Errorf("failed to send push notification: %w", err)
-		}
-	*/
+			s.logger.ErrorWithContext(ctx, "Failed to send push notification", err, map[string]interface{}{
+				"device_token": token.DeviceToken,
+				"device_type":  token.DeviceType,
+				"user_id":      notification.UserID,
+			})
 
-	// For now, return success in non-production environments
+			// If token is invalid or unregistered, deactivate it
+			if messaging.IsInvalidArgument(err) || messaging.IsUnregistered(err) {
+				if deactivateErr := s.deviceTokenRepo.DeactivateToken(ctx, notification.TenantID, token.DeviceToken); deactivateErr != nil {
+					s.logger.WarnWithContext(ctx, "Failed to deactivate invalid token", map[string]interface{}{
+						"device_token": token.DeviceToken,
+						"error":        deactivateErr.Error(),
+					})
+				}
+			}
+			continue
+		}
+
+		s.logger.InfoWithContext(ctx, "Push notification sent successfully", map[string]interface{}{
+			"message_id":   response,
+			"device_token": token.DeviceToken,
+			"device_type":  token.DeviceType,
+			"user_id":      notification.UserID,
+		})
+
+		// Update last used timestamp
+		if err := s.deviceTokenRepo.UpdateLastUsed(ctx, notification.TenantID, token.DeviceToken); err != nil {
+			s.logger.WarnWithContext(ctx, "Failed to update token last used", map[string]interface{}{
+				"device_token": token.DeviceToken,
+				"error":        err.Error(),
+			})
+		}
+
+		successCount++
+	}
+
+	// Return error if no devices were successfully notified
+	if successCount == 0 {
+		return fmt.Errorf("failed to deliver push notification to any device")
+	}
+
 	return nil
+}
+
+// getBadgeCount returns the unread notification count for badge display
+func (s *notificationDeliveryService) getBadgeCount(ctx context.Context, userID uuid.UUID) *int {
+	// This is a placeholder - in production, you would query the actual unread count
+	// from the notifications table
+	badge := 0
+	return &badge
 }
 
 // getDefaultChannels returns default channels for a notification type

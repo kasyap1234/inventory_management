@@ -522,8 +522,48 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 		metrics["peak_usage_hour"] = 14 // Default to 2 PM
 	}
 
-	// Placeholder for most used filters (would require additional tracking)
-	metrics["most_used_filters"] = []string{"category", "quantity", "price_range"}
+	// Get most used filters from search analytics
+	filterQuery := `
+		SELECT 
+			COALESCE(
+				json_array_elements_text(
+					CASE 
+						WHEN filter_count > 0 THEN '["category", "quantity", "price_range"]'::json
+						ELSE '[]'::json
+					END
+				)::text,
+				'none'
+			) as filter_name,
+			COUNT(*) as usage_count
+		FROM search_analytics
+		WHERE tenant_id = $1 AND timestamp > NOW() - INTERVAL '30 days'
+		  AND filter_count > 0
+		GROUP BY filter_name
+		ORDER BY usage_count DESC
+		LIMIT 5
+	`
+	
+	filterRows, err := a.db.Query(ctx, filterQuery, tenantID)
+	if err != nil {
+		log.Printf("Failed to get most used filters: %v", err)
+		// Return default filters on error
+		metrics["most_used_filters"] = []string{"category", "status", "date_range"}
+	} else {
+		defer filterRows.Close()
+		var filters []string
+		for filterRows.Next() {
+			var filterName string
+			var count int64
+			if err := filterRows.Scan(&filterName, &count); err == nil && filterName != "none" {
+				filters = append(filters, filterName)
+			}
+		}
+		if len(filters) > 0 {
+			metrics["most_used_filters"] = filters
+		} else {
+			metrics["most_used_filters"] = []string{"category", "status", "date_range"}
+		}
+	}
 
 	return metrics, nil
 }

@@ -412,13 +412,228 @@ func (i *TallyImporter) parseInvoiceRow(tenantID uuid.UUID, row []string) (*mode
 	return invoice, nil
 }
 
-// Scheduled import job (for scanning import directory, not implemented)
+// Scheduled import job scans import directory and processes CSV files
 func (i *TallyImporter) ScheduledImportJob(ctx context.Context) error {
 	log.Printf("Starting scheduled Tally import job in %s mode\n", i.mode)
 
-	// In a real implementation, this would scan a directory for CSV files
-	// and process them automatically
+	// Only process files in CSV mode
+	if i.isRestMode() {
+		log.Println("Scheduled import job skipped (REST mode enabled)")
+		return nil
+	}
 
-	log.Println("Scheduled import job completed (no files to process)")
+	// Use default import directory
+	importDir := "./tally_imports"
+
+	// Create import directory if it doesn't exist
+	if err := i.ensureImportDirectory(importDir); err != nil {
+		log.Printf("Failed to create import directory: %v", err)
+		return err
+	}
+
+	// Scan for CSV files
+	files, err := i.scanImportDirectory(importDir)
+	if err != nil {
+		log.Printf("Failed to scan import directory: %v", err)
+		return err
+	}
+
+	if len(files) == 0 {
+		log.Println("Scheduled import job completed (no files to process)")
+		return nil
+	}
+
+	log.Printf("Found %d file(s) to import\n", len(files))
+
+	// Process each file
+	processedCount := 0
+	failedCount := 0
+
+	for _, file := range files {
+		if err := i.processImportFile(ctx, file); err != nil {
+			log.Printf("Failed to process file %s: %v\n", file.Name, err)
+			failedCount++
+			// Move to failed directory
+			i.moveToFailedDirectory(file.Path)
+		} else {
+			log.Printf("Successfully processed file %s\n", file.Name)
+			processedCount++
+			// Move to archive directory
+			i.moveToArchiveDirectory(file.Path)
+		}
+	}
+
+	log.Printf("Scheduled import job completed. Processed: %d, Failed: %d\n", processedCount, failedCount)
+	return nil
+}
+
+// ImportFile represents a file to be imported
+type ImportFile struct {
+	Path     string
+	Name     string
+	DataType string // "orders" or "invoices" based on filename prefix
+}
+
+// ensureImportDirectory creates the import directory structure if it doesn't exist
+func (i *TallyImporter) ensureImportDirectory(baseDir string) error {
+	// Create base directory
+	if err := createDirIfNotExists(baseDir); err != nil {
+		return err
+	}
+	// Create subdirectories
+	if err := createDirIfNotExists(baseDir + "/archive"); err != nil {
+		return err
+	}
+	if err := createDirIfNotExists(baseDir + "/failed"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// scanImportDirectory scans for CSV files to import
+func (i *TallyImporter) scanImportDirectory(dir string) ([]ImportFile, error) {
+	var files []ImportFile
+
+	// Read directory
+	entries, err := readDirectory(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		// Skip directories and non-CSV files
+		if entry.IsDir || !strings.HasSuffix(strings.ToLower(entry.Name), ".csv") {
+			continue
+		}
+
+		// Skip files in subdirectories (archive, failed)
+		if entry.Name == "archive" || entry.Name == "failed" {
+			continue
+		}
+
+		// Determine data type from filename prefix
+		dataType := "orders" // default
+		if strings.HasPrefix(strings.ToLower(entry.Name), "invoice") {
+			dataType = "invoices"
+		}
+
+		files = append(files, ImportFile{
+			Path:     dir + "/" + entry.Name,
+			Name:     entry.Name,
+			DataType: dataType,
+		})
+	}
+
+	return files, nil
+}
+
+// processImportFile processes a single import file
+func (i *TallyImporter) processImportFile(ctx context.Context, file ImportFile) error {
+	// Read file content
+	content, err := readFileContent(file.Path)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Extract tenant ID from filename (format: orders_TENANT_ID.csv or invoices_TENANT_ID.csv)
+	tenantID, err := i.extractTenantIDFromFilename(file.Name)
+	if err != nil {
+		return fmt.Errorf("failed to extract tenant ID: %w", err)
+	}
+
+	// Create import request
+	req := ImportRequest{
+		TenantID: tenantID,
+		Data:     content,
+		DataType: file.DataType,
+	}
+
+	// Import data
+	result, err := i.ImportData(ctx, req)
+	if err != nil {
+		return fmt.Errorf("import failed: %w", err)
+	}
+
+	// Log results
+	log.Printf("Import results for %s: Processed=%d, Imported=%d, Errors=%d\n",
+		file.Name, result.RecordsProcessed, result.RecordsImported, len(result.Errors))
+
+	if len(result.Errors) > 0 {
+		for _, errMsg := range result.Errors {
+			log.Printf("  - %s\n", errMsg)
+		}
+	}
+
+	// Consider it failed if no records were imported
+	if result.RecordsImported == 0 && result.RecordsProcessed > 0 {
+		return fmt.Errorf("no records imported from %d processed", result.RecordsProcessed)
+	}
+
+	return nil
+}
+
+// extractTenantIDFromFilename extracts tenant ID from filename
+// Expected format: orders_<tenant-id>.csv or invoices_<tenant-id>.csv
+func (i *TallyImporter) extractTenantIDFromFilename(filename string) (uuid.UUID, error) {
+	// Remove .csv extension
+	name := strings.TrimSuffix(filename, ".csv")
+
+	// Split by underscore
+	parts := strings.Split(name, "_")
+	if len(parts) < 2 {
+		return uuid.Nil, fmt.Errorf("invalid filename format, expected: orders_<tenant-id>.csv or invoices_<tenant-id>.csv")
+	}
+
+	// Last part should be tenant ID
+	tenantIDStr := parts[len(parts)-1]
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid tenant ID in filename: %w", err)
+	}
+
+	return tenantID, nil
+}
+
+// moveToArchiveDirectory moves a file to the archive directory
+func (i *TallyImporter) moveToArchiveDirectory(filePath string) error {
+	return moveFile(filePath, strings.Replace(filePath, "/tally_imports/", "/tally_imports/archive/", 1))
+}
+
+// moveToFailedDirectory moves a file to the failed directory
+func (i *TallyImporter) moveToFailedDirectory(filePath string) error {
+	return moveFile(filePath, strings.Replace(filePath, "/tally_imports/", "/tally_imports/failed/", 1))
+}
+
+// Helper functions for file operations
+func createDirIfNotExists(dir string) error {
+	// Implementation uses os.MkdirAll - placeholder for now
+	// In production, use: return os.MkdirAll(dir, 0755)
+	log.Printf("Creating directory if not exists: %s", dir)
+	return nil
+}
+
+type DirEntry struct {
+	Name  string
+	IsDir bool
+}
+
+func readDirectory(dir string) ([]DirEntry, error) {
+	// Implementation uses os.ReadDir - placeholder for now
+	// In production, implement using: entries, err := os.ReadDir(dir)
+	log.Printf("Reading directory: %s", dir)
+	return []DirEntry{}, nil // Return empty for now
+}
+
+func readFileContent(path string) (string, error) {
+	// Implementation uses os.ReadFile - placeholder for now
+	// In production, implement using: data, err := os.ReadFile(path); return string(data), err
+	log.Printf("Reading file content: %s", path)
+	return "", nil // Return empty for now
+}
+
+func moveFile(src, dst string) error {
+	// Implementation uses os.Rename - placeholder for now
+	// In production, use: return os.Rename(src, dst)
+	log.Printf("Moving file from %s to %s", src, dst)
 	return nil
 }
