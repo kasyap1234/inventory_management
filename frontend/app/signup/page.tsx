@@ -63,8 +63,8 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-screen">
       {/* Left side - Form */}
-      <div className="flex flex-1 items-center justify-center p-8 bg-white">
-        <div className="w-full max-w-lg animate-fade-in">
+      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-14 auth-gradient">
+        <div className="auth-gradient-content w-full max-w-lg space-y-8 animate-fade-in">
           {/* Logo */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Create your account</h1>
@@ -72,8 +72,8 @@ export default function SignupPage() {
           </div>
 
           {/* Form Card */}
-          <Card className="shadow-xl">
-            <CardContent className="p-8">
+          <Card className="border border-[var(--border)] shadow-[0_24px_48px_-32px_rgba(15,23,42,0.35)] rounded-3xl bg-white">
+            <CardContent className="space-y-6 p-8 sm:p-10">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -204,7 +204,7 @@ export default function SignupPage() {
                 
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern gradient-primary text-white text-sm font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
+                  className="w-full btn-modern gradient-primary text-white font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
                   disabled={signup.isPending || !passwordStrength.isAcceptable}
                 >
                   {signup.isPending ? (
@@ -231,7 +231,7 @@ export default function SignupPage() {
           </Card>
 
           {/* Sign in link */}
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-gray-500">
             Already have an account?{' '}
             <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
               Sign in
@@ -241,55 +241,53 @@ export default function SignupPage() {
       </div>
 
       {/* Right side - Features */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-gray-50 to-blue-50/30 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 animated-gradient opacity-10"></div>
+      <div className="hidden lg:flex flex-1 bg-white border-l border-[var(--border)] items-center justify-center px-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 via-purple-50/40 to-pink-50/40" />
         <div className="max-w-md space-y-8 animate-slide-in relative z-10">
-          <div className="inline-block">
-            <div className="flex items-center gap-2 glass px-4 py-2 rounded-full shadow-elegant">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-semibold gradient-text-blue">Trusted by 500+ businesses</span>
-            </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-secondary)] px-4 py-1.5">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            <span className="text-sm font-semibold text-gray-700">Trusted by 500+ businesses</span>
           </div>
-          
-          <h2 className="text-4xl font-bold text-gray-900 leading-tight">
+
+          <h2 className="text-4xl font-semibold text-gray-900 leading-tight">
             Everything you need to manage inventory
           </h2>
-          
-          <p className="text-lg text-gray-600">
-            Join thousands of businesses streamlining their operations with AgroMart.
+
+          <p className="text-base text-gray-600 leading-relaxed">
+            Join thousands of businesses streamlining operations with AgroMart.
           </p>
 
-          <div className="space-y-4 pt-4">
+          <div className="space-y-4 pt-2">
             {features.map((feature, index) => (
-              <div key={index} className="flex items-center gap-3 group">
-                <div className="flex-shrink-0 w-8 h-8 gradient-primary rounded-full flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
-                  <CheckCircle2 className="w-5 h-5 text-white" />
+              <div key={index} className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <span className="text-gray-900 font-medium">{feature}</span>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-6 pt-8">
-            <div className="text-center group">
-              <div className="flex items-center justify-center w-12 h-12 gradient-blue rounded-xl mx-auto mb-2 shadow-colored group-hover:scale-110 transition-transform duration-300">
-                <Users className="w-6 h-6 text-white" />
+          <div className="grid grid-cols-3 gap-6 pt-6">
+            <div className="text-center space-y-2">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-100 text-blue-600 mx-auto">
+                <Users className="w-6 h-6" />
               </div>
-              <div className="text-2xl font-bold gradient-text">500+</div>
+              <div className="text-2xl font-semibold text-gray-900">500+</div>
               <div className="text-sm text-gray-600 font-medium">Active Users</div>
             </div>
-            <div className="text-center group">
-              <div className="flex items-center justify-center w-12 h-12 gradient-purple rounded-xl mx-auto mb-2 shadow-purple group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 className="w-6 h-6 text-white" />
+            <div className="text-center space-y-2">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-purple-100 text-purple-600 mx-auto">
+                <BarChart3 className="w-6 h-6" />
               </div>
-              <div className="text-2xl font-bold gradient-text">98%</div>
+              <div className="text-2xl font-semibold text-gray-900">98%</div>
               <div className="text-sm text-gray-600 font-medium">Satisfaction</div>
             </div>
-            <div className="text-center group">
-              <div className="flex items-center justify-center w-12 h-12 gradient-emerald rounded-xl mx-auto mb-2 shadow-emerald group-hover:scale-110 transition-transform duration-300">
-                <TrendingUp className="w-6 h-6 text-white" />
+            <div className="text-center space-y-2">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 mx-auto">
+                <TrendingUp className="w-6 h-6" />
               </div>
-              <div className="text-2xl font-bold gradient-text">24/7</div>
+              <div className="text-2xl font-semibold text-gray-900">24/7</div>
               <div className="text-sm text-gray-600 font-medium">Support</div>
             </div>
           </div>

@@ -90,6 +90,27 @@ body {
   letter-spacing: -0.011em;
 }
 
+.auth-gradient {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 45%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.16), transparent 50%),
+    linear-gradient(180deg, #ffffff 0%, #f6f8ff 100%);
+}
+
+.auth-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.06), transparent 55%);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.auth-gradient-content {
+  position: relative;
+  z-index: 1;
+}
+
 /* Minimal scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

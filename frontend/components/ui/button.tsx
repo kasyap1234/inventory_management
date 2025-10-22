@@ -17,11 +17,11 @@ const buttonVariants = cva(
         success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md hover:scale-[1.01]",
       },
       size: {
-        default: "h-11 px-5 py-2.5 text-sm",
-        sm: "h-9 px-4 text-xs",
-        lg: "h-12 px-8 text-base",
-        xl: "h-14 px-10 text-lg",
-        icon: "h-10 w-10",
+        default: "h-12 px-6 py-3 text-sm",
+        sm: "h-10 px-4 py-2 text-xs",
+        lg: "h-13 px-8 py-3.5 text-base",
+        xl: "h-14 px-10 py-4 text-lg",
+        icon: "h-11 w-11 p-0",
       },
     },
     defaultVariants: {

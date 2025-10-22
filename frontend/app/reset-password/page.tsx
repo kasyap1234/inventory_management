@@ -125,7 +125,7 @@ function ResetPasswordContent() {
 
                   <Button
                     type="submit"
-                    className="w-full h-12 btn-modern gradient-blue text-white text-sm font-semibold shadow-lg hover:shadow-xl"
+                    className="w-full btn-modern gradient-blue text-white font-semibold shadow-lg hover:shadow-xl"
                     disabled={disableForm || !passwordStrength.isAcceptable}
                   >
                     {resetPassword.isPending ? 'Updating password...' : 'Update password'}

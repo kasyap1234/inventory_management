@@ -41,22 +41,22 @@ function LoginContent() {
   return (
     <div className="flex min-h-screen">
       {/* Left side - Form */}
-      <div className="flex flex-1 items-center justify-center p-8 bg-gradient-to-br from-white via-gray-50/50 to-blue-50/20 dot-pattern">
-        <div className="w-full max-w-md animate-fade-in">
+      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-14 auth-gradient">
+        <div className="auth-gradient-content w-full max-w-md space-y-8 animate-fade-in">
           {/* Logo */}
           <div className="mb-8 text-center">
             <div className="inline-flex items-center gap-3 mb-4">
               <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center shadow-colored">
                 <Package className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-4xl font-bold gradient-text">AgroMart</h1>
+              <h1 className="text-4xl font-bold text-gray-900">AgroMart</h1>
             </div>
-            <p className="text-gray-600 text-base font-medium">Inventory Management Platform</p>
+            <p className="text-gray-500 text-base font-medium">Inventory Management Platform</p>
           </div>
 
           {/* Form Card */}
-          <Card className="shadow-elegant-lg border-0">
-            <CardContent className="p-8">
+          <Card className="border border-[var(--border)] shadow-[0_24px_48px_-32px_rgba(15,23,42,0.35)] rounded-3xl bg-white">
+            <CardContent className="space-y-6 p-8 sm:p-10">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {resetSuccessful && (
                   <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm animate-fade-in">
@@ -110,7 +110,7 @@ function LoginContent() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-12 btn-modern gradient-primary text-white text-sm font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
+                  className="w-full btn-modern gradient-primary text-white font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
                   isLoading={login.isPending}
                   loadingText="Signing in..."
                 >
@@ -124,7 +124,7 @@ function LoginContent() {
           </Card>
 
           {/* Sign up link */}
-          <p className="text-center text-sm text-gray-600 mt-6">
+          <p className="text-center text-sm text-gray-500">
             Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-semibold">
               Create a free account
@@ -134,50 +134,46 @@ function LoginContent() {
       </div>
 
       {/* Right side - Brand */}
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-gray-50 to-blue-50/30 items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 animated-gradient opacity-10"></div>
-        <div className="absolute inset-0 grid-pattern"></div>
-        <div className="max-w-md space-y-8 animate-slide-in relative z-10">
-          <div className="inline-block">
-            <div className="flex items-center gap-2 glass px-4 py-2 rounded-full shadow-elegant">
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-semibold gradient-text-blue">Modern Platform</span>
-            </div>
+      <div className="hidden lg:flex flex-1 bg-white border-l border-[var(--border)] items-center justify-center px-16">
+        <div className="max-w-lg space-y-10 animate-slide-in">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-secondary)] px-4 py-1.5">
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-semibold text-gray-700">Modern Platform</span>
           </div>
-          
-          <h2 className="text-4xl font-bold text-gray-900 leading-tight">
+
+          <h2 className="text-4xl font-semibold text-gray-900 leading-tight tracking-tight">
             Complete Inventory Management Solution
           </h2>
-          
-          <p className="text-lg text-gray-600">
+
+          <p className="text-base text-gray-600 leading-relaxed">
             Professional-grade system for managing your inventory. Track products, streamline operations, and optimize your supply chain.
           </p>
 
-          <div className="space-y-4 pt-4">
-            <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 gradient-blue rounded-xl flex items-center justify-center shadow-colored group-hover:scale-110 transition-transform duration-300">
-                <Shield className="w-6 h-6 text-white" />
+          <div className="space-y-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                <Shield className="w-6 h-6" />
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Secure & Reliable</h3>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-gray-900">Secure & Reliable</h3>
                 <p className="text-sm text-gray-600">Enterprise-grade security for your data</p>
               </div>
             </div>
-            <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 gradient-purple rounded-xl flex items-center justify-center shadow-purple group-hover:scale-110 transition-transform duration-300">
-                <Zap className="w-6 h-6 text-white" />
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 text-purple-600">
+                <Zap className="w-6 h-6" />
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Real-time Tracking</h3>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-gray-900">Real-time Tracking</h3>
                 <p className="text-sm text-gray-600">Monitor inventory levels in real-time</p>
               </div>
             </div>
-            <div className="flex items-start gap-4 group">
-              <div className="flex-shrink-0 w-12 h-12 gradient-emerald rounded-xl flex items-center justify-center shadow-emerald group-hover:scale-110 transition-transform duration-300">
-                <Sparkles className="w-6 h-6 text-white" />
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                <Sparkles className="w-6 h-6" />
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Analytics & Insights</h3>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-gray-900">Analytics & Insights</h3>
                 <p className="text-sm text-gray-600">Data-driven decisions for your business</p>
               </div>
             </div>

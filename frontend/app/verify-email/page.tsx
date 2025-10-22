@@ -93,7 +93,7 @@ function VerifyEmailContent() {
                 <div className="space-y-4">
                   <p className="text-sm text-gray-700">{message}</p>
                   <Link href="/login">
-                    <Button className="w-full h-11 btn-modern gradient-blue text-white">
+                    <Button className="w-full btn-modern gradient-blue text-white">
                       Proceed to sign in
                     </Button>
                   </Link>
@@ -104,7 +104,7 @@ function VerifyEmailContent() {
                 <div className="space-y-4">
                   <p className="text-sm text-gray-700">{message}</p>
                   <Link href="/forgot-password">
-                    <Button variant="outline" className="w-full h-11">
+                    <Button variant="outline" className="w-full">
                       Request new verification link
                     </Button>
                   </Link>
