@@ -51,7 +51,6 @@ services:
 
   mailhog:
     image: ${MAILHOG_IMAGE:-mailhog/mailhog:latest}
-    platform: ${DOCKER_PLATFORM}
     ports:
       - "1025:1025"
       - "8025:8025"

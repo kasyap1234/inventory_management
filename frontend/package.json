@@ -29,6 +29,7 @@
     "test:install": "playwright install --with-deps"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.15",
     "@tanstack/react-query": "^5.90.2",
     "@tanstack/react-virtual": "^3.10.8",
     "axios": "^1.12.2",
@@ -40,6 +41,7 @@
     "next": "15.5.4",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
+    "react-day-picker": "^9.4.4",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.6.0",
     "recharts": "^3.2.1",

@@ -356,6 +356,9 @@ func main() {
     webhookSubscriptionService := services.NewWebhookSubscriptionService(webhookSubscriptionRepo, logger)
     alertRuleService := services.NewAlertRuleService(alertRuleRepo, logger)
 
+    // Device token repository for push notifications
+    deviceTokenRepo := repositories.NewDeviceTokenRepository(pool)
+
     // Notification delivery repository & service (enhanced delivery pipeline)
     notificationDeliveryRepo := repositories.NewNotificationDeliveryRepo(pool)
     deliverySvc := services.NewNotificationDeliveryService(
@@ -366,6 +369,9 @@ func main() {
         common.GetGlobalLogger(),
         notificationService,
         userRepo,
+        deviceTokenRepo,
+        nil,   // Firebase app - configure when Firebase credentials are available
+        false, // FCM enabled - set to true when Firebase is configured
     )
 
     // Register event handlers for critical errors and search usage

@@ -46,6 +46,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_inventory_reservations_updated_at ON inventory_reservations;
 CREATE TRIGGER trigger_update_inventory_reservations_updated_at
     BEFORE UPDATE ON inventory_reservations
     FOR EACH ROW

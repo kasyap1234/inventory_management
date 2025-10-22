@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash } from 'lucide-react';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -241,15 +243,37 @@ function ProductFormDialog({ open, onOpenChange, product }: {
     unit_of_measure: product?.unit_of_measure || '',
     description: product?.description || '',
     batch_number: product?.batch_number || '',
-    expiry_date: product?.expiry_date || '',
   });
+  const [expiryDate, setExpiryDate] = useState<Date | null>(
+    product?.expiry_date ? new Date(product.expiry_date) : null
+  );
+
+  // Reset form when product changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        name: product?.name || '',
+        barcode: product?.barcode || '',
+        quantity: product?.quantity || 0,
+        unit_price: product?.unit_price || 0,
+        unit_of_measure: product?.unit_of_measure || '',
+        description: product?.description || '',
+        batch_number: product?.batch_number || '',
+      });
+      setExpiryDate(product?.expiry_date ? new Date(product.expiry_date) : null);
+    }
+  }, [open, product]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      const payload = {
+        ...data,
+        expiry_date: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : '',
+      };
       if (product) {
-        await api.put(`/products/${product.id}`, data);
+        await api.put(`/products/${product.id}`, payload);
       } else {
-        await api.post('/products', data);
+        await api.post('/products', payload);
       }
     },
     onSuccess: () => {
@@ -303,8 +327,8 @@ function ProductFormDialog({ open, onOpenChange, product }: {
               <Input
                 required
                 type="number"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                value={isNaN(formData.quantity) ? '' : formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
               />
             </div>
             <div className="space-y-2">
@@ -313,8 +337,8 @@ function ProductFormDialog({ open, onOpenChange, product }: {
                 required
                 type="number"
                 step="0.01"
-                value={formData.unit_price}
-                onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })}
+                value={isNaN(formData.unit_price) ? '' : formData.unit_price}
+                onChange={(e) => setFormData({ ...formData, unit_price: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
               />
             </div>
           </div>
@@ -329,10 +353,10 @@ function ProductFormDialog({ open, onOpenChange, product }: {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Expiry Date</label>
-              <Input
-                type="date"
-                value={formData.expiry_date}
-                onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+              <DatePicker
+                date={expiryDate}
+                onSelect={(date) => setExpiryDate(date || null)}
+                placeholder="Select expiry date"
               />
             </div>
           </div>
@@ -463,8 +487,8 @@ function BulkPriceUpdateDialog({ open, onOpenChange, selectedProductIds, onSucce
               type="number"
               step="0.01"
               min="0"
-              value={value}
-              onChange={(e) => setValue(parseFloat(e.target.value) || 0)}
+              value={isNaN(value) ? '' : value}
+              onChange={(e) => setValue(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
               placeholder={updateType === 'percentage' ? 'e.g., 10' : 'e.g., 50'}
             />
             <p className="text-xs text-gray-500">
