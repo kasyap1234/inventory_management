@@ -14,15 +14,17 @@ import (
 
 // SubscriptionHandlers handles HTTP requests for subscriptions
 type SubscriptionHandlers struct {
-	subscriptionService services.SubscriptionService
-	rbacMiddleware      *middleware.RBACMiddleware
+	subscriptionService    services.SubscriptionService
+	subscriptionMiddleware services.SubscriptionMiddlewareService
+	rbacMiddleware         *middleware.RBACMiddleware
 }
 
 // NewSubscriptionHandlers creates a new subscription handlers instance
-func NewSubscriptionHandlers(subscriptionService services.SubscriptionService, rbacMiddleware *middleware.RBACMiddleware) *SubscriptionHandlers {
+func NewSubscriptionHandlers(subscriptionService services.SubscriptionService, subscriptionMiddleware services.SubscriptionMiddlewareService, rbacMiddleware *middleware.RBACMiddleware) *SubscriptionHandlers {
 	return &SubscriptionHandlers{
-		subscriptionService: subscriptionService,
-		rbacMiddleware:      rbacMiddleware,
+		subscriptionService:    subscriptionService,
+		subscriptionMiddleware: subscriptionMiddleware,
+		rbacMiddleware:         rbacMiddleware,
 	}
 }
 
@@ -295,5 +297,68 @@ func (h *SubscriptionHandlers) DeleteSubscription(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Subscription deleted successfully",
+	})
+}
+
+// GetSubscriptionLimits handles GET /subscriptions/limits
+func (h *SubscriptionHandlers) GetSubscriptionLimits(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	limits, err := h.subscriptionMiddleware.GetSubscriptionLimits(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"limits": limits,
+	})
+}
+
+// GetSubscriptionUsage handles GET /subscriptions/usage
+func (h *SubscriptionHandlers) GetSubscriptionUsage(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	usage, err := h.subscriptionMiddleware.GetCurrentUsage(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	limits, err := h.subscriptionMiddleware.GetSubscriptionLimits(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"usage":  usage,
+		"limits": limits,
+	})
+}
+
+// RefreshUsageTracking handles POST /subscriptions/usage/refresh
+func (h *SubscriptionHandlers) RefreshUsageTracking(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	err := h.subscriptionMiddleware.RefreshUsageTracking(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Usage tracking refreshed successfully",
 	})
 }

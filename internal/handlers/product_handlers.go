@@ -31,7 +31,7 @@ func NewProductHandlers(productService services.ProductService, rbacMiddleware *
 	}
 }
 
-// validateProduct validates product data
+// validateProduct validates product data with detailed, user-friendly error messages
 func (h *ProductHandlers) validateProduct(req *struct {
 	Name          string  `json:"name"`
 	CategoryID    *string `json:"category_id"`
@@ -43,15 +43,30 @@ func (h *ProductHandlers) validateProduct(req *struct {
 	UnitOfMeasure *string `json:"unit_of_measure"`
 	Description   *string `json:"description"`
 }) error {
+	validationErrors := make(map[string]interface{})
+
 	if strings.TrimSpace(req.Name) == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Product name is required")
+		validationErrors["name"] = "Product name is required and cannot be empty"
 	}
+
 	if req.UnitPrice <= 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Unit price must be positive")
+		validationErrors["unit_price"] = fmt.Sprintf("Unit price must be greater than 0, received: %.2f", req.UnitPrice)
 	}
+
 	if req.Quantity < 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Quantity cannot be negative")
+		validationErrors["quantity"] = fmt.Sprintf("Quantity cannot be negative, received: %d", req.Quantity)
 	}
+
+	if len(validationErrors) > 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
+				"code":    "VALIDATION_ERROR",
+				"message": "Please check your input and try again",
+				"details": validationErrors,
+			},
+		})
+	}
+
 	return nil
 }
 

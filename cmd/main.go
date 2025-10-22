@@ -233,6 +233,9 @@ func main() {
 	)
 
 	// Create services
+	// Create subscription middleware service for feature enforcement
+	subscriptionMiddleware := services.NewSubscriptionMiddlewareService(pool)
+
 	// Create analytics service
 	analyticsSvc := analytics.NewAnalyticsService(orderRepo, invoiceRepo, inventoryRepo, productRepo, cacheSvc, pool)
 
@@ -291,7 +294,7 @@ func main() {
 	tenantHandlers := handlers.NewTenantHandlers(tenantService, rbacMiddleware)
 	categoryHandlers := handlers.NewCategoryHandlers(categoryRepo, rbacMiddleware)
 	warehouseHandlers := handlers.NewWarehouseHandlers(
-		services.NewWarehouseService(warehouseRepo),
+		services.NewWarehouseService(warehouseRepo, subscriptionMiddleware),
 		rbacMiddleware,
 	)
 	distributorService := services.NewDistributorService(distributorRepo)
@@ -342,7 +345,7 @@ func main() {
 	}
 	razorpayService := services.NewRazorpayService(razorpayKeyID, razorpayKeySecret, razorpayWebhookSecret)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
-	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, rbacMiddleware)
+	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, subscriptionMiddleware, rbacMiddleware)
 	webhookHandlers := handlers.NewWebhookHandlers(subscriptionService, razorpayService, razorpayWebhookSecret, rbacMiddleware)
 
 	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
@@ -794,13 +797,16 @@ func main() {
 	// Subscription routes
 	protected.GET("/subscriptions", subscriptionHandlers.ListSubscriptions)
 	protected.POST("/subscriptions", subscriptionHandlers.CreateSubscription)
+	protected.GET("/subscriptions/plans", subscriptionHandlers.GetAvailablePlans)
+	protected.GET("/subscriptions/limits", subscriptionHandlers.GetSubscriptionLimits)
+	protected.GET("/subscriptions/usage", subscriptionHandlers.GetSubscriptionUsage)
+	protected.POST("/subscriptions/usage/refresh", subscriptionHandlers.RefreshUsageTracking)
 	protected.GET("/subscriptions/:id", subscriptionHandlers.GetSubscriptionByID)
 	protected.PUT("/subscriptions/:id", subscriptionHandlers.UpdateSubscriptionPlan)
 	protected.POST("/subscriptions/:id/cancel", subscriptionHandlers.CancelSubscription)
 	protected.POST("/subscriptions/:id/pause", subscriptionHandlers.PauseSubscription)
 	protected.POST("/subscriptions/:id/resume", subscriptionHandlers.ResumeSubscription)
 	protected.DELETE("/subscriptions/:id", subscriptionHandlers.DeleteSubscription)
-	protected.GET("/subscriptions/plans", subscriptionHandlers.GetAvailablePlans)
 
 	// Notification routes
 	protected.POST("/notifications/send", notificationHandlers.SendNotification)

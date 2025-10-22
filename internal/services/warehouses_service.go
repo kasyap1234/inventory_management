@@ -20,12 +20,14 @@ type WarehouseService interface {
 }
 
 type warehouseService struct {
-	warehouseRepo repositories.WarehouseRepository
+	warehouseRepo      repositories.WarehouseRepository
+	subscriptionMiddleware SubscriptionMiddlewareService
 }
 
-func NewWarehouseService(warehouseRepo repositories.WarehouseRepository) WarehouseService {
+func NewWarehouseService(warehouseRepo repositories.WarehouseRepository, subscriptionMiddleware SubscriptionMiddlewareService) WarehouseService {
 	return &warehouseService{
-		warehouseRepo: warehouseRepo,
+		warehouseRepo:      warehouseRepo,
+		subscriptionMiddleware: subscriptionMiddleware,
 	}
 }
 
@@ -36,6 +38,13 @@ func (s *warehouseService) Create(ctx context.Context, tenantID uuid.UUID, wareh
 
 	if warehouse.Capacity == nil || *warehouse.Capacity <= 0 {
 		return errors.New("warehouse capacity must be greater than 0")
+	}
+
+	// Check subscription limits before creating warehouse
+	if s.subscriptionMiddleware != nil {
+		if err := s.subscriptionMiddleware.CanCreateWarehouse(ctx, tenantID); err != nil {
+			return err
+		}
 	}
 
 	// Check for duplicate name

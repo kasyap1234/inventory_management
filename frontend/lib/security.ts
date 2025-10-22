@@ -8,15 +8,15 @@ class TokenStorage {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.accessToken = sessionStorage.getItem('access_token');
-      this.refreshToken = sessionStorage.getItem('refresh_token');
+      this.accessToken = localStorage.getItem('access_token');
+      this.refreshToken = localStorage.getItem('refresh_token');
     }
   }
 
   getAccessToken() {
     if (typeof window === 'undefined') return null;
     if (!this.accessToken) {
-      this.accessToken = sessionStorage.getItem('access_token');
+      this.accessToken = localStorage.getItem('access_token');
     }
     return this.accessToken;
   }
@@ -24,7 +24,7 @@ class TokenStorage {
   getRefreshToken() {
     if (typeof window === 'undefined') return null;
     if (!this.refreshToken) {
-      this.refreshToken = sessionStorage.getItem('refresh_token');
+      this.refreshToken = localStorage.getItem('refresh_token');
     }
     return this.refreshToken;
   }
@@ -34,12 +34,12 @@ class TokenStorage {
 
     if (accessToken) {
       this.accessToken = accessToken;
-      sessionStorage.setItem('access_token', accessToken);
+      localStorage.setItem('access_token', accessToken);
     }
 
     if (refreshToken) {
       this.refreshToken = refreshToken;
-      sessionStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem('refresh_token', refreshToken);
     }
   }
 
@@ -48,8 +48,8 @@ class TokenStorage {
 
     this.accessToken = null;
     this.refreshToken = null;
-    sessionStorage.removeItem('access_token');
-    sessionStorage.removeItem('refresh_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   }
 
   hasAccessToken() {

@@ -8,6 +8,7 @@ import { Check, CreditCard, Loader2, Sparkles } from 'lucide-react';
 import { subscriptionService, type SubscriptionPlanConfig } from '@/lib/services';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 declare global {
   interface Window {
@@ -18,6 +19,7 @@ declare global {
 export default function SubscriptionPlansPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { createSubscription: createRazorpaySubscription, isLoading: razorpayLoading } = useRazorpayCheckout();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -37,20 +39,6 @@ export default function SubscriptionPlansPage() {
     },
   });
 
-  const createSubscription = useMutation({
-    mutationFn: async (planId: string) => {
-      const response = await api.post('/subscriptions', {
-        plan_id: planId,
-        customer_email: currentUser?.email || '',
-      });
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      router.push('/dashboard/subscriptions');
-    },
-  });
-
   const handleSubscribe = async (planId: string) => {
     if (!currentUser?.email) {
       alert('Please log in to subscribe');
@@ -61,18 +49,27 @@ export default function SubscriptionPlansPage() {
     setIsProcessing(true);
 
     try {
-      // Create subscription on backend
-      const result = await createSubscription.mutateAsync(planId);
-      
-      // If Razorpay subscription was created, show success
-      if (result.subscription) {
-        alert('Subscription created successfully!');
-        router.push('/dashboard/subscriptions');
-      }
+      // Use Razorpay Checkout integration
+      await createRazorpaySubscription(
+        planId,
+        currentUser.email,
+        (subscriptionId) => {
+          // Success callback
+          queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+          alert('Subscription activated successfully!');
+          router.push('/dashboard/subscriptions?success=true');
+        },
+        (error) => {
+          // Error callback
+          console.error('Subscription error:', error);
+          alert(error?.message || 'Failed to process subscription payment');
+          setIsProcessing(false);
+          setSelectedPlan(null);
+        }
+      );
     } catch (error: any) {
       console.error('Subscription error:', error);
-      alert(error.response?.data?.message || 'Failed to create subscription');
-    } finally {
+      alert(error?.message || 'Failed to create subscription');
       setIsProcessing(false);
       setSelectedPlan(null);
     }

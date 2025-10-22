@@ -13,9 +13,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import SubscriptionUsageCard from '@/components/subscriptions/SubscriptionUsageCard';
+import api from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 export default function SubscriptionsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const { data: subscriptionsData, isLoading } = useQuery<SubscriptionListResult>({
     queryKey: ['subscriptions'],
@@ -25,6 +29,15 @@ export default function SubscriptionsPage() {
   const { data: availablePlans } = useQuery<SubscriptionPlanConfig[]>({
     queryKey: ['subscription-plans'],
     queryFn: () => subscriptionService.getAvailablePlans(),
+  });
+
+  // Fetch usage and limits
+  const { data: usageData } = useQuery({
+    queryKey: ['subscription-usage'],
+    queryFn: async () => {
+      const response = await api.get('/subscriptions/usage');
+      return response.data;
+    },
   });
 
   const subscriptions: SubscriptionDto[] = subscriptionsData?.items ?? [];
@@ -103,6 +116,15 @@ export default function SubscriptionsPage() {
           View Plans
         </Button>
       </div>
+
+      {/* Usage Card */}
+      {usageData?.usage && usageData?.limits && (
+        <SubscriptionUsageCard
+          usage={usageData.usage}
+          limits={usageData.limits}
+          onUpgrade={() => router.push('/dashboard/subscriptions/plans')}
+        />
+      )}
 
       {/* Subscriptions List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

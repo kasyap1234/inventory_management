@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +22,14 @@ export default function SignupPage() {
     subdomain: '',
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const { signup } = useAuth();
+  const { signup, isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  // Redirect if already authenticated
+  if (!isLoading && isAuthenticated) {
+    router.push('/dashboard');
+    return null;
+  }
 
   const passwordStrength = useMemo(() => evaluatePasswordStrength(formData.password), [formData.password]);
 
