@@ -1,83 +1,103 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Package, Truck, Home, XCircle } from 'lucide-react';
+import api from '@/lib/api';
+import { showSuccess, showError } from '@/lib/toast';
 
 interface OrderActionsProps {
+  orderId: string;
   status: string;
   onConfirm?: () => void;
   onProcess?: () => void;
   onShip?: () => void;
   onDeliver?: () => void;
   onCancel?: () => void;
+  onSuccess?: () => void;
   disabled?: boolean;
 }
 
 export function OrderActions({
+  orderId,
   status,
   onConfirm,
   onProcess,
   onShip,
   onDeliver,
   onCancel,
+  onSuccess,
   disabled = false,
 }: OrderActionsProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleAction = async (action: string, callback?: () => void) => {
+    setLoading(true);
+    try {
+      await api.post(`/orders/${orderId}/${action}`);
+      showSuccess(`Order ${action}ed successfully`);
+      if (callback) callback();
+      if (onSuccess) onSuccess();
+    } catch (error: any) {
+      showError(error.response?.data?.message || `Failed to ${action} order`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isDisabled = disabled || loading;
+
   return (
     <div className="flex items-center gap-2">
-      {status === 'pending' && onConfirm && (
+      {status === 'pending' && (
         <Button
-          size="sm"
-          onClick={onConfirm}
-          disabled={disabled}
-          className="bg-blue-600 hover:bg-blue-700"
+          onClick={() => handleAction('approve', onConfirm)}
+          disabled={isDisabled}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           <CheckCircle className="h-4 w-4 mr-1" />
-          Confirm
+          Approve
         </Button>
       )}
 
-      {status === 'confirmed' && onProcess && (
+      {status === 'approved' && (
         <Button
-          size="sm"
-          onClick={onProcess}
-          disabled={disabled}
-          className="bg-purple-600 hover:bg-purple-700"
+          onClick={() => handleAction('process', onProcess)}
+          disabled={isDisabled}
+          className="bg-purple-600 hover:bg-purple-700 text-white"
         >
           <Package className="h-4 w-4 mr-1" />
           Process
         </Button>
       )}
 
-      {status === 'processing' && onShip && (
+      {status === 'processing' && (
         <Button
-          size="sm"
-          onClick={onShip}
-          disabled={disabled}
-          className="bg-indigo-600 hover:bg-indigo-700"
+          onClick={() => handleAction('ship', onShip)}
+          disabled={isDisabled}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white"
         >
           <Truck className="h-4 w-4 mr-1" />
           Ship
         </Button>
       )}
 
-      {status === 'shipped' && onDeliver && (
+      {status === 'shipped' && (
         <Button
-          size="sm"
-          onClick={onDeliver}
-          disabled={disabled}
-          className="bg-green-600 hover:bg-green-700"
+          onClick={() => handleAction('deliver', onDeliver)}
+          disabled={isDisabled}
+          className="bg-green-600 hover:bg-green-700 text-white"
         >
           <Home className="h-4 w-4 mr-1" />
           Deliver
         </Button>
       )}
 
-      {['pending', 'confirmed'].includes(status) && onCancel && (
+      {['pending', 'approved', 'processing'].includes(status) && (
         <Button
-          size="sm"
           variant="outline"
-          onClick={onCancel}
-          disabled={disabled}
+          onClick={() => handleAction('cancel', onCancel)}
+          disabled={isDisabled}
           className="text-red-600 hover:text-red-700 hover:bg-red-50"
         >
           <XCircle className="h-4 w-4 mr-1" />

@@ -29,6 +29,14 @@ func NewAnalyticsHandlers(analyticsSvc *analytics.AnalyticsService, rbacMiddlewa
 func (h *AnalyticsHandlers) GetDashboardAnalytics(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
@@ -230,6 +238,216 @@ func (h *AnalyticsHandlers) GetOrderStatusDistribution(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, distribution)
+}
+
+// GetCustomerSegmentation handles GET /analytics/customer-segmentation
+// Returns customer segmentation analytics
+func (h *AnalyticsHandlers) GetCustomerSegmentation(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	segmentation, err := h.analyticsSvc.GetCustomerSegmentation(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get customer segmentation: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"segmentation": segmentation,
+	})
+}
+
+// GetProductPerformance handles GET /analytics/product-performance
+// Returns product performance metrics
+func (h *AnalyticsHandlers) GetProductPerformance(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	limit := 20
+	if limitParam := c.QueryParam("limit"); limitParam != "" {
+		if l := common.ParseIntOrDefault(limitParam, 20); l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	performance, err := h.analyticsSvc.GetProductPerformance(ctx, tenantID, limit)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get product performance: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"performance": performance,
+		"limit":       limit,
+	})
+}
+
+// GetInventoryTurnover handles GET /analytics/inventory-turnover
+// Returns inventory turnover analytics
+func (h *AnalyticsHandlers) GetInventoryTurnover(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	turnover, err := h.analyticsSvc.GetInventoryTurnover(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get inventory turnover: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"turnover": turnover,
+	})
+}
+
+// GetSupplierPerformance handles GET /analytics/supplier-performance
+// Returns supplier performance metrics
+func (h *AnalyticsHandlers) GetSupplierPerformance(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	performance, err := h.analyticsSvc.GetSupplierPerformance(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get supplier performance: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"performance": performance,
+	})
+}
+
+// GetCustomerLifetimeValue handles GET /analytics/customer-lifetime-value
+// Returns customer lifetime value analytics
+func (h *AnalyticsHandlers) GetCustomerLifetimeValue(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	limit := 20
+	if limitParam := c.QueryParam("limit"); limitParam != "" {
+		if l := common.ParseIntOrDefault(limitParam, 20); l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	ltv, err := h.analyticsSvc.GetCustomerLifetimeValue(ctx, tenantID, limit)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get customer lifetime value: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"customer_ltv": ltv,
+		"limit":        limit,
+	})
+}
+
+// GetMarketTrends handles GET /analytics/market-trends
+// Returns market trend analytics
+func (h *AnalyticsHandlers) GetMarketTrends(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	trends, err := h.analyticsSvc.GetMarketTrends(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get market trends: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"trends": trends,
+	})
+}
+
+// GetProfitMarginAnalysis handles GET /analytics/profit-margin
+// Returns profit margin analysis
+func (h *AnalyticsHandlers) GetProfitMarginAnalysis(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	analysis, err := h.analyticsSvc.GetProfitMarginAnalysis(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get profit margin analysis: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, analysis)
 }
 
 // RefreshAnalytics handles POST /analytics/refresh

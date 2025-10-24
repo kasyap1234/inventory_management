@@ -29,6 +29,10 @@ type AuditLogsService interface {
 	GetTableNames(ctx context.Context, tenantID uuid.UUID) ([]string, error)
 	GetActions(ctx context.Context, tenantID uuid.UUID) ([]string, error)
 
+	// Timeline formatting for UI display
+	FormatAuditTimeline(ctx context.Context, tenantID uuid.UUID, filters *models.AuditLogFilters) ([]TimelineGroup, error)
+	FormatAuditTimelineByEntity(ctx context.Context, tenantID uuid.UUID, tableName, recordID string, limit, offset int) ([]TimelineEvent, error)
+
 	// Compliance operations (for audit purposes)
 	SoftDeleteAuditLog(ctx context.Context, tenantID, auditLogID uuid.UUID) error
 
@@ -234,6 +238,184 @@ func (s *auditLogsService) BatchLogActivities(ctx context.Context, tenantID uuid
 		}
 	}
 	return nil
+}
+
+// TimelineEvent represents a single event in the audit timeline
+type TimelineEvent struct {
+	ID        uuid.UUID              `json:"id"`
+	Timestamp time.Time              `json:"timestamp"`
+	Action    string                 `json:"action"`
+	Entity    string                 `json:"entity"`
+	RecordID  string                 `json:"record_id"`
+	ChangedBy *uuid.UUID             `json:"changed_by"`
+	Summary   string                 `json:"summary"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+}
+
+// TimelineGroup represents a group of events for a specific time period
+type TimelineGroup struct {
+	Period string          `json:"period"`
+	Events []TimelineEvent `json:"events"`
+}
+
+// FormatAuditTimeline formats audit logs into a chronological timeline for UI display
+func (s *auditLogsService) FormatAuditTimeline(ctx context.Context, tenantID uuid.UUID, filters *models.AuditLogFilters) ([]TimelineGroup, error) {
+	if filters == nil {
+		filters = &models.AuditLogFilters{Limit: 100}
+	}
+
+	// Validate filters
+	if err := s.ValidateAuditFilters(filters); err != nil {
+		return nil, err
+	}
+
+	// Get audit logs
+	logs, err := s.ListAuditLogs(ctx, tenantID, filters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch audit logs: %w", err)
+	}
+
+	// Convert to timeline events
+	events := make([]TimelineEvent, 0, len(logs))
+	for _, log := range logs {
+		event := TimelineEvent{
+			ID:        log.ID,
+			Timestamp: log.CreatedAt,
+			Action:    log.Action,
+			Entity:    log.TableName,
+			RecordID:  log.RecordID,
+			ChangedBy: log.ChangedBy,
+			Summary:   formatAuditSummary(log),
+			Details:   extractChangedFields(log),
+		}
+		events = append(events, event)
+	}
+
+	// Sort events by timestamp (most recent first)
+	for i := 0; i < len(events)-1; i++ {
+		for j := i + 1; j < len(events); j++ {
+			if events[j].Timestamp.After(events[i].Timestamp) {
+				events[i], events[j] = events[j], events[i]
+			}
+		}
+	}
+
+	// Group events by time period
+	grouped := groupEventsByPeriod(events)
+
+	return grouped, nil
+}
+
+// FormatAuditTimelineByEntity formats audit logs for a specific entity into a timeline
+func (s *auditLogsService) FormatAuditTimelineByEntity(ctx context.Context, tenantID uuid.UUID, tableName, recordID string, limit, offset int) ([]TimelineEvent, error) {
+	logs, err := s.GetEntityHistory(ctx, tenantID, tableName, recordID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch entity history: %w", err)
+	}
+
+	events := make([]TimelineEvent, 0, len(logs))
+	for _, log := range logs {
+		event := TimelineEvent{
+			ID:        log.ID,
+			Timestamp: log.CreatedAt,
+			Action:    log.Action,
+			Entity:    log.TableName,
+			RecordID:  log.RecordID,
+			ChangedBy: log.ChangedBy,
+			Summary:   formatAuditSummary(log),
+			Details:   extractChangedFields(log),
+		}
+		events = append(events, event)
+	}
+
+	// Sort by timestamp descending
+	for i := 0; i < len(events)-1; i++ {
+		for j := i + 1; j < len(events); j++ {
+			if events[j].Timestamp.After(events[i].Timestamp) {
+				events[i], events[j] = events[j], events[i]
+			}
+		}
+	}
+
+	return events, nil
+}
+
+// Helper function to format audit summary
+func formatAuditSummary(log *models.AuditLog) string {
+	switch log.Action {
+	case models.ActionInsert:
+		return fmt.Sprintf("Created %s", log.TableName)
+	case models.ActionUpdate:
+		return fmt.Sprintf("Updated %s", log.TableName)
+	case models.ActionDelete:
+		return fmt.Sprintf("Deleted %s", log.TableName)
+	case models.ActionSoftDelete:
+		return fmt.Sprintf("Archived %s", log.TableName)
+	default:
+		return fmt.Sprintf("%s %s", log.Action, log.TableName)
+	}
+}
+
+// Helper function to extract changed fields from old and new values
+func extractChangedFields(log *models.AuditLog) map[string]interface{} {
+	details := make(map[string]interface{})
+
+	if log.OldValues != nil {
+		details["old_values"] = log.OldValues
+	}
+	if log.NewValues != nil {
+		details["new_values"] = log.NewValues
+	}
+
+	return details
+}
+
+// Helper function to group events by time period
+func groupEventsByPeriod(events []TimelineEvent) []TimelineGroup {
+	if len(events) == 0 {
+		return []TimelineGroup{}
+	}
+
+	groups := make(map[string][]TimelineEvent)
+	periodOrder := []string{}
+
+	for _, event := range events {
+		period := formatTimePeriod(event.Timestamp)
+		if _, exists := groups[period]; !exists {
+			periodOrder = append(periodOrder, period)
+		}
+		groups[period] = append(groups[period], event)
+	}
+
+	// Create timeline groups in order
+	result := make([]TimelineGroup, 0, len(groups))
+	for _, period := range periodOrder {
+		result = append(result, TimelineGroup{
+			Period: period,
+			Events: groups[period],
+		})
+	}
+
+	return result
+}
+
+// Helper function to format time period
+func formatTimePeriod(t time.Time) string {
+	now := time.Now()
+	diff := now.Sub(t)
+
+	if diff < 24*time.Hour {
+		return "Today"
+	} else if diff < 48*time.Hour {
+		return "Yesterday"
+	} else if diff < 7*24*time.Hour {
+		return "This Week"
+	} else if diff < 30*24*time.Hour {
+		return "This Month"
+	} else if diff < 365*24*time.Hour {
+		return t.Format("January 2006")
+	}
+	return t.Format("2006")
 }
 
 // ValidateAuditFilters performs security and performance validation on audit filters

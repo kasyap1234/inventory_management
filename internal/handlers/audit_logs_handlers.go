@@ -350,6 +350,112 @@ func (h *AuditLogsHandlers) SoftDeleteAuditLog(c echo.Context) error {
 	})
 }
 
+// GetAuditTimeline retrieves formatted audit logs as a chronological timeline
+func (h *AuditLogsHandlers) GetAuditTimeline(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check if user has permission to view audit logs
+	err := h.rbacMiddleware.RequirePermission("audit:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view audit logs")
+	}
+
+	// Get tenant ID from context
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Parse query parameters for filters
+	filters := &models.AuditLogFilters{}
+	if table := c.QueryParam("table"); table != "" {
+		filters.TableName = &table
+	}
+	if action := c.QueryParam("action"); action != "" {
+		filters.Action = &action
+	}
+	if startDate := c.QueryParam("start_date"); startDate != "" {
+		if sd, err := time.Parse("2006-01-02T15:04:05Z", startDate); err == nil {
+			filters.StartDate = &sd
+		}
+	}
+	if endDate := c.QueryParam("end_date"); endDate != "" {
+		if ed, err := time.Parse("2006-01-02T15:04:05Z", endDate); err == nil {
+			filters.EndDate = &ed
+		}
+	}
+
+	// Parse pagination
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit <= 0 || limit > 500 {
+		limit = 100 // Default limit for timeline
+	}
+	filters.Limit = limit
+
+	// Get formatted timeline
+	timeline, err := h.auditLogsService.FormatAuditTimeline(ctx, tenantID, filters)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve audit timeline: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"timeline": timeline,
+		"count":    len(timeline),
+	})
+}
+
+// GetEntityTimeline retrieves the change history for a specific entity as a timeline
+func (h *AuditLogsHandlers) GetEntityTimeline(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check if user has permission to view audit logs
+	err := h.rbacMiddleware.RequirePermission("audit:read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view audit logs")
+	}
+
+	// Get tenant ID from context
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Get table name and record ID from path parameters
+	tableName := c.Param("table")
+	recordID := c.Param("record_id")
+
+	if tableName == "" || recordID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "table and record_id parameters are required")
+	}
+
+	// Parse pagination
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Get entity timeline
+	events, err := h.auditLogsService.FormatAuditTimelineByEntity(ctx, tenantID, tableName, recordID, limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve entity timeline: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"entity":  tableName,
+		"record":  recordID,
+		"events":  events,
+		"count":   len(events),
+	})
+}
+
 // CreateManualAuditLog allows manual creation of audit logs (for compliance/events)
 func (h *AuditLogsHandlers) CreateManualAuditLog(c echo.Context) error {
 	ctx := c.Request().Context()
