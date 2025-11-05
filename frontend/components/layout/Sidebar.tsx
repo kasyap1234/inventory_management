@@ -2,27 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Package, 
-  Warehouse, 
-  ShoppingCart, 
-  FileText, 
-  Users, 
-  Truck, 
+import {
+  LayoutDashboard,
+  Package,
+  Warehouse,
+  ShoppingCart,
+  FileText,
+  Users,
+  Truck,
   Building2,
   FolderTree,
-  Settings,
-  LogOut,
-  Sprout,
-  ChevronRight,
   BarChart3,
   Bell,
   Shield,
-  CreditCard,
-  User as UserIcon
+  CreditCard
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 const navigation = [
@@ -42,13 +36,10 @@ const navigation = [
   { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
   { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: Shield },
-  { name: 'My Profile', href: '/dashboard/profile', icon: UserIcon },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { logout, user } = useAuth();
 
   return (
     <div className="flex flex-col w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0">
@@ -91,29 +82,13 @@ export function Sidebar() {
           })}
         </nav>
       </div>
-      
-      {/* User section with modern card */}
+
+      {/* Footer info */}
       <div className="border-t border-gray-200 p-4">
-        <Link href="/dashboard/profile">
-          <div className="flex items-center gap-3 mb-3 px-3 py-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-            <div className="flex items-center justify-center w-9 h-9 gradient-primary rounded-full text-white font-semibold text-xs">
-              {user?.first_name?.[0]}{user?.last_name?.[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">
-                {user?.first_name} {user?.last_name}
-              </p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-            </div>
-          </div>
-        </Link>
-        <button
-          onClick={() => logout.mutate()}
-          className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 border border-gray-200 hover:border-red-200"
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Logout
-        </button>
+        <div className="text-center">
+          <p className="text-xs text-gray-500">AgroMart Inventory</p>
+          <p className="text-xs text-gray-400 mt-1">v1.0.0</p>
+        </div>
       </div>
     </div>
   );

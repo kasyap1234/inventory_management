@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { Header } from '@/components/layout/Header';
 
 export default function DashboardLayout({
   children,
@@ -45,13 +46,16 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-indigo-50/20">
       <Sidebar />
-      <main className="flex-1 ml-64 overflow-y-auto">
-        <div className="min-h-full">
-          <div className="container mx-auto px-6 py-8 animate-fade-in">
-            {children}
+      <div className="flex-1 ml-64 flex flex-col">
+        <Header />
+        <main className="flex-1 overflow-y-auto mt-16">
+          <div className="min-h-full">
+            <div className="container mx-auto px-6 py-8 animate-fade-in">
+              {children}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
