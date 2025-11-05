@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Check, Star, Zap, Building, Users, HardDrive, Activity, Shield } from 'lucide-react'
+import React, { useState, useMemo, useCallback } from 'react'
+import { Check, Star, Zap, Building, Users, HardDrive, Activity, Shield, CreditCard } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
 import { toast } from 'react-hot-toast'
+import { useStripeCheckout } from '@/hooks/useStripeCheckout'
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout'
 
 interface Plan {
   id: string
@@ -119,9 +121,14 @@ const SAMPLE_PLANS: Plan[] = [
   }
 ]
 
-export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelectorProps) {
+const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelected }: PlanSelectorProps) {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'razorpay'>('stripe')
+
+  // Payment hooks
+  const stripeCheckout = useStripeCheckout()
+  const razorpayCheckout = useRazorpayCheckout()
 
   // Subscribe to plan mutation
   const subscribeToPlanMutation = useMutation({
@@ -141,16 +148,16 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
     }
   })
 
-  const formatPrice = (price: number, currency: string) => {
+  const formatPrice = useCallback((price: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency,
     }).format(price / 100)
-  }
+  }, [])
 
-  const formatLimit = (value: number, unit: string) => {
+  const formatLimit = useCallback((value: number, unit: string) => {
     if (value === -1) return 'Unlimited'
-    
+
     if (unit === 'storage') {
       const gb = value / (1024 * 1024 * 1024)
       if (gb >= 1024) {
@@ -158,25 +165,25 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
       }
       return `${gb.toFixed(0)}GB`
     }
-    
+
     if (value >= 1000000) {
       return `${(value / 1000000).toFixed(1)}M`
     }
     if (value >= 1000) {
       return `${(value / 1000).toFixed(0)}K`
     }
-    
-    return value.toLocaleString()
-  }
 
-  const calculateYearlySavings = (monthlyPrice: number, yearlyPrice: number) => {
+    return value.toLocaleString()
+  }, [])
+
+  const calculateYearlySavings = useCallback((monthlyPrice: number, yearlyPrice: number) => {
     const monthlyCost = monthlyPrice * 12
     const savings = monthlyCost - yearlyPrice
     const percentage = Math.round((savings / monthlyCost) * 100)
     return { amount: savings, percentage }
-  }
+  }, [])
 
-  const getPlanIcon = (type: string) => {
+  const getPlanIcon = useCallback((type: string) => {
     switch (type) {
       case 'basic':
         return <Users className="w-8 h-8 text-blue-500" />
@@ -187,12 +194,47 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
       default:
         return <Star className="w-8 h-8 text-gray-500" />
     }
-  }
+  }, [])
 
-  const handleSelectPlan = (planId: string) => {
+  const handleSelectPlan = useCallback(async (planId: string) => {
     setSelectedPlan(planId)
-    subscribeToPlanMutation.mutate({ planId, cycle: billingCycle })
-  }
+
+    try {
+      if (paymentMethod === 'stripe') {
+        // Use Stripe Checkout
+        const userEmail = localStorage.getItem('user_email') || ''
+        await stripeCheckout.createSubscription(
+          planId,
+          userEmail,
+          (sessionId) => {
+            toast.success('Redirecting to payment...')
+          },
+          (error) => {
+            toast.error(error.message || 'Payment failed')
+            setSelectedPlan(null)
+          }
+        )
+      } else {
+        // Use Razorpay Checkout
+        const userEmail = localStorage.getItem('user_email') || ''
+        await razorpayCheckout.createSubscription(
+          planId,
+          userEmail,
+          (subscriptionId) => {
+            toast.success('Subscription created successfully!')
+            onPlanSelected?.(planId, billingCycle)
+          },
+          (error) => {
+            toast.error('Payment failed')
+            setSelectedPlan(null)
+          }
+        )
+      }
+    } catch (error) {
+      console.error('Payment error:', error)
+      setSelectedPlan(null)
+    }
+  }, [paymentMethod, stripeCheckout, razorpayCheckout, billingCycle, onPlanSelected])
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -203,7 +245,7 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
         </p>
 
         {/* Billing Toggle */}
-        <div className="flex items-center justify-center space-x-4 mb-8">
+        <div className="flex items-center justify-center space-x-4 mb-6">
           <span className={`text-sm ${billingCycle === 'monthly' ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
             Monthly
           </span>
@@ -225,6 +267,36 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
           {billingCycle === 'yearly' && (
             <span className="text-sm text-green-600 font-medium">Save up to 20%</span>
           )}
+        </div>
+
+        {/* Payment Method Selector */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <span className="text-sm text-gray-600 font-medium flex items-center gap-2">
+            <CreditCard className="w-4 h-4" />
+            Payment Method:
+          </span>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              onClick={() => setPaymentMethod('stripe')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                paymentMethod === 'stripe'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Stripe
+            </button>
+            <button
+              onClick={() => setPaymentMethod('razorpay')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                paymentMethod === 'razorpay'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Razorpay
+            </button>
+          </div>
         </div>
       </div>
 
@@ -330,16 +402,16 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
                 {/* CTA Button */}
                 <button
                   onClick={() => handleSelectPlan(plan.id)}
-                  disabled={isCurrentPlan || subscribeToPlanMutation.isPending}
+                  disabled={isCurrentPlan || stripeCheckout.isLoading || razorpayCheckout.isLoading}
                   className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
                     isCurrentPlan
                       ? 'bg-green-100 text-green-700 cursor-not-allowed'
                       : plan.popular
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
                       : 'bg-gray-900 text-white hover:bg-gray-800'
-                  } ${subscribeToPlanMutation.isPending && selectedPlan === plan.id ? 'opacity-50' : ''}`}
+                  } ${(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id ? 'opacity-50' : ''}`}
                 >
-                  {subscribeToPlanMutation.isPending && selectedPlan === plan.id
+                  {(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id
                     ? 'Processing...'
                     : isCurrentPlan
                     ? 'Current Plan'
@@ -398,4 +470,6 @@ export default function PlanSelector({ currentPlan, onPlanSelected }: PlanSelect
       </div>
     </div>
   )
-}
+})
+
+export default PlanSelector
