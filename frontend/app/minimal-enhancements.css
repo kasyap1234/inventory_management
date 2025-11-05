@@ -186,37 +186,48 @@
   color: #a3a3a3;
 }
 
-/* ===== BADGES - SUBTLE ===== */
+/* ===== BADGES - SUBTLE WITH BETTER CONTRAST ===== */
 
 .badge-minimal {
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: 0.5rem;
   background: #f5f5f5;
-  color: #525252;
+  color: #262626;
+  border: 1px solid #e5e5e5;
 }
 
 .badge-minimal-blue {
   background: #eff6ff;
-  color: #1e40af;
+  color: #1e3a8a;
+  border: 1px solid #93c5fd;
 }
 
 .badge-minimal-green {
   background: #f0fdf4;
-  color: #15803d;
+  color: #14532d;
+  border: 1px solid #86efac;
 }
 
 .badge-minimal-amber {
-  background: #fffbeb;
-  color: #b45309;
+  background: #fff7ed;
+  color: #7c2d12;
+  border: 1px solid #fdba74;
 }
 
 .badge-minimal-red {
   background: #fef2f2;
-  color: #b91c1c;
+  color: #7f1d1d;
+  border: 1px solid #fca5a5;
+}
+
+.badge-minimal-purple {
+  background: #f5f3ff;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
 }
 
 /* ===== DIVIDERS - SUBTLE ===== */
