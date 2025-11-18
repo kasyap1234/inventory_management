@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -22,18 +23,11 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 relative overflow-hidden">
-        <div className="absolute inset-0 animated-gradient opacity-40"></div>
-        <div className="text-center relative z-10">
-          <div className="relative mb-8">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-indigo-600 mx-auto"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 opacity-30 animate-pulse pulse-glow"></div>
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold gradient-text mb-3">Agromart</h1>
-          <p className="text-gray-700 font-medium text-lg">Loading your workspace...</p>
-          <p className="mt-2 text-sm text-gray-600">Please wait</p>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-foreground mb-2">Agromart</h1>
+          <p className="text-muted-foreground">Loading your workspace...</p>
         </div>
       </div>
     );
@@ -44,13 +38,13 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-white to-indigo-50/20">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex-1 ml-64 flex flex-col">
         <Header />
         <main className="flex-1 overflow-y-auto mt-16">
           <div className="min-h-full">
-            <div className="container mx-auto px-6 py-8 animate-fade-in">
+            <div className="container mx-auto px-6 py-8">
               {children}
             </div>
           </div>

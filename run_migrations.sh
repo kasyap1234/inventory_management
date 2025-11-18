@@ -25,8 +25,17 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
 fi
 
 echo -e "${YELLOW}Waiting for PostgreSQL to accept connections...${NC}"
-until docker exec "$POSTGRES_CONTAINER" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; do
-    sleep 1
+MAX_RETRIES=30
+RETRY_COUNT=0
+until docker exec "$POSTGRES_CONTAINER" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1 && \
+      docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" >/dev/null 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT+1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo -e "${RED}PostgreSQL failed to become ready after $MAX_RETRIES attempts${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}Waiting for PostgreSQL... ($RETRY_COUNT/$MAX_RETRIES)${NC}"
+    sleep 2
 done
 echo -e "${GREEN}✓ PostgreSQL is ready${NC}\n"
 

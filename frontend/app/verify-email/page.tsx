@@ -62,38 +62,38 @@ function VerifyEmailContent() {
   const icon = useMemo(() => {
     switch (state) {
       case 'verifying':
-        return <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />;
+        return <Loader2 className="h-12 w-12 text-primary animate-spin" />;
       case 'success':
-        return <ShieldCheck className="h-12 w-12 text-green-500" />;
+        return <ShieldCheck className="h-12 w-12 text-green-600" />;
       case 'error':
-        return <MailWarning className="h-12 w-12 text-red-500" />;
+        return <MailWarning className="h-12 w-12 text-destructive" />;
       default:
-        return <MailCheck className="h-12 w-12 text-blue-600" />;
+        return <MailCheck className="h-12 w-12 text-primary" />;
     }
   }, [state]);
 
   return (
     <div className="flex min-h-screen">
-      <div className="flex flex-1 items-center justify-center p-8 bg-white">
-        <div className="w-full max-w-xl animate-fade-in text-center space-y-6">
+      <div className="flex flex-1 items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-xl text-center space-y-6">
           <div className="flex justify-center">{icon}</div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{header.title}</h1>
-            <p className="text-gray-600">{header.description}</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">{header.title}</h1>
+            <p className="text-muted-foreground">{header.description}</p>
             {state === 'idle' && email && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 Verification email sent to <span className="font-semibold">{email}</span>.
               </p>
             )}
           </div>
 
-          <Card className="shadow-xl">
+          <Card className="shadow-lg border-border bg-card">
             <CardContent className="p-8 space-y-4">
               {state === 'success' && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-700">{message}</p>
+                  <p className="text-sm text-foreground">{message}</p>
                   <Link href="/login">
-                    <Button className="w-full btn-modern gradient-blue text-white">
+                    <Button className="w-full text-primary-foreground">
                       Proceed to sign in
                     </Button>
                   </Link>
@@ -102,7 +102,7 @@ function VerifyEmailContent() {
 
               {state === 'error' && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-700">{message}</p>
+                  <p className="text-sm text-foreground">{message}</p>
                   <Link href="/forgot-password">
                     <Button variant="outline" className="w-full">
                       Request new verification link
@@ -112,7 +112,7 @@ function VerifyEmailContent() {
               )}
 
               {state === 'idle' && (
-                <div className="space-y-3 text-sm text-gray-600">
+                <div className="space-y-3 text-sm text-muted-foreground">
                   <p>Didn&apos;t receive the email?</p>
                   <ul className="text-left list-disc list-inside space-y-1">
                     <li>Check your spam or promotions folder.</li>
@@ -123,24 +123,24 @@ function VerifyEmailContent() {
               )}
 
               {state === 'verifying' && (
-                <div className="text-sm text-gray-600">Please wait while we verify the token...</div>
+                <div className="text-sm text-muted-foreground">Please wait while we verify the token...</div>
               )}
             </CardContent>
           </Card>
 
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Need assistance?{' '}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/login" className="text-primary hover:text-primary/90 font-semibold">
               Contact support
             </Link>
           </p>
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 gradient-bg items-center justify-center p-12">
-        <div className="max-w-md space-y-6 animate-slide-in text-white">
+      <div className="hidden lg:flex flex-1 bg-muted/30 border-l border-border items-center justify-center p-12">
+        <div className="max-w-md space-y-6 text-foreground">
           <h2 className="text-4xl font-bold leading-tight">Secure access for your team</h2>
-          <p className="text-lg text-white/90">
+          <p className="text-lg text-muted-foreground">
             Email verification keeps your organization safe. Finish this step to explore the full Agromart platform.
           </p>
         </div>

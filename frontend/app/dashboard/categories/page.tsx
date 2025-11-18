@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, FolderTree } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,11 +48,11 @@ export default function CategoriesPage() {
   ) || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-          <p className="text-gray-500 mt-1">Organize your product catalog</p>
+          <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
+          <p className="text-muted-foreground">Organize your product catalog</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -60,11 +60,26 @@ export default function CategoriesPage() {
         </Button>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Categories</CardTitle>
+            <FolderTree className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{categories?.categories?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Product classifications
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="flex-1 relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search categories..."
                 value={searchQuery}
@@ -76,11 +91,10 @@ export default function CategoriesPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading categories...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading categories...</div>
           ) : filteredCategories.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FolderTree className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No categories found. Add your first category to organize products.</p>
+            <div className="text-center py-8 text-muted-foreground">
+              No categories found. Add your first category to organize products.
             </div>
           ) : (
             <Table>
@@ -100,7 +114,7 @@ export default function CategoriesPage() {
                     <TableCell className="font-medium">{category.name}</TableCell>
                     <TableCell>{category.description || '-'}</TableCell>
                     <TableCell>{category.level}</TableCell>
-                    <TableCell className="text-sm text-gray-500">{category.path}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{category.path}</TableCell>
                     <TableCell>{formatDate(category.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -120,7 +134,7 @@ export default function CategoriesPage() {
                             }
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
@@ -223,7 +237,7 @@ function CategoryFormDialog({
             <select
               value={formData.parent_id}
               onChange={(e) => setFormData({ ...formData, parent_id: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="">None (Root Category)</option>
               {rootCategories.map((cat) => (

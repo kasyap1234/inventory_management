@@ -10,6 +10,7 @@ import { DashboardSkeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useMemo } from 'react';
+import Link from 'next/link';
 
 type InvoiceSummary = {
   id: string;
@@ -73,34 +74,30 @@ export default function DashboardPage() {
       title: 'Revenue',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
-      color: 'text-blue-600',
-      bgColor: 'bg-gradient-to-br from-blue-50 to-blue-100/50',
-      iconBg: 'gradient-blue',
+      color: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
       helper: analytics?.lastUpdated,
     },
     {
       title: 'Stock Value',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-purple-600',
-      bgColor: 'bg-gradient-to-br from-purple-50 to-purple-100/50',
-      iconBg: 'gradient-purple',
+      color: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-50 dark:bg-purple-900/20',
     },
     {
       title: 'Orders',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-emerald-600',
-      bgColor: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
-      iconBg: 'gradient-emerald',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     },
     {
       title: 'Pending Invoices',
       value: unpaidInvoiceItems.length,
       icon: FileText,
-      color: 'text-pink-600',
-      bgColor: 'bg-gradient-to-br from-pink-50 to-pink-100/50',
-      iconBg: 'gradient-pink',
+      color: 'text-pink-600 dark:text-pink-400',
+      bgColor: 'bg-pink-50 dark:bg-pink-900/20',
     },
   ], [analytics, unpaidInvoiceItems.length]);
 
@@ -113,12 +110,12 @@ export default function DashboardPage() {
   if (hasErrors) {
     const errorMessage = analyticsError?.message || lowStockError?.message || invoicesError?.message || 'Unknown error';
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Dashboard</AlertTitle>
           <AlertDescription>
-            {errorMessage.includes('Network') 
+            {errorMessage.includes('Network')
               ? 'Network error. Please check your connection and try again.'
               : 'We encountered an error while loading your dashboard data. Please try refreshing the page.'}
           </AlertDescription>
@@ -128,45 +125,33 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header with gradient */}
+    <div className="space-y-8 p-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-colored">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold gradient-text">
+            <h1 className="text-3xl font-bold tracking-tight">
               Dashboard
             </h1>
           </div>
-          <p className="text-gray-500 text-base">Operations Overview</p>
+          <p className="text-muted-foreground">Operations Overview</p>
         </div>
       </div>
 
-      {/* Stats Cards with modern design */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat, index) => (
-          <Card 
-            key={stat.title}
-            className="hover-lift border-0 shadow-elegant bg-white overflow-hidden relative group"
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
-            <div className={`absolute inset-0 ${stat.bgColor} opacity-50 group-hover:opacity-70 transition-opacity duration-300`}></div>
-            <CardHeader className="relative flex flex-row items-center justify-between pb-3 pt-6">
-              <CardTitle className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+        {statCards.map((stat) => (
+          <Card key={stat.title}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
                 {stat.title}
               </CardTitle>
-              <div className={`p-3 rounded-xl ${stat.iconBg} shadow-colored`}>
-                <stat.icon className="h-6 w-6 text-white" />
-              </div>
+              <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
-            <CardContent className="relative">
-              <div className={`text-3xl font-bold mb-1 ${stat.color}`}>
-                {stat.value}
-              </div>
+            <CardContent>
+              <div className="text-2xl font-bold">{stat.value}</div>
               {stat.helper && (
-                <p className="text-sm text-gray-600">
+                <p className="text-xs text-muted-foreground">
                   Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
                 </p>
               )}
@@ -177,26 +162,26 @@ export default function DashboardPage() {
 
       {/* Activity and Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-elegant hover-lift">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50/30 to-purple-50/30">
-            <CardTitle className="text-lg font-bold gradient-text-blue">Recent Activity</CardTitle>
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent>
             {unpaidInvoiceItems.length ? (
               <div className="space-y-4">
                 {unpaidInvoiceItems.slice(0, 5).map((invoice) => (
                   <div
                     key={invoice.id}
-                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-200 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-lg border"
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">Invoice #{invoice.invoice_number}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-semibold">Invoice #{invoice.invoice_number}</p>
+                      <p className="text-xs text-muted-foreground">
                         Due {format(new Date(invoice.due_date), 'MMM dd, yyyy')} · Status: {invoice.status}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900">{formatCurrency(invoice.total_amount || 0)}</p>
+                      <p className="font-bold">{formatCurrency(invoice.total_amount || 0)}</p>
                     </div>
                   </div>
                 ))}
@@ -211,25 +196,25 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-elegant hover-lift">
-          <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-amber-50/30 to-orange-50/30">
-            <CardTitle className="text-lg font-bold text-amber-700">Low Stock Alerts</CardTitle>
+        <Card>
+          <CardHeader>
+            <CardTitle>Low Stock Alerts</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent>
             {lowStockItems.length > 0 ? (
               <div className="space-y-4">
                 {lowStockItems.slice(0, 5).map((item) => (
                   <div
                     key={`${item.productId}-${item.warehouseId}`}
-                    className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-lg"
+                    className="flex items-center justify-between p-4 bg-muted/50 border rounded-lg"
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">{item.productName || 'Unnamed Product'}</p>
-                      <p className="text-xs text-gray-600">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
+                      <p className="font-semibold">{item.productName || 'Unnamed Product'}</p>
+                      <p className="text-xs text-muted-foreground">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-orange-600">{item.currentStock} units</p>
-                      <p className="text-xs text-gray-500">Threshold: {item.threshold}</p>
+                      <p className="font-bold text-destructive">{item.currentStock} units</p>
+                      <p className="text-xs text-muted-foreground">Threshold: {item.threshold}</p>
                     </div>
                   </div>
                 ))}
@@ -245,49 +230,49 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick Actions with modern cards */}
-      <Card className="border-0 shadow-elegant hover-lift bg-gradient-to-br from-gray-50/50 to-white">
-        <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold gradient-text">Quick Actions</CardTitle>
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <a
+            <Link
               href="/dashboard/products"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl hover:shadow-colored hover:-translate-y-1 transition-all duration-300 border border-blue-100 hover:border-blue-200"
+              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
             >
-              <div className="p-3 gradient-blue rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300 shadow-colored">
-                <Package className="h-5 w-5 text-white" />
+              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                <Package className="h-5 w-5 text-primary" />
               </div>
-              <span className="text-sm font-semibold text-gray-700">Add Product</span>
-            </a>
-            <a
+              <span className="text-sm font-semibold">Add Product</span>
+            </Link>
+            <Link
               href="/dashboard/orders"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl hover:shadow-purple hover:-translate-y-1 transition-all duration-300 border border-purple-100 hover:border-purple-200"
+              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
             >
-              <div className="p-3 gradient-purple rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300 shadow-purple">
-                <ShoppingCart className="h-5 w-5 text-white" />
+              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                <ShoppingCart className="h-5 w-5 text-primary" />
               </div>
-              <span className="text-sm font-semibold text-gray-700">Process Order</span>
-            </a>
-            <a
+              <span className="text-sm font-semibold">Process Order</span>
+            </Link>
+            <Link
               href="/dashboard/inventory"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl hover:shadow-emerald hover:-translate-y-1 transition-all duration-300 border border-emerald-100 hover:border-emerald-200"
+              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
             >
-              <div className="p-3 gradient-emerald rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300 shadow-emerald">
-                <Warehouse className="h-5 w-5 text-white" />
+              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                <Warehouse className="h-5 w-5 text-primary" />
               </div>
-              <span className="text-sm font-semibold text-gray-700">Stock Levels</span>
-            </a>
-            <a
+              <span className="text-sm font-semibold">Stock Levels</span>
+            </Link>
+            <Link
               href="/dashboard/invoices"
-              className="group flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-50 to-pink-100/50 rounded-xl hover:shadow-colored hover:-translate-y-1 transition-all duration-300 border border-pink-100 hover:border-pink-200"
+              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
             >
-              <div className="p-3 gradient-pink rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300">
-                <FileText className="h-5 w-5 text-white" />
+              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                <FileText className="h-5 w-5 text-primary" />
               </div>
-              <span className="text-sm font-semibold text-gray-700">Billing</span>
-            </a>
+              <span className="text-sm font-semibold">Billing</span>
+            </Link>
           </div>
         </CardContent>
       </Card>

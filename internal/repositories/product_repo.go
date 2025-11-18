@@ -22,6 +22,7 @@ type ProductRepository interface {
 	ListWithCategory(ctx context.Context, tenantID uuid.UUID, categoryID *uuid.UUID, limit, offset int) ([]*models.Product, error)
 	CategoryAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]int, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.ProductSearchFilter) ([]*models.Product, error)
+	UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error
 }
 
 type productRepo struct {
@@ -34,21 +35,36 @@ func NewProductRepo(db *pgxpool.Pool) ProductRepository {
 
 func (r *productRepo) Create(ctx context.Context, product *models.Product) error {
 	query := `
-		INSERT INTO products (id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+		INSERT INTO products (
+			id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+			unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+			created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
 	`
-	_, err := r.db.Exec(ctx, query, product.ID, product.TenantID, product.CategoryID, product.Name, product.BatchNumber, product.ExpiryDate, product.Quantity, product.UnitPrice, product.Barcode, product.UnitOfMeasure, product.Description)
+	_, err := r.db.Exec(ctx, query,
+		product.ID, product.TenantID, product.CategoryID, product.Name, product.BatchNumber, product.ExpiryDate,
+		product.Quantity, product.UnitPrice, product.Barcode, product.UnitOfMeasure, product.Description,
+		product.IsHazardous, product.HazardClass, product.SDSUrl, product.ActiveIngredients,
+	)
 	return err
 }
 
 func (r *productRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Product, error) {
 	product := &models.Product{}
 	query := `
-		SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at
+		SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+		       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+		       created_at, updated_at
 		FROM products
 		WHERE tenant_id = $1 AND id = $2
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate, &product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description, &product.CreatedAt, &product.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(
+		&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate,
+		&product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description,
+		&product.IsHazardous, &product.HazardClass, &product.SDSUrl, &product.ActiveIngredients,
+		&product.CreatedAt, &product.UpdatedAt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +74,18 @@ func (r *productRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*mod
 func (r *productRepo) GetByBarcode(ctx context.Context, tenantID uuid.UUID, barcode string) (*models.Product, error) {
 	product := &models.Product{}
 	query := `
-		SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at
+		SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+		       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+		       created_at, updated_at
 		FROM products
 		WHERE tenant_id = $1 AND barcode = $2
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, barcode).Scan(&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate, &product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description, &product.CreatedAt, &product.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, tenantID, barcode).Scan(
+		&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate,
+		&product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description,
+		&product.IsHazardous, &product.HazardClass, &product.SDSUrl, &product.ActiveIngredients,
+		&product.CreatedAt, &product.UpdatedAt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -72,10 +95,22 @@ func (r *productRepo) GetByBarcode(ctx context.Context, tenantID uuid.UUID, barc
 func (r *productRepo) Update(ctx context.Context, product *models.Product) error {
 	query := `
 		UPDATE products
-		SET category_id = $1, name = $2, batch_number = $3, expiry_date = $4, quantity = $5, unit_price = $6, barcode = $7, unit_of_measure = $8, description = $9, updated_at = NOW()
-		WHERE tenant_id = $10 AND id = $11
+		SET category_id = $1, name = $2, batch_number = $3, expiry_date = $4, quantity = $5, unit_price = $6, 
+		    barcode = $7, unit_of_measure = $8, description = $9, is_hazardous = $10, hazard_class = $11, 
+		    sds_url = $12, active_ingredients = $13, updated_at = NOW()
+		WHERE tenant_id = $14 AND id = $15
 	`
-	_, err := r.db.Exec(ctx, query, product.CategoryID, product.Name, product.BatchNumber, product.ExpiryDate, product.Quantity, product.UnitPrice, product.Barcode, product.UnitOfMeasure, product.Description, product.TenantID, product.ID)
+	_, err := r.db.Exec(ctx, query,
+		product.CategoryID, product.Name, product.BatchNumber, product.ExpiryDate, product.Quantity, product.UnitPrice,
+		product.Barcode, product.UnitOfMeasure, product.Description, product.IsHazardous, product.HazardClass,
+		product.SDSUrl, product.ActiveIngredients, product.TenantID, product.ID,
+	)
+	return err
+}
+
+func (r *productRepo) UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error {
+	query := `UPDATE products SET quantity = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, quantity, id)
 	return err
 }
 
@@ -87,7 +122,9 @@ func (r *productRepo) Delete(ctx context.Context, tenantID, id uuid.UUID) error 
 
 func (r *productRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error) {
 	query := `
-		SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at
+		SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+		       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+		       created_at, updated_at
 		FROM products
 		WHERE tenant_id = $1
 		ORDER BY created_at DESC
@@ -102,7 +139,12 @@ func (r *productRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offse
 	var products []*models.Product
 	for rows.Next() {
 		product := &models.Product{}
-		if err := rows.Scan(&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate, &product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description, &product.CreatedAt, &product.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate,
+			&product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description,
+			&product.IsHazardous, &product.HazardClass, &product.SDSUrl, &product.ActiveIngredients,
+			&product.CreatedAt, &product.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		products = append(products, product)
@@ -124,7 +166,9 @@ func (r *productRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, fi
 
 	// Build query dynamically
 	queryBase := `
-		SELECT p.id, p.tenant_id, p.category_id, p.name, p.batch_number, p.expiry_date, p.quantity, p.unit_price, p.barcode, p.unit_of_measure, p.description, p.created_at, p.updated_at
+		SELECT p.id, p.tenant_id, p.category_id, p.name, p.batch_number, p.expiry_date, p.quantity, p.unit_price, 
+		       p.barcode, p.unit_of_measure, p.description, p.is_hazardous, p.hazard_class, p.sds_url, 
+		       p.active_ingredients, p.created_at, p.updated_at
 		FROM products p
 		WHERE p.tenant_id = $1
 	`
@@ -247,7 +291,9 @@ func (r *productRepo) ListWithCategory(ctx context.Context, tenantID uuid.UUID, 
 
 	if categoryID != nil {
 		query = `
-			SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at
+			SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+			       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+			       created_at, updated_at
 			FROM products
 			WHERE tenant_id = $1 AND category_id = $2
 			ORDER BY created_at DESC
@@ -256,7 +302,9 @@ func (r *productRepo) ListWithCategory(ctx context.Context, tenantID uuid.UUID, 
 		args = []interface{}{tenantID, *categoryID, limit, offset}
 	} else {
 		query = `
-			SELECT p.id, p.tenant_id, p.category_id, p.name, p.batch_number, p.expiry_date, p.quantity, p.unit_price, p.barcode, p.unit_of_measure, p.description, p.created_at, p.updated_at
+			SELECT p.id, p.tenant_id, p.category_id, p.name, p.batch_number, p.expiry_date, p.quantity, p.unit_price, 
+			       p.barcode, p.unit_of_measure, p.description, p.is_hazardous, p.hazard_class, p.sds_url, 
+			       p.active_ingredients, p.created_at, p.updated_at
 			FROM products p
 			LEFT JOIN categories c ON p.category_id = c.id AND p.tenant_id = c.tenant_id
 			WHERE p.tenant_id = $1
@@ -275,7 +323,12 @@ func (r *productRepo) ListWithCategory(ctx context.Context, tenantID uuid.UUID, 
 	var products []*models.Product
 	for rows.Next() {
 		product := &models.Product{}
-		if err := rows.Scan(&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate, &product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description, &product.CreatedAt, &product.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate,
+			&product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description,
+			&product.IsHazardous, &product.HazardClass, &product.SDSUrl, &product.ActiveIngredients,
+			&product.CreatedAt, &product.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		products = append(products, product)
@@ -322,7 +375,9 @@ func (r *productRepo) Search(ctx context.Context, tenantID uuid.UUID, query stri
 
 	if categoryID != nil {
 		querySQL = `
-			SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at
+			SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+			       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+			       created_at, updated_at
 			FROM products
 			WHERE tenant_id = $1 AND category_id = $2 AND (name ILIKE $3 OR barcode ILIKE $3)
 			ORDER BY created_at DESC
@@ -331,7 +386,9 @@ func (r *productRepo) Search(ctx context.Context, tenantID uuid.UUID, query stri
 		args = []interface{}{tenantID, *categoryID, "%" + query + "%", limit, offset}
 	} else {
 		querySQL = `
-			SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, created_at, updated_at
+			SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+			       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+			       created_at, updated_at
 			FROM products
 			WHERE tenant_id = $1 AND (name ILIKE $2 OR barcode ILIKE $2)
 			ORDER BY created_at DESC
@@ -349,7 +406,12 @@ func (r *productRepo) Search(ctx context.Context, tenantID uuid.UUID, query stri
 	var products []*models.Product
 	for rows.Next() {
 		product := &models.Product{}
-		if err := rows.Scan(&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate, &product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description, &product.CreatedAt, &product.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate,
+			&product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description,
+			&product.IsHazardous, &product.HazardClass, &product.SDSUrl, &product.ActiveIngredients,
+			&product.CreatedAt, &product.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		products = append(products, product)

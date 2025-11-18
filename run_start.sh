@@ -177,7 +177,7 @@ export SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-}"
 
 # Always (re)build the backend with optimizations
 echo -e "${YELLOW}Building backend with optimizations...${NC}"
-if ! go build -ldflags="-s -w" -o main cmd/main.go; then
+if ! go build -ldflags="-s -w" -o agromart-app cmd/main.go; then
     echo -e "${RED}Failed to build backend${NC}"
     exit 1
 fi
@@ -192,7 +192,7 @@ echo -e "${GREEN}  - Connection pool: optimized (20 max, 5 min)${NC}"
 echo -e "${GREEN}  - Materialized view refresh: every 5 minutes${NC}"
 echo -e "${GREEN}  - Database maintenance: daily at 2:00 AM${NC}"
 echo -e "${GREEN}  - Performance monitoring: enabled${NC}"
-nohup ./main > backend.log 2>&1 &
+nohup ./agromart-app > backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > backend.pid
 echo -e "${GREEN}✓ Backend started (PID: $BACKEND_PID)${NC}\n"

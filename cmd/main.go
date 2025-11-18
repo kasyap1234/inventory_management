@@ -9,28 +9,28 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/random"
-    "github.com/google/uuid"
 	"golang.org/x/time/rate"
 
 	"agromart2/internal/analytics"
 	"agromart2/internal/caching"
+	"agromart2/internal/common"
 	"agromart2/internal/config"
 	"agromart2/internal/handlers"
 	"agromart2/internal/jobs"
 	"agromart2/internal/jobs/background"
 	"agromart2/internal/middleware"
+	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 	"agromart2/internal/security"
 	"agromart2/internal/services"
 	"agromart2/internal/validation"
-    "agromart2/internal/common"
-    "agromart2/internal/models"
 )
 
 const version = "1.0.0"
@@ -265,6 +265,11 @@ func main() {
 	// Create product service
 	productSvc := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, minioSvc, cacheSvc)
 
+	// Create batch service
+	batchRepo := repositories.NewBatchRepository(pool)
+	batchSvc := services.NewBatchService(batchRepo, productRepo)
+	batchHandler := handlers.NewBatchHandler(batchSvc)
+
 	// Create product handlers
 	productHandlers := handlers.NewProductHandlers(productSvc, rbacMiddleware)
 
@@ -354,60 +359,60 @@ func main() {
 	notificationTemplateRepo := repositories.NewNotificationTemplateRepo(pool)
 	webhookSubscriptionRepo := repositories.NewWebhookSubscriptionRepo(pool)
 	alertRuleRepo := repositories.NewAlertRuleRepo(pool)
-	
-    notificationTemplateService := services.NewNotificationTemplateService(notificationTemplateRepo)
-    webhookSubscriptionService := services.NewWebhookSubscriptionService(webhookSubscriptionRepo, logger)
-    alertRuleService := services.NewAlertRuleService(alertRuleRepo, logger)
 
-    // Device token repository for push notifications
-    deviceTokenRepo := repositories.NewDeviceTokenRepository(pool)
+	notificationTemplateService := services.NewNotificationTemplateService(notificationTemplateRepo)
+	webhookSubscriptionService := services.NewWebhookSubscriptionService(webhookSubscriptionRepo, logger)
+	alertRuleService := services.NewAlertRuleService(alertRuleRepo, logger)
 
-    // Notification delivery repository & service (enhanced delivery pipeline)
-    notificationDeliveryRepo := repositories.NewNotificationDeliveryRepo(pool)
-    deliverySvc := services.NewNotificationDeliveryService(
-        notificationDeliveryRepo,
-        notificationTemplateService,
-        webhookSubscriptionService,
-        alertRuleService,
-        common.GetGlobalLogger(),
-        notificationService,
-        userRepo,
-        deviceTokenRepo,
-        nil,   // Firebase app - configure when Firebase credentials are available
-        false, // FCM enabled - set to true when Firebase is configured
-    )
+	// Device token repository for push notifications
+	deviceTokenRepo := repositories.NewDeviceTokenRepository(pool)
 
-    // Register event handlers for critical errors and search usage
-    common.RegisterEventHandler("critical_system_error", func(ctx context.Context, eventType string, data map[string]interface{}) error {
-        tenantID, _ := common.GetTenantIDFromContext(ctx)
-        var userIDPtr *uuid.UUID
-        if uid, ok := common.GetUserIDFromContext(ctx); ok {
-            userIDPtr = &uid
-        }
-        ev := &models.NotificationEvent{
-            Type:      "critical_system_error",
-            TenantID:  tenantID,
-            UserID:    userIDPtr,
-            Data:      data,
-            Timestamp: time.Now(),
-        }
-        return deliverySvc.ProcessEvent(ctx, ev)
-    })
+	// Notification delivery repository & service (enhanced delivery pipeline)
+	notificationDeliveryRepo := repositories.NewNotificationDeliveryRepo(pool)
+	deliverySvc := services.NewNotificationDeliveryService(
+		notificationDeliveryRepo,
+		notificationTemplateService,
+		webhookSubscriptionService,
+		alertRuleService,
+		common.GetGlobalLogger(),
+		notificationService,
+		userRepo,
+		deviceTokenRepo,
+		nil,   // Firebase app - configure when Firebase credentials are available
+		false, // FCM enabled - set to true when Firebase is configured
+	)
 
-    common.RegisterEventHandler("search_performed", func(ctx context.Context, eventType string, data map[string]interface{}) error {
-        tenantID, _ := common.GetTenantIDFromContext(ctx)
-        entityType, _ := data["entity_type"].(string)
-        searchTerm, _ := data["search_term"].(string)
-        filterCount, _ := data["filter_count"].(int)
-        resultCount, _ := data["result_count"].(int)
-        responseTimeMs, _ := data["response_time_ms"].(int64)
-        var userID uuid.UUID
-        if uid, ok := common.GetUserIDFromContext(ctx); ok {
-            userID = uid
-        }
-        return analyticsSvc.RecordSearchUsage(ctx, tenantID, entityType, searchTerm, filterCount, resultCount, userID, responseTimeMs)
-    })
-	
+	// Register event handlers for critical errors and search usage
+	common.RegisterEventHandler("critical_system_error", func(ctx context.Context, eventType string, data map[string]interface{}) error {
+		tenantID, _ := common.GetTenantIDFromContext(ctx)
+		var userIDPtr *uuid.UUID
+		if uid, ok := common.GetUserIDFromContext(ctx); ok {
+			userIDPtr = &uid
+		}
+		ev := &models.NotificationEvent{
+			Type:      "critical_system_error",
+			TenantID:  tenantID,
+			UserID:    userIDPtr,
+			Data:      data,
+			Timestamp: time.Now(),
+		}
+		return deliverySvc.ProcessEvent(ctx, ev)
+	})
+
+	common.RegisterEventHandler("search_performed", func(ctx context.Context, eventType string, data map[string]interface{}) error {
+		tenantID, _ := common.GetTenantIDFromContext(ctx)
+		entityType, _ := data["entity_type"].(string)
+		searchTerm, _ := data["search_term"].(string)
+		filterCount, _ := data["filter_count"].(int)
+		resultCount, _ := data["result_count"].(int)
+		responseTimeMs, _ := data["response_time_ms"].(int64)
+		var userID uuid.UUID
+		if uid, ok := common.GetUserIDFromContext(ctx); ok {
+			userID = uid
+		}
+		return analyticsSvc.RecordSearchUsage(ctx, tenantID, entityType, searchTerm, filterCount, resultCount, userID, responseTimeMs)
+	})
+
 	notificationTemplateHandlers := handlers.NewNotificationTemplateHandlers(notificationTemplateService, rbacMiddleware)
 	alertRuleHandlers := handlers.NewAlertRuleHandlers(alertRuleService, rbacMiddleware)
 
@@ -474,7 +479,7 @@ func main() {
 		userRepo,
 		notificationService,
 	)
-	
+
 	// Start the job scheduler
 	if err := jobScheduler.Start(); err != nil {
 		log.Fatalf("Failed to start job scheduler: %v", err)
@@ -502,7 +507,7 @@ func main() {
 			now := time.Now()
 			next := time.Date(now.Year(), now.Month(), now.Day()+1, 2, 0, 0, 0, now.Location())
 			time.Sleep(time.Until(next))
-			
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 			tables := []string{"products", "inventory", "orders", "invoices", "audit_logs"}
 			if err := dbOptimizer.VacuumAnalyze(ctx, tables); err != nil {
@@ -660,6 +665,12 @@ func main() {
 	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts)
 	protected.POST("/products/bulk-price-update", productHandlers.BulkPriceUpdate)
 
+	// Batch routes
+	protected.POST("/products/:productId/batches", batchHandler.CreateBatch)
+	protected.GET("/products/:productId/batches", batchHandler.GetBatchesByProduct)
+	protected.GET("/batches/:id", batchHandler.GetBatch)
+	protected.PUT("/batches/:id", batchHandler.UpdateBatch)
+
 	// Product image routes
 	protected.POST("/products/:id/images", productHandlers.UploadProductImage)
 	protected.GET("/products/:id/images", productHandlers.GetProductImages)
@@ -701,72 +712,72 @@ func main() {
 	}()
 	defer asynqSrv.Shutdown()
 
-    // Periodic retry for failed notification deliveries with context cancellation and backoff
-    go func() {
-        const maxRetries = 5
-        const baseDelay = 1 * time.Minute
-        const maxDelay = 30 * time.Minute
+	// Periodic retry for failed notification deliveries with context cancellation and backoff
+	go func() {
+		const maxRetries = 5
+		const baseDelay = 1 * time.Minute
+		const maxDelay = 30 * time.Minute
 
-        ticker := time.NewTicker(10 * time.Minute)
-        defer ticker.Stop()
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
 
-        for range ticker.C {
-            ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-            defer cancel()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
 
-            tenants, err := tenantRepo.List(ctx, 1000, 0)
-            if err != nil {
-                logger.ErrorWithContext(ctx, "Retry deliveries: failed to list tenants", err, nil)
-                continue
-            }
+			tenants, err := tenantRepo.List(ctx, 1000, 0)
+			if err != nil {
+				logger.ErrorWithContext(ctx, "Retry deliveries: failed to list tenants", err, nil)
+				continue
+			}
 
-            for _, t := range tenants {
-                if t.Status != "active" {
-                    continue
-                }
+			for _, t := range tenants {
+				if t.Status != "active" {
+					continue
+				}
 
-                retryCount := 0
-                delay := baseDelay
+				retryCount := 0
+				delay := baseDelay
 
-                for retryCount < maxRetries {
-                    if err := deliverySvc.RetryFailedDeliveries(ctx, t.ID); err != nil {
-                        retryCount++
-                        if retryCount < maxRetries {
-                            logger.WarnWithContext(ctx, "Retry failed, backing off",
-                                map[string]interface{}{
-                                    "tenant_id":   t.ID.String(),
-                                    "retry_count": retryCount,
-                                    "delay":       delay.String(),
-                                    "error":       err.Error(),
-                                })
+				for retryCount < maxRetries {
+					if err := deliverySvc.RetryFailedDeliveries(ctx, t.ID); err != nil {
+						retryCount++
+						if retryCount < maxRetries {
+							logger.WarnWithContext(ctx, "Retry failed, backing off",
+								map[string]interface{}{
+									"tenant_id":   t.ID.String(),
+									"retry_count": retryCount,
+									"delay":       delay.String(),
+									"error":       err.Error(),
+								})
 
-                            select {
-                            case <-time.After(delay):
-                                delay *= 2 // Exponential backoff
-                                if delay > maxDelay {
-                                    delay = maxDelay
-                                }
-                                // Add jitter
-                                jitter := time.Duration(float64(delay) * 0.1)
-                                delay += time.Duration(time.Now().UnixNano() % int64(jitter))
-                            case <-ctx.Done():
-                                return
-                            }
-                            continue
-                        }
+							select {
+							case <-time.After(delay):
+								delay *= 2 // Exponential backoff
+								if delay > maxDelay {
+									delay = maxDelay
+								}
+								// Add jitter
+								jitter := time.Duration(float64(delay) * 0.1)
+								delay += time.Duration(time.Now().UnixNano() % int64(jitter))
+							case <-ctx.Done():
+								return
+							}
+							continue
+						}
 
-                        logger.ErrorWithContext(ctx, "Exhausted retries for tenant notification delivery",
-                            errors.New("max retries exceeded"), map[string]interface{}{
-                                "tenant_id":   t.ID.String(),
-                                "max_retries": maxRetries,
-                                "final_error": err.Error(),
-                            })
-                    }
-                    break // Success, exit retry loop
-                }
-            }
-        }
-    }()
+						logger.ErrorWithContext(ctx, "Exhausted retries for tenant notification delivery",
+							errors.New("max retries exceeded"), map[string]interface{}{
+								"tenant_id":   t.ID.String(),
+								"max_retries": maxRetries,
+								"final_error": err.Error(),
+							})
+					}
+					break // Success, exit retry loop
+				}
+			}
+		}
+	}()
 
 	protected.GET("/orders", orderHandlers.GetOrders)
 	protected.POST("/orders", orderHandlers.CreateOrder)
@@ -854,7 +865,7 @@ func main() {
 	protected.DELETE("/roles/:id/permissions/:permissionId", roleHandlers.RemovePermissionFromRole)
 	protected.GET("/roles/:id/users", roleHandlers.GetRoleUsers)
 	protected.GET("/permissions", roleHandlers.ListPermissions)
-	
+
 	// User role management routes
 	protected.GET("/users/:id/roles", roleHandlers.GetUserRoles)
 	protected.POST("/users/:id/roles", roleHandlers.AssignRolesToUser)

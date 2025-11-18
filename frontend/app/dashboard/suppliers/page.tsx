@@ -5,12 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api from '@/lib/api';
 import { Supplier } from '@/types';
-import { formatDate } from '@/lib/utils';
 
 export default function SuppliersPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,11 +40,11 @@ export default function SuppliersPage() {
   ) || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Suppliers</h1>
-          <p className="text-gray-500 mt-1">Manage your supplier network</p>
+          <h1 className="text-3xl font-bold tracking-tight">Suppliers</h1>
+          <p className="text-muted-foreground">Manage your supplier network</p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -53,11 +52,26 @@ export default function SuppliersPage() {
         </Button>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Suppliers</CardTitle>
+            <Truck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{suppliers?.suppliers?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Active partners
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="flex-1 relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search suppliers..."
                 value={searchQuery}
@@ -69,11 +83,10 @@ export default function SuppliersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading suppliers...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading suppliers...</div>
           ) : filteredSuppliers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Truck className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No suppliers found. Add your first supplier to get started.</p>
+            <div className="text-center py-8 text-muted-foreground">
+              No suppliers found. Add your first supplier to get started.
             </div>
           ) : (
             <Table>
@@ -113,7 +126,7 @@ export default function SuppliersPage() {
                             }
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>

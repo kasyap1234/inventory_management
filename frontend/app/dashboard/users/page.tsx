@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key, Building2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -21,46 +21,43 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Users & Roles</h1>
-          <p className="text-gray-500 mt-1">Manage users, roles, and permissions</p>
+          <h1 className="text-3xl font-bold tracking-tight">Users & Roles</h1>
+          <p className="text-muted-foreground">Manage users, roles, and permissions</p>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200">
+      <div className="border-b border-border">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('users')}
-            className={`${
-              activeTab === 'users'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            className={`${activeTab === 'users'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
           >
             <UsersIcon className="h-5 w-5" />
             Users
           </button>
           <button
             onClick={() => setActiveTab('roles')}
-            className={`${
-              activeTab === 'roles'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            className={`${activeTab === 'roles'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
           >
             <Shield className="h-5 w-5" />
             Roles
           </button>
           <button
             onClick={() => setActiveTab('permissions')}
-            className={`${
-              activeTab === 'permissions'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            className={`${activeTab === 'permissions'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
           >
             <Key className="h-5 w-5" />
             Permissions
@@ -70,8 +67,8 @@ export default function UsersPage() {
 
       {/* Search Bar */}
       <div className="flex items-center gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <div className="flex-1 relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={`Search ${activeTab}...`}
             value={searchQuery}
@@ -138,9 +135,9 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="text-center py-8">Loading users...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading users...</div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No users found. Add your first user to get started.
             </div>
           ) : (
@@ -193,7 +190,7 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
                             }
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
@@ -274,9 +271,9 @@ function RolesTab({ searchQuery }: { searchQuery: string }) {
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="text-center py-8">Loading roles...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading roles...</div>
           ) : filteredRoles.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No roles found. Add your first role to get started.
             </div>
           ) : (
@@ -321,7 +318,7 @@ function RolesTab({ searchQuery }: { searchQuery: string }) {
                             }
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
@@ -382,33 +379,33 @@ function PermissionsTab({ searchQuery }: { searchQuery: string }) {
     <Card>
       <CardContent className="pt-6">
         {isLoading ? (
-          <div className="text-center py-8">Loading permissions...</div>
+          <div className="text-center py-8 text-muted-foreground">Loading permissions...</div>
         ) : filteredPermissions.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-muted-foreground">
             No permissions found.
           </div>
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedPermissions).map(([resource, perms]) => (
               <div key={resource}>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 capitalize">
+                <h3 className="text-lg font-semibold mb-3 capitalize">
                   {resource}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {perms.map((permission) => (
                     <div
                       key={permission.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <Badge variant="default">{permission.action}</Badge>
-                        <Key className="h-4 w-4 text-gray-400" />
+                        <Badge variant="secondary">{permission.action}</Badge>
+                        <Key className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <p className="mt-2 text-sm font-medium text-gray-900">
+                      <p className="mt-2 text-sm font-medium">
                         {permission.name}
                       </p>
                       {permission.description && (
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {permission.description}
                         </p>
                       )}
@@ -507,7 +504,7 @@ function UserFormDialog({ open, onOpenChange, user }: {
               required
               value={formData.tenant_id}
               onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!!user}
             >
               <option value="">Select a tenant</option>
@@ -518,7 +515,7 @@ function UserFormDialog({ open, onOpenChange, user }: {
               ))}
             </select>
             {user && (
-              <p className="text-xs text-gray-500">Tenant cannot be changed after user creation</p>
+              <p className="text-xs text-muted-foreground">Tenant cannot be changed after user creation</p>
             )}
           </div>
           {!user && (
@@ -539,7 +536,7 @@ function UserFormDialog({ open, onOpenChange, user }: {
               required
               value={formData.status}
               onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -682,25 +679,25 @@ function AssignRolesDialog({ open, onOpenChange, user, roles }: {
           <DialogTitle>Assign Roles to {user.first_name} {user.last_name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Select roles to assign to this user
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {roles.map((role) => (
               <label
                 key={role.id}
-                className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                className="flex items-center p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
               >
                 <input
                   type="checkbox"
                   checked={selectedRoles.includes(role.id)}
                   onChange={() => handleToggleRole(role.id)}
-                  className="h-4 w-4 text-blue-600 rounded"
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                 />
                 <div className="ml-3 flex-1">
                   <div className="font-medium text-sm">{role.name}</div>
                   {role.description && (
-                    <div className="text-xs text-gray-500">{role.description}</div>
+                    <div className="text-xs text-muted-foreground">{role.description}</div>
                   )}
                 </div>
               </label>
@@ -783,33 +780,28 @@ function ManagePermissionsDialog({ open, onOpenChange, role, permissions }: {
           <DialogTitle>Manage Permissions for {role.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Select permissions to grant to this role
           </div>
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {Object.entries(groupedPermissions).map(([resource, perms]) => (
-              <div key={resource} className="border border-gray-200 rounded-lg p-4">
-                <h4 className="font-semibold text-sm text-gray-900 mb-3 capitalize">
+              <div key={resource} className="border rounded-lg p-4">
+                <h4 className="font-semibold text-sm mb-3 capitalize">
                   {resource}
                 </h4>
                 <div className="grid grid-cols-2 gap-2">
                   {perms.map((permission) => (
                     <label
                       key={permission.id}
-                      className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+                      className="flex items-center p-2 hover:bg-muted/50 rounded cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={selectedPermissions.includes(permission.id)}
                         onChange={() => handleTogglePermission(permission.id)}
-                        className="h-4 w-4 text-blue-600 rounded"
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                       />
-                      <div className="ml-2 text-sm">
-                        <span className="font-medium">{permission.action}</span>
-                        {permission.description && (
-                          <span className="text-gray-500 ml-1">({permission.description})</span>
-                        )}
-                      </div>
+                      <span className="ml-2 text-sm">{permission.name}</span>
                     </label>
                   ))}
                 </div>

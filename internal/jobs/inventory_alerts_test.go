@@ -75,6 +75,11 @@ type MockProductRepository struct {
 	mock.Mock
 }
 
+func (m *MockProductRepository) UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error {
+	args := m.Called(ctx, id, quantity)
+	return args.Error(0)
+}
+
 func (m *MockProductRepository) Create(ctx context.Context, product *models.Product) error {
 	args := m.Called(ctx, product)
 	return args.Error(0)

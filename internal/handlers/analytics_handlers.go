@@ -49,13 +49,13 @@ func (h *AnalyticsHandlers) GetDashboardAnalytics(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"tenant_id":            data.TenantID,
-		"total_sales":          data.TotalSales,
-		"total_stock_value":    data.TotalStockValue,
-		"gst_collected":        data.GSTCollected,
-		"order_count":          data.OrderCount,
-		"low_stock_items":      data.LowStockItemsCount,
-		"last_updated":         data.LastUpdated,
+		"tenant_id":         data.TenantID,
+		"total_sales":       data.TotalSales,
+		"total_stock_value": data.TotalStockValue,
+		"gst_collected":     data.GSTCollected,
+		"order_count":       data.OrderCount,
+		"low_stock_items":   data.LowStockItemsCount,
+		"last_updated":      data.LastUpdated,
 	})
 }
 
@@ -242,6 +242,9 @@ func (h *AnalyticsHandlers) GetOrderStatusDistribution(c echo.Context) error {
 
 // GetCustomerSegmentation handles GET /analytics/customer-segmentation
 // Returns customer segmentation analytics
+// NOTE: This handler is currently commented out because the underlying service method is disabled
+// The Order model doesn't have CustomerID (B2B system with suppliers/distributors)
+/*
 func (h *AnalyticsHandlers) GetCustomerSegmentation(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -267,6 +270,7 @@ func (h *AnalyticsHandlers) GetCustomerSegmentation(c echo.Context) error {
 		"segmentation": segmentation,
 	})
 }
+*/
 
 // GetProductPerformance handles GET /analytics/product-performance
 // Returns product performance metrics
@@ -362,6 +366,9 @@ func (h *AnalyticsHandlers) GetSupplierPerformance(c echo.Context) error {
 
 // GetCustomerLifetimeValue handles GET /analytics/customer-lifetime-value
 // Returns customer lifetime value analytics
+// NOTE: This handler is currently commented out because the underlying service method is disabled
+// The Order model doesn't have CustomerID (B2B system with suppliers/distributors)
+/*
 func (h *AnalyticsHandlers) GetCustomerLifetimeValue(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -395,6 +402,7 @@ func (h *AnalyticsHandlers) GetCustomerLifetimeValue(c echo.Context) error {
 		"limit":        limit,
 	})
 }
+*/
 
 // GetMarketTrends handles GET /analytics/market-trends
 // Returns market trend analytics

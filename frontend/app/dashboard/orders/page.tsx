@@ -13,6 +13,7 @@ import api from '@/lib/api';
 import { Order, Product, Warehouse, Supplier, Distributor } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
+
 export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'purchase' | 'sales'>('all');
@@ -117,7 +118,7 @@ export default function OrdersPage() {
     const product = products?.products?.find(p => p.id === order.product_id);
     const matchesSearch = product?.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || order.order_type === filterType;
-    
+
     // Apply advanced filters
     if (advancedFilters.statuses && advancedFilters.statuses.length > 0) {
       if (!advancedFilters.statuses.includes(order.status)) return false;
@@ -128,7 +129,7 @@ export default function OrdersPage() {
     if (advancedFilters.max_price && (order.quantity * order.unit_price) > parseFloat(advancedFilters.max_price)) return false;
     if (advancedFilters.min_quantity && order.quantity < parseInt(advancedFilters.min_quantity)) return false;
     if (advancedFilters.max_quantity && order.quantity > parseInt(advancedFilters.max_quantity)) return false;
-    
+
     return matchesSearch && matchesType;
   }) || [];
 
@@ -136,8 +137,8 @@ export default function OrdersPage() {
     switch (status) {
       case 'delivered': return 'success';
       case 'pending': return 'warning';
-      case 'cancelled': return 'danger';
-      default: return 'default';
+      case 'cancelled': return 'destructive';
+      default: return 'secondary';
     }
   };
 
@@ -209,13 +210,16 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Orders</h1>
-          <p className="text-gray-500 mt-1">Manage purchase and sales orders</p>
+          <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
+          <p className="text-muted-foreground">Manage purchase and sales orders</p>
           {selectedOrders.length > 0 && (
-            <p className="text-sm text-blue-600 mt-1">{selectedOrders.length} order(s) selected</p>
+            <div className="inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
+              <CheckCircle className="w-4 h-4" />
+              {selectedOrders.length} selected
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -288,41 +292,60 @@ export default function OrdersPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Orders</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{orders?.orders?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              All time orders
+            </p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Purchase Orders</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Purchase Orders</CardTitle>
+            <Home className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold">
               {orders?.orders?.filter(o => o.order_type === 'purchase').length || 0}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Incoming stock
+            </p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Sales Orders</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sales Orders</CardTitle>
+            <Truck className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold">
               {orders?.orders?.filter(o => o.order_type === 'sales').length || 0}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Outgoing shipments
+            </p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Pending</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <CheckCircle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold">
               {orders?.orders?.filter(o => o.status === 'pending').length || 0}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Needs attention
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -332,7 +355,7 @@ export default function OrdersPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search orders..."
                   value={searchQuery}
@@ -343,7 +366,7 @@ export default function OrdersPage() {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-                className="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="all">All Orders</option>
                 <option value="purchase">Purchase Orders</option>
@@ -395,9 +418,9 @@ export default function OrdersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading orders...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading orders...</div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No orders found. Create your first order to get started.
             </div>
           ) : (
@@ -456,8 +479,8 @@ export default function OrdersPage() {
                         <div className="flex items-center gap-1">
                           {/* Approve button - pending → approved */}
                           {order.status === 'pending' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="default"
                               onClick={() => {
                                 if (confirm('Approve this order?')) {
@@ -470,11 +493,11 @@ export default function OrdersPage() {
                               Approve
                             </Button>
                           )}
-                          
+
                           {/* Process button - approved → processing */}
                           {order.status === 'approved' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="default"
                               onClick={() => {
                                 if (confirm('Start processing this order?')) {
@@ -487,11 +510,11 @@ export default function OrdersPage() {
                               Process
                             </Button>
                           )}
-                          
+
                           {/* Receive button - received → delivered (purchase orders) */}
                           {order.status === 'received' && order.order_type === 'purchase' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="default"
                               onClick={() => {
                                 if (confirm('Mark this order as received?')) {
@@ -504,11 +527,11 @@ export default function OrdersPage() {
                               Receive
                             </Button>
                           )}
-                          
+
                           {/* Ship button - approved → shipped (sales orders) */}
                           {order.status === 'approved' && order.order_type === 'sales' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="default"
                               onClick={() => {
                                 if (confirm('Mark this order as shipped?')) {
@@ -521,11 +544,11 @@ export default function OrdersPage() {
                               Ship
                             </Button>
                           )}
-                          
+
                           {/* Deliver button - shipped → delivered (sales orders) */}
                           {order.status === 'shipped' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="default"
                               onClick={() => {
                                 if (confirm('Mark this order as delivered?')) {
@@ -538,11 +561,11 @@ export default function OrdersPage() {
                               Deliver
                             </Button>
                           )}
-                          
+
                           {/* Cancel button - any non-terminal status → cancelled */}
                           {!['delivered', 'cancelled'].includes(order.status) && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="destructive"
                               onClick={() => {
                                 if (confirm('Are you sure you want to cancel this order?')) {
@@ -555,12 +578,12 @@ export default function OrdersPage() {
                               Cancel
                             </Button>
                           )}
-                          
+
                           {/* View button */}
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          
+
                           {/* Delete button - only for cancelled/delivered orders */}
                           {['delivered', 'cancelled'].includes(order.status) && (
                             <Button
@@ -572,7 +595,7 @@ export default function OrdersPage() {
                                 }
                               }}
                             >
-                              <Trash2 className="h-4 w-4 text-red-600" />
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           )}
                         </div>
@@ -659,7 +682,7 @@ function OrderFormDialog({
               required
               value={formData.order_type}
               onChange={(e) => setFormData({ ...formData, order_type: e.target.value as 'purchase' | 'sales' })}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="purchase">Purchase Order</option>
               <option value="sales">Sales Order</option>
@@ -673,7 +696,7 @@ function OrderFormDialog({
                 required
                 value={formData.supplier_id}
                 onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="">Select supplier</option>
                 {suppliers.map((supplier) => (
@@ -690,7 +713,7 @@ function OrderFormDialog({
                 required
                 value={formData.distributor_id}
                 onChange={(e) => setFormData({ ...formData, distributor_id: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="">Select distributor</option>
                 {distributors.map((distributor) => (
@@ -706,7 +729,7 @@ function OrderFormDialog({
               required
               value={formData.product_id}
               onChange={(e) => setFormData({ ...formData, product_id: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="">Select product</option>
               {products.map((product) => (
@@ -721,7 +744,7 @@ function OrderFormDialog({
               required
               value={formData.warehouse_id}
               onChange={(e) => setFormData({ ...formData, warehouse_id: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="">Select warehouse</option>
               {warehouses.map((warehouse) => (
@@ -777,7 +800,7 @@ function OrderFormDialog({
             <Input
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Additional notes"
+              placeholder="Optional notes"
             />
           </div>
 

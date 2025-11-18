@@ -21,19 +21,19 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="flex min-h-screen">
-      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-14 auth-gradient">
-        <div className="auth-gradient-content w-full max-w-md space-y-8 animate-fade-in">
+      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-14 bg-background">
+        <div className="w-full max-w-md space-y-8">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
               <Mail className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">Reset your password</h1>
-              <p className="text-gray-500">Enter the email associated with your account.</p>
+              <h1 className="text-3xl font-semibold text-foreground">Reset your password</h1>
+              <p className="text-muted-foreground">Enter the email associated with your account.</p>
             </div>
           </div>
 
-          <Card className="border border-[var(--border)] shadow-[0_24px_48px_-32px_rgba(15,23,42,0.35)] rounded-3xl bg-white">
+          <Card className="border-border shadow-lg rounded-3xl bg-card">
             <CardContent className="space-y-6 p-8 sm:p-10">
               {isCompleted ? (
                 <div className="space-y-5 text-center">
@@ -41,8 +41,8 @@ export default function ForgotPasswordPage() {
                     <CheckCircle2 className="h-7 w-7" />
                   </div>
                   <div className="space-y-2">
-                    <h2 className="text-xl font-semibold text-gray-900">Check your inbox</h2>
-                    <p className="text-sm text-gray-600">
+                    <h2 className="text-xl font-semibold text-foreground">Check your inbox</h2>
+                    <p className="text-sm text-muted-foreground">
                       If an account exists for <span className="font-semibold">{email}</span>, you&apos;ll receive a link to reset your password shortly.
                     </p>
                   </div>
@@ -55,7 +55,7 @@ export default function ForgotPasswordPage() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label htmlFor="email" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="email" className="text-sm font-medium text-foreground">
                       Email address
                     </label>
                     <Input
@@ -69,14 +69,14 @@ export default function ForgotPasswordPage() {
                   </div>
 
                   {requestPasswordReset.isError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in">
+                    <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
                       Something went wrong. Please try again in a moment.
                     </div>
                   )}
 
                   <Button
                     type="submit"
-                    className="w-full btn-modern gradient-primary text-white font-semibold shadow-colored hover:shadow-colored"
+                    className="w-full font-semibold shadow-sm"
                     disabled={requestPasswordReset.isPending}
                   >
                     {requestPasswordReset.isPending ? 'Sending reset link...' : 'Send reset link'}
@@ -86,23 +86,23 @@ export default function ForgotPasswordPage() {
             </CardContent>
           </Card>
 
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-muted-foreground">
             Remember your password?{' '}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/login" className="text-primary hover:text-primary/90 font-semibold">
               Back to sign in
             </Link>
           </p>
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-white border-l border-[var(--border)] items-center justify-center px-16">
-        <div className="max-w-lg space-y-8 animate-slide-in">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-secondary)] px-4 py-1.5 text-gray-700">
+      <div className="hidden lg:flex flex-1 bg-muted/30 border-l border-border items-center justify-center px-16">
+        <div className="max-w-lg space-y-8">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-1.5 text-foreground">
             Account security matters
           </div>
-          <div className="space-y-4 text-gray-900">
+          <div className="space-y-4 text-foreground">
             <h2 className="text-4xl font-semibold leading-tight">We keep your account secure</h2>
-            <p className="text-base text-gray-600 leading-relaxed">
+            <p className="text-base text-muted-foreground leading-relaxed">
               Reset your password safely knowing your account is protected with enterprise-grade security and continuous monitoring.
             </p>
           </div>
@@ -112,8 +112,8 @@ export default function ForgotPasswordPage() {
                 <Mail className="h-5 w-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-gray-900">Instant notifications</h3>
-                <p className="text-sm text-gray-600">Stay informed about important account activity.</p>
+                <h3 className="text-sm font-semibold text-foreground">Instant notifications</h3>
+                <p className="text-sm text-muted-foreground">Stay informed about important account activity.</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -121,8 +121,8 @@ export default function ForgotPasswordPage() {
                 <CheckCircle2 className="h-5 w-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-gray-900">Strong verification</h3>
-                <p className="text-sm text-gray-600">Multi-layer checks ensure only you can access your workspace.</p>
+                <h3 className="text-sm font-semibold text-foreground">Strong verification</h3>
+                <p className="text-sm text-muted-foreground">Multi-layer checks ensure only you can access your workspace.</p>
               </div>
             </div>
           </div>

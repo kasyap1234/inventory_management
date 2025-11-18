@@ -63,21 +63,21 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-screen">
       {/* Left side - Form */}
-      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-14 auth-gradient">
-        <div className="auth-gradient-content w-full max-w-lg space-y-8 animate-fade-in">
+      <div className="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-14 bg-background">
+        <div className="w-full max-w-lg space-y-8">
           {/* Logo */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create your account</h1>
-            <p className="text-gray-600">Get started with Agromart in less than 2 minutes.</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Create your account</h1>
+            <p className="text-muted-foreground">Get started with Agromart in less than 2 minutes.</p>
           </div>
 
           {/* Form Card */}
-          <Card className="border border-[var(--border)] shadow-[0_24px_48px_-32px_rgba(15,23,42,0.35)] rounded-3xl bg-white">
+          <Card className="border-border shadow-lg rounded-3xl bg-card">
             <CardContent className="space-y-6 p-8 sm:p-10">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label htmlFor="first_name" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="first_name" className="text-sm font-medium text-foreground">
                       First Name
                     </label>
                     <Input
@@ -86,12 +86,11 @@ export default function SignupPage() {
                       placeholder="John"
                       value={formData.first_name}
                       onChange={handleChange}
-                      
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="last_name" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="last_name" className="text-sm font-medium text-foreground">
                       Last Name
                     </label>
                     <Input
@@ -100,14 +99,13 @@ export default function SignupPage() {
                       placeholder="Doe"
                       value={formData.last_name}
                       onChange={handleChange}
-                      
                       required
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
                     Work Email
                   </label>
                   <Input
@@ -117,13 +115,12 @@ export default function SignupPage() {
                     placeholder="you@company.com"
                     value={formData.email}
                     onChange={handleChange}
-                    
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
-                  <label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
                     Password
                   </label>
                   <Input
@@ -133,11 +130,10 @@ export default function SignupPage() {
                     placeholder="Create a strong password"
                     value={formData.password}
                     onChange={handleChange}
-                    
                     required
                   />
                   <PasswordStrengthMeter password={formData.password} />
-                  <div className="text-xs text-gray-500 space-y-1">
+                  <div className="text-xs text-muted-foreground space-y-1">
                     <p>Password must meet the following requirements:</p>
                     <ul className="list-disc list-inside ml-2 space-y-0.5">
                       <li>At least 12 characters long</li>
@@ -148,12 +144,12 @@ export default function SignupPage() {
                     </ul>
                   </div>
                   {passwordError && (
-                    <p className="text-xs text-red-600">{passwordError}</p>
+                    <p className="text-xs text-destructive">{passwordError}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
-                  <label htmlFor="tenant_name" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="tenant_name" className="text-sm font-medium text-foreground">
                     Company Name
                   </label>
                   <Input
@@ -162,13 +158,12 @@ export default function SignupPage() {
                     placeholder="Acme Inc."
                     value={formData.tenant_name}
                     onChange={handleChange}
-                    
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
-                  <label htmlFor="subdomain" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="subdomain" className="text-sm font-medium text-foreground">
                     Workspace URL
                   </label>
                   <div className="flex items-stretch">
@@ -178,17 +173,17 @@ export default function SignupPage() {
                       placeholder="acme"
                       value={formData.subdomain}
                       onChange={handleChange}
-                      className="h-12 bg-gray-50 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-r-none border-r-0"
+                      className="rounded-r-none border-r-0"
                       required
                     />
-                    <span className="inline-flex items-center h-12 px-4 border border-gray-200 bg-gray-100 text-gray-600 text-sm font-medium rounded-r-lg">
+                    <span className="inline-flex items-center px-4 border border-l-0 border-input bg-muted text-muted-foreground text-sm font-medium rounded-r-md">
                       .agromart.com
                     </span>
                   </div>
                 </div>
-                
+
                 {signup.isError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in flex items-start gap-2">
+                  <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm flex items-start gap-2">
                     <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
@@ -201,15 +196,15 @@ export default function SignupPage() {
                     </span>
                   </div>
                 )}
-                
+
                 <Button
                   type="submit"
-                  className="w-full btn-modern gradient-primary text-white font-semibold shadow-colored hover:shadow-colored hover:scale-[1.02] transition-all duration-300"
+                  className="w-full font-semibold shadow-sm"
                   disabled={signup.isPending || !passwordStrength.isAcceptable}
                 >
                   {signup.isPending ? (
                     <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-5 w-5 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -223,7 +218,7 @@ export default function SignupPage() {
                   )}
                 </Button>
 
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs text-muted-foreground text-center">
                   By signing up, you agree to our Terms of Service and Privacy Policy
                 </p>
               </form>
@@ -231,9 +226,9 @@ export default function SignupPage() {
           </Card>
 
           {/* Sign in link */}
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link href="/login" className="text-primary hover:text-primary/90 font-semibold">
               Sign in
             </Link>
           </p>
@@ -241,19 +236,18 @@ export default function SignupPage() {
       </div>
 
       {/* Right side - Features */}
-      <div className="hidden lg:flex flex-1 bg-white border-l border-[var(--border)] items-center justify-center px-16 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 via-purple-50/40 to-pink-50/40" />
-        <div className="max-w-md space-y-8 animate-slide-in relative z-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-secondary)] px-4 py-1.5">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-semibold text-gray-700">Trusted by 500+ businesses</span>
+      <div className="hidden lg:flex flex-1 bg-muted/30 border-l border-border items-center justify-center px-16 relative overflow-hidden">
+        <div className="max-w-md space-y-8 relative z-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 py-1.5">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            <span className="text-sm font-semibold text-foreground">Trusted by 500+ businesses</span>
           </div>
 
-          <h2 className="text-4xl font-semibold text-gray-900 leading-tight">
+          <h2 className="text-4xl font-semibold text-foreground leading-tight">
             Everything you need to manage inventory
           </h2>
 
-          <p className="text-base text-gray-600 leading-relaxed">
+          <p className="text-base text-muted-foreground leading-relaxed">
             Join thousands of businesses streamlining operations with AgroMart.
           </p>
 
@@ -263,7 +257,7 @@ export default function SignupPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
-                <span className="text-gray-900 font-medium">{feature}</span>
+                <span className="text-foreground font-medium">{feature}</span>
               </div>
             ))}
           </div>
@@ -273,22 +267,22 @@ export default function SignupPage() {
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-100 text-blue-600 mx-auto">
                 <Users className="w-6 h-6" />
               </div>
-              <div className="text-2xl font-semibold text-gray-900">500+</div>
-              <div className="text-sm text-gray-600 font-medium">Active Users</div>
+              <div className="text-2xl font-semibold text-foreground">500+</div>
+              <div className="text-sm text-muted-foreground font-medium">Active Users</div>
             </div>
             <div className="text-center space-y-2">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-purple-100 text-purple-600 mx-auto">
                 <BarChart3 className="w-6 h-6" />
               </div>
-              <div className="text-2xl font-semibold text-gray-900">98%</div>
-              <div className="text-sm text-gray-600 font-medium">Satisfaction</div>
+              <div className="text-2xl font-semibold text-foreground">98%</div>
+              <div className="text-sm text-muted-foreground font-medium">Satisfaction</div>
             </div>
             <div className="text-center space-y-2">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 mx-auto">
                 <TrendingUp className="w-6 h-6" />
               </div>
-              <div className="text-2xl font-semibold text-gray-900">24/7</div>
-              <div className="text-sm text-gray-600 font-medium">Support</div>
+              <div className="text-2xl font-semibold text-foreground">24/7</div>
+              <div className="text-sm text-muted-foreground font-medium">Support</div>
             </div>
           </div>
         </div>

@@ -542,7 +542,7 @@ func (a *AnalyticsService) GetSearchPerformanceMetrics(ctx context.Context, tena
 		ORDER BY usage_count DESC
 		LIMIT 5
 	`
-	
+
 	filterRows, err := a.db.Query(ctx, filterQuery, tenantID)
 	if err != nil {
 		log.Printf("Failed to get most used filters: %v", err)
@@ -912,29 +912,29 @@ func (a *AnalyticsService) GetOrderStatusDistribution(ctx context.Context, tenan
 
 // CustomerSegmentation represents customer segmentation analytics
 type CustomerSegmentation struct {
-	Segment        string
-	CustomerCount  int
+	Segment           string
+	CustomerCount     int
 	AverageOrderValue float64
-	TotalRevenue   float64
+	TotalRevenue      float64
 }
 
 // ProductPerformance represents product performance metrics
 type ProductPerformance struct {
-	ProductID      uuid.UUID
-	ProductName    string
-	UnitsSold      int
-	Revenue        float64
-	GrowthRate     float64
-	MarginPercent  float64
+	ProductID     uuid.UUID
+	ProductName   string
+	UnitsSold     int
+	Revenue       float64
+	GrowthRate    float64
+	MarginPercent float64
 }
 
 // InventoryTurnover represents inventory turnover analytics
 type InventoryTurnover struct {
-	ProductID      uuid.UUID
-	ProductName    string
-	TurnoverRatio  float64
-	DaysInStock    int
-	StockLevel     int
+	ProductID     uuid.UUID
+	ProductName   string
+	TurnoverRatio float64
+	DaysInStock   int
+	StockLevel    int
 }
 
 // SupplierPerformance represents supplier performance metrics
@@ -949,24 +949,27 @@ type SupplierPerformance struct {
 
 // CustomerLifetimeValue represents customer lifetime value analytics
 type CustomerLifetimeValue struct {
-	CustomerID     uuid.UUID
-	CustomerName   string
-	TotalSpent     float64
-	OrderCount     int
+	CustomerID        uuid.UUID
+	CustomerName      string
+	TotalSpent        float64
+	OrderCount        int
 	AverageOrderValue float64
-	LastOrderDate  time.Time
+	LastOrderDate     time.Time
 }
 
 // MarketTrends represents market trend analytics
 type MarketTrends struct {
-	TrendName      string
-	TrendValue     float64
-	ChangePercent  float64
-	Forecast       float64
-	Confidence     float64
+	TrendName     string
+	TrendValue    float64
+	ChangePercent float64
+	Forecast      float64
+	Confidence    float64
 }
 
 // GetCustomerSegmentation returns customer segmentation analytics
+// NOTE: This method is currently commented out because the Order model doesn't have CustomerID
+// This is a B2B inventory system with suppliers/distributors, not end customers
+/*
 func (a *AnalyticsService) GetCustomerSegmentation(ctx context.Context, tenantID uuid.UUID) ([]CustomerSegmentation, error) {
 	cacheKey := fmt.Sprintf("agromart:analytics:%s:customer_segmentation", tenantID.String())
 	var cached []CustomerSegmentation
@@ -976,7 +979,7 @@ func (a *AnalyticsService) GetCustomerSegmentation(ctx context.Context, tenantID
 		return cached, nil
 	}
 
-	orders, err := a.orderRepo.GetOrdersByTenant(ctx, tenantID, 10000, 0)
+	orders, err := a.orderRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
@@ -990,7 +993,13 @@ func (a *AnalyticsService) GetCustomerSegmentation(ctx context.Context, tenantID
 			}
 		}
 		segments[segmentKey].CustomerCount++
-		segments[segmentKey].TotalRevenue += order.TotalAmount
+		// Calculate total from quantity * unit_price
+		total, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing order total: %v", err)
+			continue
+		}
+		segments[segmentKey].TotalRevenue += total
 	}
 
 	var result []CustomerSegmentation
@@ -1004,6 +1013,7 @@ func (a *AnalyticsService) GetCustomerSegmentation(ctx context.Context, tenantID
 	a.setCachedJSON(ctx, cacheKey, result, 30*time.Minute)
 	return result, nil
 }
+*/
 
 // GetProductPerformance returns product performance analytics
 func (a *AnalyticsService) GetProductPerformance(ctx context.Context, tenantID uuid.UUID, limit int) ([]ProductPerformance, error) {
@@ -1019,7 +1029,7 @@ func (a *AnalyticsService) GetProductPerformance(ctx context.Context, tenantID u
 		return cached, nil
 	}
 
-	orders, err := a.orderRepo.GetOrdersByTenant(ctx, tenantID, 10000, 0)
+	orders, err := a.orderRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
@@ -1037,7 +1047,13 @@ func (a *AnalyticsService) GetProductPerformance(ctx context.Context, tenantID u
 			}
 		}
 		productStats[order.ProductID].UnitsSold += order.Quantity
-		productStats[order.ProductID].Revenue += order.TotalAmount
+		// Calculate revenue from quantity * unit_price
+		revenue, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing product revenue: %v", err)
+			continue
+		}
+		productStats[order.ProductID].Revenue += revenue
 	}
 
 	var result []ProductPerformance
@@ -1075,7 +1091,7 @@ func (a *AnalyticsService) GetInventoryTurnover(ctx context.Context, tenantID uu
 			ProductID:   inv.ProductID,
 			ProductName: product.Name,
 			StockLevel:  inv.Quantity,
-			DaysInStock: int(time.Since(inv.CreatedAt).Hours() / 24),
+			DaysInStock: int(time.Since(inv.LastUpdated).Hours() / 24),
 		}
 
 		if turnover.DaysInStock > 0 {
@@ -1099,7 +1115,7 @@ func (a *AnalyticsService) GetSupplierPerformance(ctx context.Context, tenantID 
 		return cached, nil
 	}
 
-	orders, err := a.orderRepo.GetOrdersByTenant(ctx, tenantID, 10000, 0)
+	orders, err := a.orderRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
@@ -1116,7 +1132,13 @@ func (a *AnalyticsService) GetSupplierPerformance(ctx context.Context, tenantID 
 			}
 		}
 		supplierStats[*order.SupplierID].OrderCount++
-		supplierStats[*order.SupplierID].TotalSpent += order.TotalAmount
+		// Calculate total from quantity * unit_price
+		total, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing supplier spend: %v", err)
+			continue
+		}
+		supplierStats[*order.SupplierID].TotalSpent += total
 		if order.Status == "delivered" {
 			supplierStats[*order.SupplierID].OnTimeDelivery += 1
 		}
@@ -1136,6 +1158,9 @@ func (a *AnalyticsService) GetSupplierPerformance(ctx context.Context, tenantID 
 }
 
 // GetCustomerLifetimeValue returns customer lifetime value analytics
+// NOTE: This method is currently commented out because the Order model doesn't have CustomerID
+// This is a B2B inventory system with suppliers/distributors, not end customers
+/*
 func (a *AnalyticsService) GetCustomerLifetimeValue(ctx context.Context, tenantID uuid.UUID, limit int) ([]CustomerLifetimeValue, error) {
 	if limit <= 0 {
 		limit = 20
@@ -1149,20 +1174,26 @@ func (a *AnalyticsService) GetCustomerLifetimeValue(ctx context.Context, tenantI
 		return cached, nil
 	}
 
-	orders, err := a.orderRepo.GetOrdersByTenant(ctx, tenantID, 10000, 0)
+	orders, err := a.orderRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
 
 	customerStats := make(map[uuid.UUID]*CustomerLifetimeValue)
 	for _, order := range orders {
+		// Order doesn't have CustomerID, would need to add this field
 		if customerStats[order.CustomerID] == nil {
 			customerStats[order.CustomerID] = &CustomerLifetimeValue{
 				CustomerID: order.CustomerID,
 			}
 		}
 		customerStats[order.CustomerID].OrderCount++
-		customerStats[order.CustomerID].TotalSpent += order.TotalAmount
+		total, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+		if err != nil {
+			log.Printf("WARN: overflow computing customer spend: %v", err)
+			continue
+		}
+		customerStats[order.CustomerID].TotalSpent += total
 		if order.OrderDate.After(customerStats[order.CustomerID].LastOrderDate) {
 			customerStats[order.CustomerID].LastOrderDate = order.OrderDate
 		}
@@ -1179,6 +1210,7 @@ func (a *AnalyticsService) GetCustomerLifetimeValue(ctx context.Context, tenantI
 	a.setCachedJSON(ctx, cacheKey, result, 30*time.Minute)
 	return result, nil
 }
+*/
 
 // GetMarketTrends returns market trend analytics
 func (a *AnalyticsService) GetMarketTrends(ctx context.Context, tenantID uuid.UUID) ([]MarketTrends, error) {
@@ -1190,7 +1222,7 @@ func (a *AnalyticsService) GetMarketTrends(ctx context.Context, tenantID uuid.UU
 		return cached, nil
 	}
 
-	orders, err := a.orderRepo.GetOrdersByTenant(ctx, tenantID, 10000, 0)
+	orders, err := a.orderRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
@@ -1252,11 +1284,11 @@ func (a *AnalyticsService) GetProfitMarginAnalysis(ctx context.Context, tenantID
 	}
 
 	result := map[string]interface{}{
-		"total_revenue":      totalRevenue,
-		"total_cost":         totalCost,
-		"profit_margin":      margin,
-		"margin_trend":       "stable",
-		"invoice_count":      len(invoices),
+		"total_revenue": totalRevenue,
+		"total_cost":    totalCost,
+		"profit_margin": margin,
+		"margin_trend":  "stable",
+		"invoice_count": len(invoices),
 	}
 
 	a.setCachedJSON(ctx, cacheKey, result, 30*time.Minute)

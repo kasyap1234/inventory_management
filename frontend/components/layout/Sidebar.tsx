@@ -18,6 +18,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -40,17 +41,18 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
 
   return (
-    <div className="flex flex-col w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0">
-      {/* Logo section with gradient */}
-      <div className="flex items-center gap-3 h-16 px-6 border-b border-gray-200">
-        <div className="flex items-center justify-center w-10 h-10 gradient-primary rounded-xl shadow-colored">
-          <Package className="w-5 h-5 text-white" />
+    <div className="flex flex-col w-64 bg-background/80 backdrop-blur-xl border-r border-border h-screen fixed left-0 top-0 z-30 shadow-lg">
+      {/* Logo section */}
+      <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-3 h-16 px-6 border-b border-border hover:bg-muted/50 transition-colors">
+        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-primary-foreground shadow-sm">
+          <Package className="w-5 h-5" />
         </div>
-        <h1 className="text-xl font-bold gradient-text">AgroMart</h1>
-      </div>
-      
+        <h1 className="text-xl font-bold text-foreground">AgroMart</h1>
+      </Link>
+
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-6">
         <nav className="px-3 space-y-1.5">
@@ -61,21 +63,26 @@ export function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
+                  'group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 mx-2',
                   isActive
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-primary/10 text-primary shadow-sm border border-primary/20'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
                 <div className="flex items-center">
                   <item.icon className={cn(
-                    "mr-3 h-5 w-5 transition-colors duration-200",
-                    isActive ? "text-white" : "text-gray-500 group-hover:text-gray-900"
+                    "mr-3 h-5 w-5 transition-all duration-200",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground group-hover:text-foreground group-hover:scale-110"
                   )} />
-                  <span>{item.name}</span>
+                  <span className={cn(
+                    "font-medium",
+                    isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                  )}>{item.name}</span>
                 </div>
                 {isActive && (
-                  <div className="w-1 h-6 bg-blue-500 rounded-full" />
+                  <div className="w-1.5 h-1.5 bg-primary rounded-full shadow-sm" />
                 )}
               </Link>
             );
@@ -84,10 +91,10 @@ export function Sidebar() {
       </div>
 
       {/* Footer info */}
-      <div className="border-t border-gray-200 p-4">
+      <div className="border-t border-border p-4">
         <div className="text-center">
-          <p className="text-xs text-gray-500">AgroMart Inventory</p>
-          <p className="text-xs text-gray-400 mt-1">v1.0.0</p>
+          <p className="text-xs text-muted-foreground">AgroMart Inventory</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">v1.0.0</p>
         </div>
       </div>
     </div>

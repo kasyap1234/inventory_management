@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash, Package, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -78,15 +78,16 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500 mt-1">Manage your product catalog</p>
+          <h1 className="text-3xl font-bold tracking-tight">Products</h1>
+          <p className="text-muted-foreground">Manage your product catalog and inventory</p>
           {selectedProducts.length > 0 && (
-            <p className="text-blue-600 text-sm mt-1">
-              {selectedProducts.length} product(s) selected
-            </p>
+            <div className="inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
+              <CheckSquare className="w-4 h-4" />
+              {selectedProducts.length} selected
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -115,13 +116,59 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products?.products?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              +12% from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {products?.products?.filter(p => p.quantity < 10).length || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Items need attention
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(products?.products?.reduce((acc, p) => acc + (p.quantity * p.unit_price), 0) || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Inventory valuation
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search products by name or barcode..."
+                placeholder="Search products..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -131,9 +178,9 @@ export default function ProductsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading products...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading products...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No products found. Add your first product to get started.
             </div>
           ) : (
@@ -171,7 +218,7 @@ export default function ProductsPage() {
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>{product.barcode || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={product.quantity < 10 ? 'danger' : 'success'}>
+                      <Badge variant={product.quantity < 10 ? 'destructive' : 'success'}>
                         {product.quantity}
                       </Badge>
                     </TableCell>
@@ -198,7 +245,7 @@ export default function ProductsPage() {
                             }
                           }}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
@@ -248,7 +295,6 @@ function ProductFormDialog({ open, onOpenChange, product }: {
     product?.expiry_date ? new Date(product.expiry_date) : null
   );
 
-  // Reset form when product changes or dialog opens
   useEffect(() => {
     if (open) {
       setFormData({
@@ -398,7 +444,7 @@ function BulkPriceUpdateDialog({ open, onOpenChange, selectedProductIds, onSucce
       const adjustment = updateType === 'percentage'
         ? { type: 'percentage', value: isIncrease ? value : -value }
         : { type: 'fixed', value: isIncrease ? value : -value };
-      
+
       await api.post('/products/bulk-price-update', {
         product_ids: selectedProductIds,
         adjustment,
@@ -491,15 +537,15 @@ function BulkPriceUpdateDialog({ open, onOpenChange, selectedProductIds, onSucce
               onChange={(e) => setValue(e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
               placeholder={updateType === 'percentage' ? 'e.g., 10' : 'e.g., 50'}
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               {updateType === 'percentage'
                 ? `Prices will be ${isIncrease ? 'increased' : 'decreased'} by ${value}%`
                 : `Prices will be ${isIncrease ? 'increased' : 'decreased'} by ₹${value}`}
             </p>
           </div>
 
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-sm text-blue-800">
+          <div className="bg-primary/10 p-3 rounded-lg">
+            <p className="text-sm text-primary">
               <strong>{selectedProductIds.length}</strong> product(s) will be updated
             </p>
           </div>
