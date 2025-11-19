@@ -44,7 +44,7 @@ export default function InvoicesPage() {
       const response = await api.post(`/invoices/${invoiceId}/generate-pdf`, {}, {
         responseType: 'blob',
       });
-      
+
       // Create blob and download
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
@@ -170,7 +170,7 @@ export default function InvoicesPage() {
     switch (status) {
       case 'paid': return 'success';
       case 'unpaid': return 'warning';
-      case 'overdue': return 'danger';
+      case 'overdue': return 'destructive';
       case 'cancelled': return 'secondary';
       default: return 'default';
     }
@@ -357,7 +357,7 @@ export default function InvoicesPage() {
               <TableBody>
                 {filteredInvoices.map((invoice) => {
                   const gstTotal = (invoice.cgst || 0) + (invoice.sgst || 0) + (invoice.igst || 0);
-                  
+
                   return (
                     <TableRow key={invoice.id}>
                       <TableCell>
@@ -454,7 +454,7 @@ function InvoiceFormDialog({
     const cgst = (taxable * rate) / 2;
     const sgst = (taxable * rate) / 2;
     const total = taxable + (taxable * rate);
-    
+
     setFormData(prev => ({
       ...prev,
       cgst,
@@ -625,10 +625,10 @@ function BulkInvoiceGenerateDialog({
       const invoices = selectedOrders.map(orderId => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return null;
-        
+
         const taxableAmount = order.quantity * order.unit_price;
         const gstAmount = (taxableAmount * defaultGSTRate) / 100;
-        
+
         return {
           order_id: orderId,
           gstin: defaultGSTIN,
@@ -680,7 +680,7 @@ function BulkInvoiceGenerateDialog({
   };
 
   // Filter orders that can have invoices generated (delivered orders without invoices)
-  const eligibleOrders = orders.filter(o => 
+  const eligibleOrders = orders.filter(o =>
     ['approved', 'delivered', 'shipped'].includes(o.status)
   );
 
@@ -751,7 +751,7 @@ function BulkInvoiceGenerateDialog({
                     const amount = order.quantity * order.unit_price;
                     const gstAmount = (amount * defaultGSTRate) / 100;
                     const total = amount + gstAmount;
-                    
+
                     return (
                       <label
                         key={order.id}
@@ -809,8 +809,8 @@ function BulkInvoiceGenerateDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={bulkGenerateMutation.isPending || selectedOrders.length === 0}
             >
               {bulkGenerateMutation.isPending ? 'Generating...' : `Generate ${selectedOrders.length} Invoice(s)`}

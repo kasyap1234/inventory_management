@@ -201,11 +201,10 @@ export default function SubscriptionDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 py-4 border-b-2 font-medium text-sm ${
-                    activeTab === tab.id
+                  className={`flex items-center space-x-2 py-4 border-b-2 font-medium text-sm ${activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
@@ -270,10 +269,9 @@ export default function SubscriptionDashboard() {
                   {billingHistory.map((invoice: BillingHistory) => (
                     <div key={invoice.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                       <div className="flex items-center space-x-4">
-                        <div className={`w-3 h-3 rounded-full ${
-                          invoice.status === 'paid' ? 'bg-green-500' :
-                          invoice.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}></div>
+                        <div className={`w-3 h-3 rounded-full ${invoice.status === 'paid' ? 'bg-green-500' :
+                            invoice.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}></div>
                         <div>
                           <p className="font-medium text-gray-900">{invoice.description}</p>
                           <p className="text-sm text-gray-600">
@@ -286,10 +284,9 @@ export default function SubscriptionDashboard() {
                           <p className="font-semibold text-gray-900">
                             {formatCurrency(invoice.amount, invoice.currency)}
                           </p>
-                          <p className={`text-sm capitalize ${
-                            invoice.status === 'paid' ? 'text-green-600' :
-                            invoice.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
-                          }`}>
+                          <p className={`text-sm capitalize ${invoice.status === 'paid' ? 'text-green-600' :
+                              invoice.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
                             {invoice.status}
                           </p>
                         </div>
@@ -313,7 +310,7 @@ export default function SubscriptionDashboard() {
           {activeTab === 'usage' && (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-gray-900">Current Usage</h3>
-              
+
               {subscription?.usage && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Users */}

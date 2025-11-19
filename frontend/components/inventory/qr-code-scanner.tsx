@@ -15,7 +15,7 @@ export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number>(0);
 
   useEffect(() => {
     return () => {
@@ -33,7 +33,7 @@ export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.play();
@@ -51,12 +51,12 @@ export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
-    
+
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
-    
+
     setIsScanning(false);
   };
 

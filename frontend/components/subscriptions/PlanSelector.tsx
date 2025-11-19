@@ -251,14 +251,12 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
           </span>
           <button
             onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'yearly' : 'monthly')}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              billingCycle === 'yearly' ? 'bg-blue-600' : 'bg-gray-200'
-            }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${billingCycle === 'yearly' ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                billingCycle === 'yearly' ? 'translate-x-6' : 'translate-x-1'
-              }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${billingCycle === 'yearly' ? 'translate-x-6' : 'translate-x-1'
+                }`}
             />
           </button>
           <span className={`text-sm ${billingCycle === 'yearly' ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
@@ -278,21 +276,19 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
           <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
             <button
               onClick={() => setPaymentMethod('stripe')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                paymentMethod === 'stripe'
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${paymentMethod === 'stripe'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               Stripe
             </button>
             <button
               onClick={() => setPaymentMethod('razorpay')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                paymentMethod === 'razorpay'
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${paymentMethod === 'razorpay'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               Razorpay
             </button>
@@ -310,13 +306,12 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
           return (
             <div
               key={plan.id}
-              className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 ${
-                plan.popular
+              className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 ${plan.popular
                   ? 'border-blue-500 ring-2 ring-blue-200'
                   : isCurrentPlan
-                  ? 'border-green-500 ring-2 ring-green-200'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
+                    ? 'border-green-500 ring-2 ring-green-200'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
             >
               {/* Popular Badge */}
               {plan.popular && (
@@ -344,7 +339,7 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
                   <p className="text-gray-600 mb-4">{plan.description}</p>
-                  
+
                   {/* Pricing */}
                   <div className="mb-4">
                     <div className="flex items-baseline justify-center">
@@ -355,7 +350,7 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
                         /{billingCycle === 'monthly' ? 'month' : 'year'}
                       </span>
                     </div>
-                    
+
                     {billingCycle === 'yearly' && (
                       <div className="text-sm text-green-600 mt-2">
                         Save {formatPrice(savings.amount, plan.currency)} ({savings.percentage}%) annually
@@ -403,33 +398,31 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
                 <button
                   onClick={() => handleSelectPlan(plan.id)}
                   disabled={isCurrentPlan || stripeCheckout.isLoading || razorpayCheckout.isLoading}
-                  className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                    isCurrentPlan
+                  className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${isCurrentPlan
                       ? 'bg-green-100 text-green-700 cursor-not-allowed'
                       : plan.popular
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-900 text-white hover:bg-gray-800'
-                  } ${(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id ? 'opacity-50' : ''}`}
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-900 text-white hover:bg-gray-800'
+                    } ${(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id ? 'opacity-50' : ''}`}
                 >
                   {(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id
                     ? 'Processing...'
                     : isCurrentPlan
-                    ? 'Current Plan'
-                    : currentPlan
-                    ? 'Switch to This Plan'
-                    : 'Get Started'
+                      ? 'Current Plan'
+                      : currentPlan
+                        ? 'Switch to This Plan'
+                        : 'Get Started'
                   }
                 </button>
 
                 {/* Additional Info */}
                 {plan.type === 'enterprise' && (
                   <div className="mt-4 text-center">
-                    <p className="text-sm text-gray-600">
-                      Need a custom solution?{' '}
-                      <button className="text-blue-600 hover:text-blue-800 font-medium">
-                        Contact Sales
-                      </button>
-                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Don&apos;t worry, you can change your plan at any time.
+                    </p>    <button className="text-blue-600 hover:text-blue-800 font-medium">
+                      Contact Sales
+                    </button>
                   </div>
                 )}
               </div>

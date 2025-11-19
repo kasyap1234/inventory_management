@@ -9,12 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"agromart2/internal/caching"
 	"agromart2/internal/models"
+
+	"agromart2/internal/repositories"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -23,10 +26,6 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
-)
-
-import (
-	"agromart2/internal/repositories"
 )
 
 // AuthService handles OAuth2 and JWT token management
@@ -689,6 +688,20 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 		return nil, fmt.Errorf("failed to assign role to user: %v", err)
 	}
 
+	// Generate verification token
+	token, err := s.GenerateEmailVerificationToken(ctx, userID)
+	if err != nil {
+		// Log error but don't fail signup, user can request new token later
+		log.Printf("Failed to generate verification token for user %s: %v", userID, err)
+	} else {
+		// Send verification email
+		frontendURL := os.Getenv("FRONTEND_URL")
+		if frontendURL == "" {
+			frontendURL = "http://localhost:3000"
+		}
+		SendVerificationEmailAsync(ctx, email, token, frontendURL)
+	}
+
 	return user, nil
 }
 
@@ -818,7 +831,29 @@ func (s *authService) ensureTenantDefaults(ctx context.Context, tenantID uuid.UU
 
 		for _, permission := range allPermissions {
 			name := permission.Name
-			if !strings.HasPrefix(name, "read_") && !strings.HasPrefix(name, "categories:") {
+			// Allow read-only permissions for core business entities
+			isReadPermission := false
+
+			// Check for specific read/list permissions
+			if strings.HasSuffix(name, ":read") || strings.HasSuffix(name, ":list") {
+				// Allow for specific modules
+				if strings.HasPrefix(name, "users:") ||
+					strings.HasPrefix(name, "tenants:") ||
+					strings.HasPrefix(name, "analytics:") ||
+					strings.HasPrefix(name, "categories:") ||
+					strings.HasPrefix(name, "products:") ||
+					strings.HasPrefix(name, "inventories:") ||
+					strings.HasPrefix(name, "warehouses:") ||
+					strings.HasPrefix(name, "distributors:") ||
+					strings.HasPrefix(name, "suppliers:") ||
+					strings.HasPrefix(name, "orders:") ||
+					strings.HasPrefix(name, "invoices:") {
+					isReadPermission = true
+				}
+			}
+
+			// Keep existing legacy check
+			if !isReadPermission && !strings.HasPrefix(name, "read_") && !strings.HasPrefix(name, "categories:") {
 				continue
 			}
 

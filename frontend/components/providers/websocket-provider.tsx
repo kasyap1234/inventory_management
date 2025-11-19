@@ -17,25 +17,28 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     // Connect to WebSocket
     wsClient.connect();
 
-    // Listen for notifications
-    const unsubscribeNotification = wsClient.on('notification', (message) => {
+    // Define handlers
+    const handleNotification = (message: any) => {
       toast(message.data.message || 'New notification', {
         icon: '🔔',
         duration: 5000,
       });
-    });
+    };
 
-    // Listen for low stock alerts
-    const unsubscribeLowStock = wsClient.on('low_stock_alert', (message) => {
+    const handleLowStock = (message: any) => {
       toast.error(`Low stock alert: ${message.data.product_name}`, {
         duration: 7000,
       });
-    });
+    };
+
+    // Listen for events
+    wsClient.on('notification', handleNotification);
+    wsClient.on('low_stock_alert', handleLowStock);
 
     // Cleanup on unmount
     return () => {
-      if (unsubscribeNotification) unsubscribeNotification();
-      if (unsubscribeLowStock) unsubscribeLowStock();
+      wsClient.off('notification', handleNotification);
+      wsClient.off('low_stock_alert', handleLowStock);
     };
   }, [isAuthenticated]);
 

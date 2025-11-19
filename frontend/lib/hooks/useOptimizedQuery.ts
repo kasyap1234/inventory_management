@@ -21,10 +21,10 @@ export function useOptimizedQuery<TData = unknown, TError = unknown>(
     ...restOptions,
     queryFn: async (context) => {
       const key = performanceKey || String(options.queryKey);
-      
+
       try {
-        if (queryFn) {
-          return await measureApiCall(key, () => queryFn(context));
+        if (typeof queryFn === 'function') {
+          return await measureApiCall(key, () => (queryFn as Function)(context));
         }
         throw new Error('queryFn is required');
       } catch (error) {
@@ -55,10 +55,10 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
     ...restOptions,
     mutationFn: async (variables) => {
       const key = performanceKey || 'mutation';
-      
+
       try {
-        if (mutationFn) {
-          return await measureApiCall(key, () => mutationFn(variables));
+        if (typeof mutationFn === 'function') {
+          return await measureApiCall(key, () => (mutationFn as Function)(variables));
         }
         throw new Error('mutationFn is required');
       } catch (error) {
@@ -76,10 +76,10 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
           queryClient.invalidateQueries({ queryKey: key });
         });
       }
-      
+
       // Call original onSuccess
       if (onSuccess) {
-        onSuccess(data, variables, context);
+        (onSuccess as any)(data, variables, context);
       }
     },
     onError: (error, variables, context) => {
@@ -87,10 +87,10 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
         const appError = handleApiError(error);
         logError(appError, { variables });
       }
-      
+
       // Call original onError
       if (onError) {
-        onError(error, variables, context);
+        (onError as any)(error, variables, context);
       }
     },
   });

@@ -115,7 +115,7 @@ export default function TenantsPage() {
       case 'inactive':
         return 'warning';
       case 'cancelled':
-        return 'danger';
+        return 'destructive';
       default:
         return 'secondary';
     }
