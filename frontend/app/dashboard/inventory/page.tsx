@@ -14,10 +14,8 @@ import api from '@/lib/api';
 import { Inventory, Product, Warehouse } from '@/types';
 import { formatDateTime } from '@/lib/utils';
 
-interface InventoryWithDetails extends Inventory {
-  product?: Product;
-  warehouse?: Warehouse;
-}
+// InventoryWithDetails is now just an alias since we added product_name and warehouse_name to Inventory
+type InventoryWithDetails = Inventory;
 
 type InventoryHistoryEntry = {
   id: string;
@@ -36,67 +34,71 @@ export default function InventoryPage() {
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const queryClient = useQueryClient();
 
-  const { data: inventory, isLoading } = useQuery<{ inventory: InventoryWithDetails[] }>({
-    queryKey: ['inventory'],
+  // Build query params for server-side filtering
+  const buildQueryParams = () => {
+    const params: Record<string, any> = {
+      limit: 100,
+    };
+
+    if (searchQuery) {
+      params.query = searchQuery;
+    }
+
+    if (advancedFilters.warehouse_id) {
+      params.warehouse_id = advancedFilters.warehouse_id;
+    }
+
+    if (advancedFilters.product_id) {
+      params.product_id = advancedFilters.product_id;
+    }
+
+    if (advancedFilters.min_quantity) {
+      params.min_quantity = parseInt(advancedFilters.min_quantity, 10);
+    }
+
+    if (advancedFilters.max_quantity) {
+      params.max_quantity = parseInt(advancedFilters.max_quantity, 10);
+    }
+
+    return params;
+  };
+
+  const { data: inventory, isLoading } = useQuery<{ inventories: InventoryWithDetails[] }>({
+    queryKey: ['inventory', searchQuery, advancedFilters],
     queryFn: async () => {
-      const response = await api.get('/inventory?limit=100');
+      const params = buildQueryParams();
+      const queryString = new URLSearchParams(
+        Object.entries(params).reduce((acc, [key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            acc[key] = String(value);
+          }
+          return acc;
+        }, {} as Record<string, string>)
+      ).toString();
+      const response = await api.get(`/inventory/search?${queryString}`);
       return response.data;
     },
   });
 
+  // Fetch products and warehouses only for dropdowns (keep these minimal)
   const { data: products } = useQuery<{ products: Product[] }>({
-    queryKey: ['products'],
+    queryKey: ['products-minimal'],
     queryFn: async () => {
-      const response = await api.get('/products?limit=100');
+      const response = await api.get('/products?limit=1000');
       return response.data;
     },
   });
 
   const { data: warehouses } = useQuery<{ warehouses: Warehouse[] }>({
-    queryKey: ['warehouses'],
+    queryKey: ['warehouses-minimal'],
     queryFn: async () => {
-      const response = await api.get('/warehouses?limit=100');
+      const response = await api.get('/warehouses?limit=1000');
       return response.data;
     },
   });
 
-  const filteredInventory = inventory?.inventory?.filter(item => {
-    const product = products?.products?.find(p => p.id === item.product_id);
-    const warehouse = warehouses?.warehouses?.find(w => w.id === item.warehouse_id);
-    const productName = product?.name || '';
-    const warehouseName = warehouse?.name || '';
-    const query = searchQuery.toLowerCase();
-
-    const matchesSearch =
-      productName.toLowerCase().includes(query) ||
-      warehouseName.toLowerCase().includes(query);
-
-    if (!matchesSearch) {
-      return false;
-    }
-
-    if (advancedFilters.warehouse_id && item.warehouse_id !== advancedFilters.warehouse_id) {
-      return false;
-    }
-
-    if (advancedFilters.product_id && item.product_id !== advancedFilters.product_id) {
-      return false;
-    }
-
-    if (advancedFilters.min_quantity) {
-      const minQuantity = parseInt(advancedFilters.min_quantity, 10);
-      if (!Number.isNaN(minQuantity) && item.quantity < minQuantity) {
-        return false;
-      }
-    }
-
-    if (advancedFilters.max_quantity) {
-      const maxQuantity = parseInt(advancedFilters.max_quantity, 10);
-      if (!Number.isNaN(maxQuantity) && item.quantity > maxQuantity) {
-        return false;
-      }
-    }
-
+  // Apply client-side status filtering only (since backend doesn't support it yet)
+  const filteredInventory = inventory?.inventories?.filter(item => {
     if (advancedFilters.statuses && advancedFilters.statuses.length > 0) {
       const status = item.quantity === 0
         ? 'out_of_stock'
@@ -107,7 +109,6 @@ export default function InventoryPage() {
         return false;
       }
     }
-
     return true;
   }) || [];
 
@@ -131,7 +132,7 @@ export default function InventoryPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventory?.inventory?.length || 0}</div>
+            <div className="text-2xl font-bold">{inventory?.inventories?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Unique SKUs
             </p>
@@ -145,7 +146,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {inventory?.inventory?.filter(i => i.quantity < 10).length || 0}
+              {inventory?.inventories?.filter(i => i.quantity < 10).length || 0}
             </div>
             <p className="text-xs text-muted-foreground">
               Needs reordering
@@ -160,7 +161,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {inventory?.inventory?.filter(i => i.quantity === 0).length || 0}
+              {inventory?.inventories?.filter(i => i.quantity === 0).length || 0}
             </div>
             <p className="text-xs text-muted-foreground">
               Critical status
@@ -248,15 +249,13 @@ export default function InventoryPage() {
               </TableHeader>
               <TableBody>
                 {filteredInventory.map((item) => {
-                  const product = products?.products?.find(p => p.id === item.product_id);
-                  const warehouse = warehouses?.warehouses?.find(w => w.id === item.warehouse_id);
                   const isLowStock = item.quantity < 10;
                   const isOutOfStock = item.quantity === 0;
 
                   return (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{product?.name || 'Unknown'}</TableCell>
-                      <TableCell>{warehouse?.name || 'Unknown'}</TableCell>
+                      <TableCell className="font-medium">{item.product_name || 'Unknown'}</TableCell>
+                      <TableCell>{item.warehouse_name || 'Unknown'}</TableCell>
                       <TableCell>
                         <Badge variant={isOutOfStock ? 'destructive' : isLowStock ? 'warning' : 'success'}>
                           {item.quantity}
@@ -323,8 +322,6 @@ export default function InventoryPage() {
           if (!open) setAdjustingInventory(null);
         }}
         inventory={adjustingInventory}
-        product={products?.products?.find(p => p.id === adjustingInventory?.product_id)}
-        warehouse={warehouses?.warehouses?.find(w => w.id === adjustingInventory?.warehouse_id)}
       />
     </div>
   );
@@ -437,14 +434,10 @@ function StockAdjustmentDialog({
   open,
   onOpenChange,
   inventory,
-  product,
-  warehouse,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   inventory: Inventory | null;
-  product?: Product;
-  warehouse?: Warehouse;
 }) {
   const queryClient = useQueryClient();
   const [adjustment, setAdjustment] = useState(0);
@@ -513,12 +506,12 @@ function StockAdjustmentDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Product</label>
-            <div className="text-base font-semibold">{product?.name || 'Unknown Product'}</div>
+            <div className="text-base font-semibold">{inventory.product_name || 'Unknown Product'}</div>
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Warehouse</label>
-            <div className="text-base font-semibold">{warehouse?.name || 'Unknown Warehouse'}</div>
+            <div className="text-base font-semibold">{inventory.warehouse_name || 'Unknown Warehouse'}</div>
           </div>
 
           <div className="bg-muted/50 p-4 rounded-md">

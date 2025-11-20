@@ -162,6 +162,10 @@ function WarehouseFormDialog({ open, onOpenChange, warehouse }: {
       queryClient.invalidateQueries({ queryKey: ['warehouses'] });
       onOpenChange(false);
     },
+    onError: (error: any) => {
+      alert(`Error saving warehouse: ${error.message || 'Unknown error'}`);
+      console.error('Warehouse save error:', error);
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {

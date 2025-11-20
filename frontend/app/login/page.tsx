@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { ArrowRight, Sparkles, Shield, Zap, Package } from 'lucide-react';
 import { AxiosError } from 'axios';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 function LoginContent() {
   const [email, setEmail] = useState('');
@@ -121,6 +122,17 @@ function LoginContent() {
                   )}
                 </Button>
               </form>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                </div>
+              </div>
+
+              <GoogleSignInButton />
             </CardContent>
           </Card>
 

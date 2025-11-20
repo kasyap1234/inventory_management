@@ -1,11 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
+	"net/http"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -32,7 +33,7 @@ type ListWarehousesRequest struct {
 
 // ListWarehouses handles getting a list of warehouses with tenant filtering
 func (h *WarehouseHandlers) ListWarehouses(c echo.Context) error {
-	err := h.rbacMiddleware.RequirePermission("warehouses:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("warehouse.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -86,11 +87,11 @@ type CreateWarehouseRequest struct {
 
 // CreateWarehouse handles creating a new warehouse
 func (h *WarehouseHandlers) CreateWarehouse(c echo.Context) error {
-	
-	err := h.rbacMiddleware.RequirePermission("warehouses:create")(func(c echo.Context) error {
+
+	err := h.rbacMiddleware.RequirePermission("warehouse.create")(func(c echo.Context) error {
 		return nil
-	        })(c)
-	        if err != nil {
+	})(c)
+	if err != nil {
 		return err
 	}
 
@@ -132,11 +133,11 @@ func (h *WarehouseHandlers) CreateWarehouse(c echo.Context) error {
 
 // GetWarehouse handles getting warehouse details by ID
 func (h *WarehouseHandlers) GetWarehouse(c echo.Context) error {
-	
-	err := h.rbacMiddleware.RequirePermission("warehouses:read")(func(c echo.Context) error {
+
+	err := h.rbacMiddleware.RequirePermission("warehouse.list")(func(c echo.Context) error {
 		return nil
-	        })(c)
-	        if err != nil {
+	})(c)
+	if err != nil {
 		return err
 	}
 
@@ -177,11 +178,11 @@ type UpdateWarehouseRequest struct {
 
 // UpdateWarehouse handles updating warehouse details
 func (h *WarehouseHandlers) UpdateWarehouse(c echo.Context) error {
-	
-	err := h.rbacMiddleware.RequirePermission("warehouses:update")(func(c echo.Context) error {
+
+	err := h.rbacMiddleware.RequirePermission("warehouse.update")(func(c echo.Context) error {
 		return nil
-	        })(c)
-	        if err != nil {
+	})(c)
+	if err != nil {
 		return err
 	}
 
@@ -237,11 +238,11 @@ func (h *WarehouseHandlers) UpdateWarehouse(c echo.Context) error {
 
 // DeleteWarehouse handles deleting a warehouse
 func (h *WarehouseHandlers) DeleteWarehouse(c echo.Context) error {
-	
-	err := h.rbacMiddleware.RequirePermission("warehouses:delete")(func(c echo.Context) error {
+
+	err := h.rbacMiddleware.RequirePermission("warehouse.delete")(func(c echo.Context) error {
 		return nil
-	        })(c)
-	        if err != nil {
+	})(c)
+	if err != nil {
 		return err
 	}
 

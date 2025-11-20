@@ -95,10 +95,15 @@ func (r *inventoryRepo) Delete(ctx context.Context, tenantID, id uuid.UUID) erro
 
 func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Inventory, error) {
 	query := `
-		SELECT id, tenant_id, warehouse_id, product_id, quantity, last_updated
-		FROM inventory
-		WHERE tenant_id = $1
-		ORDER BY last_updated DESC
+		SELECT 
+			i.id, i.tenant_id, i.warehouse_id, i.product_id, i.quantity, i.last_updated,
+			COALESCE(p.name, '') as product_name,
+			COALESCE(w.name, '') as warehouse_name
+		FROM inventory i
+		LEFT JOIN products p ON p.id = i.product_id AND p.tenant_id = i.tenant_id
+		LEFT JOIN warehouses w ON w.id = i.warehouse_id AND w.tenant_id = i.tenant_id
+		WHERE i.tenant_id = $1
+		ORDER BY i.last_updated DESC
 		LIMIT $2 OFFSET $3
 	`
 	rows, err := r.db.Query(ctx, query, tenantID, limit, offset)
@@ -110,7 +115,11 @@ func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 	var inventories []*models.Inventory
 	for rows.Next() {
 		inventory := &models.Inventory{}
-		if err := rows.Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated); err != nil {
+		if err := rows.Scan(
+			&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID,
+			&inventory.Quantity, &inventory.LastUpdated,
+			&inventory.ProductName, &inventory.WarehouseName,
+		); err != nil {
 			return nil, err
 		}
 		inventories = append(inventories, inventory)
@@ -158,8 +167,13 @@ func (r *inventoryRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, 
 
 	// Build query dynamically
 	queryBase := `
-		SELECT i.id, i.tenant_id, i.warehouse_id, i.product_id, i.quantity, i.last_updated
+		SELECT 
+			i.id, i.tenant_id, i.warehouse_id, i.product_id, i.quantity, i.last_updated,
+			COALESCE(p.name, '') as product_name,
+			COALESCE(w.name, '') as warehouse_name
 		FROM inventory i
+		LEFT JOIN products p ON p.id = i.product_id AND p.tenant_id = i.tenant_id
+		LEFT JOIN warehouses w ON w.id = i.warehouse_id AND w.tenant_id = i.tenant_id
 		WHERE i.tenant_id = $1
 	`
 	args := []interface{}{tenantID}
@@ -252,10 +266,8 @@ func (r *inventoryRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, 
 	case "last_updated":
 		sortField = "i.last_updated"
 	case "product_name":
-		queryBase = strings.Replace(queryBase, "FROM inventory i", "FROM inventory i LEFT JOIN products p ON p.tenant_id = i.tenant_id AND p.id = i.product_id", 1)
 		sortField = "p.name"
 	case "warehouse_name":
-		queryBase = strings.Replace(queryBase, "FROM inventory i", "FROM inventory i LEFT JOIN warehouses w ON w.tenant_id = i.tenant_id AND w.id = i.warehouse_id", 1)
 		sortField = "w.name"
 	default:
 		sortField = "i.last_updated"
@@ -282,7 +294,11 @@ func (r *inventoryRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, 
 	var inventories []*models.Inventory
 	for rows.Next() {
 		inventory := &models.Inventory{}
-		if err := rows.Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated); err != nil {
+		if err := rows.Scan(
+			&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID,
+			&inventory.Quantity, &inventory.LastUpdated,
+			&inventory.ProductName, &inventory.WarehouseName,
+		); err != nil {
 			return nil, err
 		}
 		inventories = append(inventories, inventory)
@@ -311,7 +327,7 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 		WHERE tenant_id = $1 AND warehouse_id = $2 AND product_id = $3
 		FOR UPDATE
 	`, tenantID, fromWarehouseID, productID).Scan(&sourceQuantity)
-	
+
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return fmt.Errorf("source inventory not found")
@@ -329,7 +345,7 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 		SET quantity = quantity - $1, last_updated = NOW()
 		WHERE tenant_id = $2 AND warehouse_id = $3 AND product_id = $4
 	`, quantity, tenantID, fromWarehouseID, productID)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to decrease source inventory: %w", err)
 	}
@@ -341,7 +357,7 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 		ON CONFLICT (tenant_id, warehouse_id, product_id)
 		DO UPDATE SET quantity = inventory.quantity + $5, last_updated = NOW()
 	`, uuid.New(), tenantID, toWarehouseID, productID, quantity)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to increase destination inventory: %w", err)
 	}

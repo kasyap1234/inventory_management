@@ -8,20 +8,20 @@ import (
 
 // InventorySearchFilter holds search and filter criteria for inventory queries
 type InventorySearchFilter struct {
-	Query          string     `json:"query,omitempty"`              // Full-text search across product name, warehouse name
-	WarehouseID    *uuid.UUID `json:"warehouse_id,omitempty"`       // Warehouse filter
-	ProductID      *uuid.UUID `json:"product_id,omitempty"`         // Product filter
-	MinQuantity    *int       `json:"min_quantity,omitempty"`       // Minimum stock quantity
-	MaxQuantity    *int       `json:"max_quantity,omitempty"`       // Maximum stock quantity
-	StockThreshold *int       `json:"stock_threshold,omitempty"`    // Stock threshold filter (< threshold for low stock alerts)
-	MinStock       *int       `json:"min_stock,omitempty"`          // Minimum stock level
-	MaxStock       *int       `json:"max_stock,omitempty"`          // Maximum stock level
-	LastUpdatedFrom *time.Time `json:"last_updated_from,omitempty"`  // Last updated from
-	LastUpdatedTo   *time.Time `json:"last_updated_to,omitempty"`    // Last updated to
-	SortBy         string     `json:"sort_by,omitempty"`            // Sort field: quantity, last_updated, product_name, warehouse_name
-	SortOrder      string     `json:"sort_order,omitempty"`         // Sort order: asc, desc
-	Limit          int        `json:"limit,omitempty"`              // Page size (default: 50)
-	Offset         int        `json:"offset,omitempty"`             // Page offset
+	Query           string     `json:"query,omitempty"`             // Full-text search across product name, warehouse name
+	WarehouseID     *uuid.UUID `json:"warehouse_id,omitempty"`      // Warehouse filter
+	ProductID       *uuid.UUID `json:"product_id,omitempty"`        // Product filter
+	MinQuantity     *int       `json:"min_quantity,omitempty"`      // Minimum stock quantity
+	MaxQuantity     *int       `json:"max_quantity,omitempty"`      // Maximum stock quantity
+	StockThreshold  *int       `json:"stock_threshold,omitempty"`   // Stock threshold filter (< threshold for low stock alerts)
+	MinStock        *int       `json:"min_stock,omitempty"`         // Minimum stock level
+	MaxStock        *int       `json:"max_stock,omitempty"`         // Maximum stock level
+	LastUpdatedFrom *time.Time `json:"last_updated_from,omitempty"` // Last updated from
+	LastUpdatedTo   *time.Time `json:"last_updated_to,omitempty"`   // Last updated to
+	SortBy          string     `json:"sort_by,omitempty"`           // Sort field: quantity, last_updated, product_name, warehouse_name
+	SortOrder       string     `json:"sort_order,omitempty"`        // Sort order: asc, desc
+	Limit           int        `json:"limit,omitempty"`             // Page size (default: 50)
+	Offset          int        `json:"offset,omitempty"`            // Page offset
 }
 
 type Inventory struct {
@@ -35,4 +35,6 @@ type Inventory struct {
 	MaximumLevel     int       `json:"maximum_level" db:"maximum_level"`
 	ReorderPoint     int       `json:"reorder_point" db:"reorder_point"`
 	LastUpdated      time.Time `json:"last_updated" db:"last_updated"`
+	ProductName      string    `json:"product_name,omitempty" db:"product_name"`
+	WarehouseName    string    `json:"warehouse_name,omitempty" db:"warehouse_name"`
 }

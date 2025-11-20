@@ -616,6 +616,11 @@ func main() {
 	auth.POST("/password/reset", authHandlers.ResetPassword)
 	auth.POST("/verify", authHandlers.VerifyEmail)
 
+	// Google Auth routes
+	auth.GET("/google/login", authHandlers.GoogleLogin)
+	auth.GET("/google/callback", authHandlers.GoogleCallback)
+	auth.POST("/google/complete-signup", authHandlers.CompleteGoogleSignup)
+
 	// 2FA routes
 	auth.POST("/2fa/generate", authHandlers.Generate2FA)
 	auth.POST("/2fa/enable", authHandlers.Enable2FA)

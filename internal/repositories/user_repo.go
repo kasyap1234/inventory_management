@@ -23,6 +23,7 @@ type UserRepository interface {
 	UpdatePassword(ctx context.Context, tenantID, userID uuid.UUID, passwordHash string) error
 	UpdateStatus(ctx context.Context, tenantID, userID uuid.UUID, status string) error
 	FindUsersByTenantID(ctx context.Context, tenantID uuid.UUID) ([]*models.User, error)
+	UpdateGoogleID(ctx context.Context, tenantID, userID uuid.UUID, googleID string) error
 }
 
 type userRepo struct {
@@ -45,11 +46,11 @@ func (r *userRepo) Create(ctx context.Context, user *models.User) error {
 func (r *userRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.User, error) {
 	user := &models.User{}
 	query := `
-		SELECT id, tenant_id, email, first_name, last_name, status, two_factor_secret, two_factor_enabled, created_at, updated_at
+		SELECT id, tenant_id, email, google_id, first_name, last_name, status, two_factor_secret, two_factor_enabled, created_at, updated_at
 		FROM users
 		WHERE tenant_id = $1 AND id = $2
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(&user.ID, &user.TenantID, &user.Email, &user.FirstName, &user.LastName, &user.Status, &user.TwoFactorSecret, &user.TwoFactorEnabled, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(&user.ID, &user.TenantID, &user.Email, &user.GoogleID, &user.FirstName, &user.LastName, &user.Status, &user.TwoFactorSecret, &user.TwoFactorEnabled, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +60,11 @@ func (r *userRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models
 func (r *userRepo) GetByEmail(ctx context.Context, tenantID uuid.UUID, email string) (*models.User, error) {
 	user := &models.User{}
 	query := `
-		SELECT id, tenant_id, email, password_hash, first_name, last_name, status, created_at, updated_at
+		SELECT id, tenant_id, email, google_id, password_hash, first_name, last_name, status, created_at, updated_at
 		FROM users
 		WHERE tenant_id = $1 AND email = $2
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, email).Scan(&user.ID, &user.TenantID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, tenantID, email).Scan(&user.ID, &user.TenantID, &user.Email, &user.GoogleID, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -131,12 +132,12 @@ func (r *userRepo) GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (u
 func (r *userRepo) GetByEmailGlobal(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
 	query := `
-		SELECT id, tenant_id, email, password_hash, first_name, last_name, status, created_at, updated_at
+		SELECT id, tenant_id, email, google_id, password_hash, first_name, last_name, status, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
 	var tenantID string
-	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &tenantID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &tenantID, &user.Email, &user.GoogleID, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -190,4 +191,14 @@ func (r *userRepo) FindUsersByTenantID(ctx context.Context, tenantID uuid.UUID) 
 		users = append(users, user)
 	}
 	return users, nil
+}
+
+func (r *userRepo) UpdateGoogleID(ctx context.Context, tenantID, userID uuid.UUID, googleID string) error {
+	query := `
+		UPDATE users
+		SET google_id = $1, updated_at = NOW()
+		WHERE tenant_id = $2 AND id = $3
+	`
+	_, err := r.db.Exec(ctx, query, googleID, tenantID, userID)
+	return err
 }

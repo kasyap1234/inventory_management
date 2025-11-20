@@ -11,6 +11,7 @@ import {
   SignupData,
   SignupResponse,
   User,
+  CompleteGoogleSignupData,
 } from '@/types';
 
 export function useAuth() {
@@ -65,6 +66,24 @@ export function useAuth() {
       const email = data.user?.email ?? '';
       const target = email ? `/verify-email?email=${encodeURIComponent(email)}` : '/verify-email';
       router.push(target);
+    },
+  });
+
+  const completeGoogleSignup = useMutation({
+    mutationFn: async (data: CompleteGoogleSignupData) => {
+      const payload: CompleteGoogleSignupData = {
+        token: data.token,
+        tenant_name: data.tenant_name.trim(),
+        subdomain: data.subdomain.trim().toLowerCase(),
+      };
+      const response = await api.post<AuthResponse>('/auth/google/complete-signup', payload);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      tokenStorage.setTokens(data.access_token, data.refresh_token);
+      csrfTokenManager.clearToken();
+      queryClient.setQueryData(['user'], data.user);
+      router.push('/dashboard');
     },
   });
 
@@ -125,5 +144,6 @@ export function useAuth() {
     logout,
     requestPasswordReset,
     resetPassword,
+    completeGoogleSignup,
   };
 }

@@ -90,6 +90,8 @@ export interface Inventory {
   product_id: string;
   quantity: number;
   last_updated: string;
+  product_name?: string;
+  warehouse_name?: string;
 }
 
 export interface Order {
@@ -158,6 +160,12 @@ export interface SignupResponse {
   user: User;
   message: string;
   verification_required: boolean;
+}
+
+export interface CompleteGoogleSignupData {
+  token: string;
+  tenant_name: string;
+  subdomain: string;
 }
 
 export interface ForgotPasswordPayload {

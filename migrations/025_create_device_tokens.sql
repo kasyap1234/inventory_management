@@ -37,6 +37,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_device_tokens_updated_at ON device_tokens;
 CREATE TRIGGER trigger_update_device_tokens_updated_at
     BEFORE UPDATE ON device_tokens
     FOR EACH ROW

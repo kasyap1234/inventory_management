@@ -26,6 +26,8 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 // AuthService handles OAuth2 and JWT token management
@@ -64,6 +66,11 @@ type AuthService interface {
 	Enable2FA(ctx context.Context, userID uuid.UUID, code string) error
 	Disable2FA(ctx context.Context, userID uuid.UUID) error
 	Verify2FACode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
+
+	// Google Auth
+	GetGoogleAuthURL(state string) string
+	HandleGoogleCallback(ctx context.Context, code string) (*models.User, string, error)
+	CompleteGoogleSignup(ctx context.Context, email, googleID, firstName, lastName, tenantName, subdomain string) (*models.User, error)
 }
 
 type authService struct {
@@ -82,6 +89,7 @@ type authService struct {
 	userRoleRepo         repositories.UserRoleRepository
 	rolePermissionRepo   repositories.RolePermissionRepository
 	permissionRepo       repositories.PermissionRepository
+	googleOAuthConfig    *oauth2.Config
 }
 
 // TokenClaims represents JWT claims
@@ -132,6 +140,16 @@ func NewAuthService(
 		userRoleRepo:         userRoleRepo,
 		rolePermissionRepo:   rolePermissionRepo,
 		permissionRepo:       permissionRepo,
+		googleOAuthConfig: &oauth2.Config{
+			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+			RedirectURL:  os.Getenv("BACKEND_URL") + "/auth/google/callback",
+			Scopes: []string{
+				"https://www.googleapis.com/auth/userinfo.email",
+				"https://www.googleapis.com/auth/userinfo.profile",
+			},
+			Endpoint: google.Endpoint,
+		},
 	}
 }
 
@@ -831,29 +849,29 @@ func (s *authService) ensureTenantDefaults(ctx context.Context, tenantID uuid.UU
 
 		for _, permission := range allPermissions {
 			name := permission.Name
-			// Allow read-only permissions for core business entities
-			isReadPermission := false
+			// Grant all permissions for core business entities to default user role
+			shouldGrantPermission := false
 
-			// Check for specific read/list permissions
-			if strings.HasSuffix(name, ":read") || strings.HasSuffix(name, ":list") {
-				// Allow for specific modules
-				if strings.HasPrefix(name, "users:") ||
-					strings.HasPrefix(name, "tenants:") ||
-					strings.HasPrefix(name, "analytics:") ||
-					strings.HasPrefix(name, "categories:") ||
-					strings.HasPrefix(name, "products:") ||
-					strings.HasPrefix(name, "inventories:") ||
-					strings.HasPrefix(name, "warehouses:") ||
-					strings.HasPrefix(name, "distributors:") ||
-					strings.HasPrefix(name, "suppliers:") ||
-					strings.HasPrefix(name, "orders:") ||
-					strings.HasPrefix(name, "invoices:") {
-					isReadPermission = true
+			// Core modules that users should have full access to
+			coreModules := []string{
+				"users:", "tenants:", "analytics:", "categories:",
+				"products:", "inventories:", "warehouses:",
+				"distributors:", "suppliers:", "orders:", "invoices:",
+			}
+
+			for _, module := range coreModules {
+				if strings.HasPrefix(name, module) {
+					shouldGrantPermission = true
+					break
 				}
 			}
 
-			// Keep existing legacy check
-			if !isReadPermission && !strings.HasPrefix(name, "read_") && !strings.HasPrefix(name, "categories:") {
+			// Also keep legacy read_ prefix support
+			if !shouldGrantPermission && strings.HasPrefix(name, "read_") {
+				shouldGrantPermission = true
+			}
+
+			if !shouldGrantPermission {
 				continue
 			}
 

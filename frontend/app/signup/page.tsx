@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ArrowRight, TrendingUp, Users, BarChart3, CheckCircle2 } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { PasswordStrengthMeter } from '@/components/password-strength-meter';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { evaluatePasswordStrength } from '@/lib/password';
 
 export default function SignupPage() {
@@ -217,6 +218,17 @@ export default function SignupPage() {
                     </span>
                   )}
                 </Button>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+
+                <GoogleSignInButton text="Sign up with Google" />
 
                 <p className="text-xs text-muted-foreground text-center">
                   By signing up, you agree to our Terms of Service and Privacy Policy
