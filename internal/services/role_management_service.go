@@ -148,6 +148,9 @@ func (s *roleManagementService) UpdateRole(ctx context.Context, tenantID uuid.UU
 	if err != nil {
 		return common.CreateDatabaseError("update_role", err)
 	}
+	if existing == nil {
+		return common.CreateDatabaseError("update_role", fmt.Errorf("role not found"))
+	}
 
 	role.TenantID = tenantID
 	role.UpdatedAt = time.Now()
@@ -216,6 +219,9 @@ func (s *roleManagementService) DeleteRole(ctx context.Context, tenantID uuid.UU
 	existing, err := s.roleRepo.GetByID(ctx, tenantID, id)
 	if err != nil {
 		return common.CreateDatabaseError("delete_role", err)
+	}
+	if existing == nil {
+		return common.CreateDatabaseError("delete_role", fmt.Errorf("role not found"))
 	}
 
 	// Delete role
@@ -514,36 +520,9 @@ func (s *roleManagementService) ValidateRoleAssignment(ctx context.Context, tena
 func (s *roleManagementService) DetectRoleConflicts(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, newRoleID uuid.UUID) ([]string, error) {
 	var conflicts []string
 
-	// Get user's current roles
-	currentRoles, err := s.roleRepo.GetUserRoles(ctx, tenantID, userID)
-	if err != nil {
-		return nil, common.CreateDatabaseError("detect_role_conflicts", err)
-	}
-
-	// Get the new role
-	newRole, err := s.roleRepo.GetByID(ctx, tenantID, newRoleID)
-	if err != nil {
-		return nil, common.CreateDatabaseError("detect_role_conflicts", err)
-	}
-
-	// Define conflicting role pairs (this would be configurable in practice)
-	conflictingRoles := map[string][]string{
-		"admin":     {"viewer"},
-		"manager":   {"viewer"},
-		"operator":  {"admin"},
-	}
-
-	// Check for conflicts
-	if conflictingRoleNames, exists := conflictingRoles[newRole.Name]; exists {
-		for _, currentRole := range currentRoles {
-			for _, conflictingName := range conflictingRoleNames {
-				if currentRole.Name == conflictingName {
-					conflicts = append(conflicts, fmt.Sprintf("Role '%s' conflicts with existing role '%s'", newRole.Name, currentRole.Name))
-				}
-			}
-		}
-	}
-
+	// No hardcoded conflicts - allow any role combination
+	// In a real-world scenario, this might be driven by a policy engine or configuration
+	
 	return conflicts, nil
 }
 

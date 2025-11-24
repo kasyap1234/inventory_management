@@ -90,6 +90,7 @@ type authService struct {
 	rolePermissionRepo   repositories.RolePermissionRepository
 	permissionRepo       repositories.PermissionRepository
 	googleOAuthConfig    *oauth2.Config
+	frontendURL          string
 }
 
 // TokenClaims represents JWT claims
@@ -123,7 +124,13 @@ func NewAuthService(
 	userRoleRepo repositories.UserRoleRepository,
 	rolePermissionRepo repositories.RolePermissionRepository,
 	permissionRepo repositories.PermissionRepository,
+	frontendURL string,
+	backendURL string,
 ) AuthService {
+	if backendURL == "" {
+		backendURL = "http://localhost:8080" // Default for backend if not provided
+	}
+	
 	return &authService{
 		cacheSvc:             cacheSvc,
 		jwtSecret:            []byte(jwtSecret),
@@ -140,10 +147,11 @@ func NewAuthService(
 		userRoleRepo:         userRoleRepo,
 		rolePermissionRepo:   rolePermissionRepo,
 		permissionRepo:       permissionRepo,
+		frontendURL:          frontendURL,
 		googleOAuthConfig: &oauth2.Config{
 			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-			RedirectURL:  os.Getenv("BACKEND_URL") + "/auth/google/callback",
+			RedirectURL:  backendURL + "/v1/auth/google/callback",
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
@@ -713,11 +721,7 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 		log.Printf("Failed to generate verification token for user %s: %v", userID, err)
 	} else {
 		// Send verification email
-		frontendURL := os.Getenv("FRONTEND_URL")
-		if frontendURL == "" {
-			frontendURL = "http://localhost:3000"
-		}
-		SendVerificationEmailAsync(ctx, email, token, frontendURL)
+		SendVerificationEmailAsync(ctx, email, token, s.frontendURL)
 	}
 
 	return user, nil
@@ -974,6 +978,9 @@ func (s *authService) Generate2FASecret(ctx context.Context, userID uuid.UUID) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %v", err)
 	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
 
 	if user.TwoFactorEnabled {
 		return nil, fmt.Errorf("2FA is already enabled for this user")
@@ -1009,6 +1016,9 @@ func (s *authService) Enable2FA(ctx context.Context, userID uuid.UUID, code stri
 	if err != nil {
 		return fmt.Errorf("failed to get user: %v", err)
 	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
 
 	if user.TwoFactorEnabled {
 		return fmt.Errorf("2FA is already enabled for this user")
@@ -1043,6 +1053,9 @@ func (s *authService) Disable2FA(ctx context.Context, userID uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("failed to get user: %v", err)
 	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
 
 	user.TwoFactorEnabled = false
 	user.TwoFactorSecret = ""
@@ -1064,6 +1077,9 @@ func (s *authService) Verify2FACode(ctx context.Context, userID uuid.UUID, code 
 	user, err := s.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get user: %v", err)
+	}
+	if user == nil {
+		return false, fmt.Errorf("user not found")
 	}
 
 	if !user.TwoFactorEnabled || user.TwoFactorSecret == "" {

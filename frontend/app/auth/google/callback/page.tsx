@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { tokenStorage, csrfTokenManager } from '@/lib/security';
 import { Card, CardContent } from '@/components/ui/card';
 import { Package } from 'lucide-react';
 
-export default function GoogleCallbackPage() {
+function CallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryClient = useQueryClient();
@@ -66,5 +66,19 @@ export default function GoogleCallbackPage() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+export default function GoogleCallbackPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center bg-background px-4">
+                <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-sm animate-pulse">
+                    <Package className="w-8 h-8 text-primary-foreground" />
+                </div>
+            </div>
+        }>
+            <CallbackContent />
+        </Suspense>
     );
 }

@@ -39,26 +39,34 @@ func (m *RBACMiddleware) RequirePermission(permission string) echo.MiddlewareFun
 				return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 			}
 
-			// Support logical OR using "||" between permission names (e.g., "webhooks:test||notifications:manage")
-			perms := []string{strings.TrimSpace(permission)}
-			if strings.Contains(permission, "||") {
-				raw := strings.Split(permission, "||")
-				perms = make([]string, 0, len(raw))
-				for _, p := range raw {
+			// Support logical OR using "||" and logical AND using "&&"
+			// Logic: (A && B) || (C && D) -> User needs (A AND B) OR (C AND D)
+			orGroups := strings.Split(permission, "||")
+
+			for _, group := range orGroups {
+				// Check if this group is satisfied (ALL permissions in the group must be present)
+				andPerms := strings.Split(group, "&&")
+				groupSatisfied := true
+
+				for _, p := range andPerms {
 					p = strings.TrimSpace(p)
-					if p != "" {
-						perms = append(perms, p)
+					if p == "" {
+						continue
+					}
+
+					hasPermission, err := m.rbacService.UserHasPermission(ctx, userID, tenantID, p)
+					if err != nil {
+						return echo.NewHTTPError(http.StatusInternalServerError, "Error checking permission")
+					}
+
+					if !hasPermission {
+						groupSatisfied = false
+						break
 					}
 				}
-			}
 
-			// Evaluate OR - allow if any permission is granted
-			for _, p := range perms {
-				hasPermission, err := m.rbacService.UserHasPermission(ctx, userID, tenantID, p)
-				if err != nil {
-					return echo.NewHTTPError(http.StatusInternalServerError, "Error checking permission")
-				}
-				if hasPermission {
+				// If any group is fully satisfied, allow access
+				if groupSatisfied {
 					return next(c)
 				}
 			}

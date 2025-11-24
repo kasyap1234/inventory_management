@@ -218,43 +218,25 @@ export const analyticsService = {
   getDashboardAnalytics: async (): Promise<AnalyticsDashboard> => {
     const { data } = await api.get('/analytics/dashboard');
     return {
-      tenantId: typeof data?.tenant_id === 'string' ? data.tenant_id : data?.tenantId ?? null,
-      totalSales: typeof data?.total_sales === 'number' ? data.total_sales : data?.totalSales ?? 0,
-      totalStockValue:
-        typeof data?.total_stock_value === 'number' ? data.total_stock_value : data?.totalStockValue ?? 0,
-      gstCollected: typeof data?.gst_collected === 'number' ? data.gst_collected : data?.gstCollected ?? 0,
-      orderCount: typeof data?.order_count === 'number' ? data.order_count : data?.orderCount ?? 0,
-      lowStockItems:
-        typeof data?.low_stock_items === 'number'
-          ? data.low_stock_items
-          : data?.low_stock_items_count ?? 0,
-      lastUpdated: typeof data?.last_updated === 'string' ? data.last_updated : data?.lastUpdated ?? null,
+      tenantId: data?.tenant_id ?? null,
+      totalSales: data?.total_sales ?? 0,
+      totalStockValue: data?.total_stock_value ?? 0,
+      gstCollected: data?.gst_collected ?? 0,
+      orderCount: data?.order_count ?? 0,
+      lowStockItems: data?.low_stock_items ?? 0,
+      lastUpdated: data?.last_updated ?? null,
     };
   },
   getSalesTrends: async (params?: { start_date?: string; end_date?: string }): Promise<AnalyticsSalesTrends> => {
     const { data } = await api.get('/analytics/sales-trends', { params });
 
-    const trendsSource: RawTrend[] = Array.isArray((data as { trends?: unknown }).trends)
-      ? ((data as { trends: RawTrend[] }).trends ?? [])
-      : Array.isArray((data as { Trends?: unknown }).Trends)
-        ? ((data as { Trends: RawTrend[] }).Trends ?? [])
-        : [];
+    const trendsSource: RawTrend[] = Array.isArray(data?.trends) ? data.trends : [];
 
     const trends: AnalyticsTrendPoint[] = trendsSource
       .map((trend) => {
-        const date = trend.date ?? trend.Date ?? null;
-        const salesAmount =
-          typeof trend.sales_amount === 'number'
-            ? trend.sales_amount
-            : typeof trend.SalesAmount === 'number'
-              ? trend.SalesAmount
-              : 0;
-        const orderCount =
-          typeof trend.order_count === 'number'
-            ? trend.order_count
-            : typeof trend.OrderCount === 'number'
-              ? trend.OrderCount
-              : 0;
+        const date = trend.date ?? null;
+        const salesAmount = trend.sales_amount ?? 0;
+        const orderCount = trend.order_count ?? 0;
         return { date, salesAmount, orderCount };
       })
       .sort((a, b) => {
@@ -264,8 +246,8 @@ export const analyticsService = {
       });
 
     return {
-      startDate: typeof data?.start_date === 'string' ? data.start_date : data?.startDate ?? null,
-      endDate: typeof data?.end_date === 'string' ? data.end_date : data?.endDate ?? null,
+      startDate: data?.start_date ?? null,
+      endDate: data?.end_date ?? null,
       trends,
     };
   },
@@ -277,10 +259,10 @@ export const analyticsService = {
   }> => {
     const { data } = await api.get('/analytics/gst-totals', { params });
     return {
-      cgst: typeof data?.cgst === 'number' ? data.cgst : data?.CGST ?? 0,
-      sgst: typeof data?.sgst === 'number' ? data.sgst : data?.SGST ?? 0,
-      igst: typeof data?.igst === 'number' ? data.igst : data?.IGST ?? 0,
-      total: typeof data?.total === 'number' ? data.total : data?.Total ?? 0,
+      cgst: data?.cgst ?? 0,
+      sgst: data?.sgst ?? 0,
+      igst: data?.igst ?? 0,
+      total: data?.total ?? 0,
     };
   },
   getTopProducts: async (params?: {
@@ -290,72 +272,29 @@ export const analyticsService = {
   }): Promise<ProductSales[]> => {
     const { data } = await api.get('/analytics/top-products', { params });
 
-    const productsSource: RawProductSales[] = Array.isArray((data as { products?: unknown }).products)
-      ? ((data as { products: RawProductSales[] }).products ?? [])
-      : Array.isArray((data as { Products?: unknown }).Products)
-        ? ((data as { Products: RawProductSales[] }).Products ?? [])
-        : [];
+    const productsSource: RawProductSales[] = Array.isArray(data?.products) ? data.products : [];
 
     return productsSource.map((product) => ({
-      productId: product.product_id ?? product.ProductID ?? '',
-      productName: product.product_name ?? product.ProductName ?? '',
-      totalSales:
-        typeof product.total_sales === 'number'
-          ? product.total_sales
-          : typeof product.TotalSales === 'number'
-            ? product.TotalSales
-            : 0,
-      unitsSold:
-        typeof product.units_sold === 'number'
-          ? product.units_sold
-          : typeof product.UnitsSold === 'number'
-            ? product.UnitsSold
-            : 0,
-      orderCount:
-        typeof product.order_count === 'number'
-          ? product.order_count
-          : typeof product.OrderCount === 'number'
-            ? product.OrderCount
-            : 0,
+      productId: product.product_id ?? '',
+      productName: product.product_name ?? '',
+      totalSales: product.total_sales ?? 0,
+      unitsSold: product.units_sold ?? 0,
+      orderCount: product.order_count ?? 0,
     }));
   },
   getLowStockReport: async (params?: { threshold?: number }): Promise<LowStockItem[]> => {
     const { data } = await api.get('/analytics/low-stock', { params });
 
-    const itemsSource: RawLowStockItem[] = Array.isArray((data as { low_stock_items?: unknown }).low_stock_items)
-      ? ((data as { low_stock_items: RawLowStockItem[] }).low_stock_items ?? [])
-      : Array.isArray(data)
-        ? (data as RawLowStockItem[])
-        : [];
+    const itemsSource: RawLowStockItem[] = Array.isArray(data?.low_stock_items) ? data.low_stock_items : [];
 
     return itemsSource.map((item) => ({
-      productId: item.product_id ?? item.ProductID ?? '',
-      productName: item.product_name ?? item.ProductName ?? '',
-      warehouseId: item.warehouse_id ?? item.WarehouseID ?? '',
-      currentStock:
-        typeof item.current_stock === 'number'
-          ? item.current_stock
-          : typeof item.CurrentStock === 'number'
-            ? item.CurrentStock
-            : 0,
-      threshold:
-        typeof item.threshold === 'number'
-          ? item.threshold
-          : typeof item.Threshold === 'number'
-            ? item.Threshold
-            : params?.threshold ?? 0,
-      unitPrice:
-        typeof item.unit_price === 'number'
-          ? item.unit_price
-          : typeof item.UnitPrice === 'number'
-            ? item.UnitPrice
-            : 0,
-      stockValue:
-        typeof item.stock_value === 'number'
-          ? item.stock_value
-          : typeof item.StockValue === 'number'
-            ? item.StockValue
-            : 0,
+      productId: item.product_id ?? '',
+      productName: item.product_name ?? '',
+      warehouseId: item.warehouse_id ?? '',
+      currentStock: item.current_stock ?? 0,
+      threshold: item.threshold ?? params?.threshold ?? 0,
+      unitPrice: item.unit_price ?? 0,
+      stockValue: item.stock_value ?? 0,
     }));
   },
   getInventoryValuation: async (): Promise<InventoryValuation> => {
@@ -364,25 +303,13 @@ export const analyticsService = {
     const payload = data as RawInventoryValuation;
 
     return {
-      tenantId: typeof payload.tenant_id === 'string' ? payload.tenant_id : payload.tenantId ?? null,
-      totalValue:
-        typeof payload.total_value === 'number'
-          ? payload.total_value
-          : payload.totalValue ?? 0,
-      totalItems:
-        typeof payload.total_items === 'number'
-          ? payload.total_items
-          : payload.totalItems ?? 0,
-      totalQuantity:
-        typeof payload.total_quantity === 'number'
-          ? payload.total_quantity
-          : payload.totalQuantity ?? 0,
-      byWarehouse: payload.by_warehouse ?? payload.byWarehouse ?? {},
-      byCategory: payload.by_category ?? payload.byCategory ?? {},
-      lastCalculated:
-        typeof payload.last_calculated === 'string'
-          ? payload.last_calculated
-          : payload.lastCalculated ?? null,
+      tenantId: payload.tenant_id ?? null,
+      totalValue: payload.total_value ?? 0,
+      totalItems: payload.total_items ?? 0,
+      totalQuantity: payload.total_quantity ?? 0,
+      byWarehouse: payload.by_warehouse ?? {},
+      byCategory: payload.by_category ?? {},
+      lastCalculated: payload.last_calculated ?? null,
     };
   },
   getRevenueByCategory: async (params?: {
@@ -391,11 +318,7 @@ export const analyticsService = {
   }): Promise<RevenueByCategory[]> => {
     const { data } = await api.get('/analytics/revenue-by-category', { params });
 
-    const revenueMap =
-      (data as { revenue_by_category?: Record<string, unknown>; revenueByCategory?: Record<string, unknown> })
-        .revenue_by_category ??
-      (data as { revenueByCategory?: Record<string, unknown> }).revenueByCategory ??
-      (typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {});
+    const revenueMap = data?.revenue_by_category ?? {};
 
     return Object.entries(revenueMap).map(([categoryId, total]) => ({
       categoryId,
@@ -408,7 +331,7 @@ export const analyticsService = {
   }): Promise<OrderStatusEntry[]> => {
     const { data } = await api.get('/analytics/order-status', { params });
 
-    const statusMap = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
+    const statusMap = (data as Record<string, unknown>) ?? {};
     const statusEntries = Object.entries(statusMap).map(([status, count]) => ({
       status,
       count: typeof count === 'number' ? count : Number(count) || 0,
@@ -430,14 +353,12 @@ export const analyticsService = {
 export const subscriptionService = {
   list: async (params?: { limit?: number; offset?: number }): Promise<SubscriptionListResult> => {
     const { data } = await api.get('/subscriptions', { params });
-    const rawItems: RawSubscription[] = Array.isArray((data as { subscriptions?: unknown }).subscriptions)
-      ? ((data as { subscriptions: RawSubscription[] }).subscriptions ?? [])
-      : [];
+    const rawItems: RawSubscription[] = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
 
     const items: SubscriptionDto[] = rawItems.map((subscription) => ({
       id: subscription.id,
       plan_name: subscription.plan_name,
-      amount: typeof subscription.amount === 'number' ? subscription.amount : Number(subscription.amount) || 0,
+      amount: Number(subscription.amount ?? 0),
       currency: subscription.currency,
       status: subscription.status,
       start_date: subscription.start_date,
@@ -460,7 +381,7 @@ export const subscriptionService = {
     return {
       id: payload.id,
       plan_name: payload.plan_name,
-      amount: typeof payload.amount === 'number' ? payload.amount : Number(payload.amount) || 0,
+      amount: Number(payload.amount ?? 0),
       currency: payload.currency,
       status: payload.status,
       start_date: payload.start_date,
@@ -509,9 +430,7 @@ export const subscriptionService = {
 export const notificationService = {
   list: async (params?: { type?: string; event_type?: string; status?: string }): Promise<NotificationListResult> => {
     const { data } = await api.get('/notifications', { params });
-    const rawItems: RawNotification[] = Array.isArray((data as { notifications?: unknown }).notifications)
-      ? ((data as { notifications: RawNotification[] }).notifications ?? [])
-      : [];
+    const rawItems: RawNotification[] = Array.isArray(data?.notifications) ? data.notifications : [];
 
     const items: NotificationDto[] = rawItems.map((notification) => ({
       id: notification.id,
@@ -527,7 +446,7 @@ export const notificationService = {
 
     return {
       items,
-      count: typeof data?.count === 'number' ? data.count : items.length,
+      count: data?.count ?? items.length,
     };
   },
   getById: async (id: string): Promise<NotificationDto> => {
@@ -624,9 +543,9 @@ export const auditLogsService = {
       created_at: entry.created_at,
     }));
 
-    const responseLimit = typeof data?.limit === 'number' ? data.limit : limit;
-    const responseOffset = typeof data?.offset === 'number' ? data.offset : offset;
-    const total = typeof data?.total === 'number' ? data.total : items.length;
+    const responseLimit = data?.limit ?? limit;
+    const responseOffset = data?.offset ?? offset;
+    const total = data?.total ?? items.length;
     const pageNumber = responseLimit > 0 ? Math.floor(responseOffset / responseLimit) + 1 : 1;
 
     return {
@@ -737,14 +656,14 @@ export const auditLogsService = {
 
 // Tally Services
 export const tallyService = {
-  exportData: (data: { 
-    data_type: 'invoices' | 'orders' | 'products'; 
-    start_date?: string; 
-    end_date?: string 
+  exportData: (data: {
+    data_type: 'invoices' | 'orders' | 'products';
+    start_date?: string;
+    end_date?: string
   }) => api.post('/api/tally/export', data),
-  importData: (data: { 
-    data_type: string; 
-    file_path?: string 
+  importData: (data: {
+    data_type: string;
+    file_path?: string
   }) => api.post('/api/tally/import', data),
 };
 
@@ -769,7 +688,7 @@ export const tenantService = {
 
 // Product Services
 export const productService = {
-  list: (params?: { page?: number; limit?: number; category_id?: string }) => 
+  list: (params?: { page?: number; limit?: number; category_id?: string }) =>
     api.get('/products', { params }),
   getById: (id: string) => api.get(`/products/${id}`),
   create: (data: Record<string, unknown>) => api.post('/products', data),
@@ -793,9 +712,9 @@ export const productService = {
     });
   },
   getImages: (id: string) => api.get(`/products/${id}/images`),
-  getImageURL: (productId: string, imageId: string) => 
+  getImageURL: (productId: string, imageId: string) =>
     api.get(`/products/${productId}/images/${imageId}/url`),
-  deleteImage: (productId: string, imageId: string) => 
+  deleteImage: (productId: string, imageId: string) =>
     api.delete(`/products/${productId}/images/${imageId}`),
 };
 
@@ -837,13 +756,13 @@ export const distributorService = {
 
 // Inventory Services
 export const inventoryService = {
-  list: (params?: { page?: number; limit?: number }) => 
+  list: (params?: { page?: number; limit?: number }) =>
     api.get('/inventory', { params }),
   getById: (id: string) => api.get(`/inventory/${id}`),
   create: (data: Record<string, unknown>) => api.post('/inventory', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/inventory/${id}`, data),
   delete: (id: string) => api.delete(`/inventory/${id}`),
-  search: (params: { product_id?: string; warehouse_id?: string }) => 
+  search: (params: { product_id?: string; warehouse_id?: string }) =>
     api.get('/inventory/search', { params }),
   adjustStock: (data: {
     warehouse_id: string;
@@ -851,13 +770,13 @@ export const inventoryService = {
     quantity_change: number;
     reason?: string;
   }) => api.post('/inventory/adjust', data),
-  getHistory: (id: string, params?: { limit?: number; offset?: number }) => 
+  getHistory: (id: string, params?: { limit?: number; offset?: number }) =>
     api.get(`/inventory/${id}/history`, { params }),
 };
 
 // Order Services
 export const orderService = {
-  list: (params?: { status?: string; page?: number; limit?: number }) => 
+  list: (params?: { status?: string; page?: number; limit?: number }) =>
     api.get('/orders', { params }),
   getById: (id: string) => api.get(`/orders/${id}`),
   create: (data: Record<string, unknown>) => api.post('/orders', data),
@@ -867,10 +786,10 @@ export const orderService = {
   approve: (id: string) => api.post(`/orders/${id}/approve`),
   process: (id: string) => api.post(`/orders/${id}/process`),
   receive: (id: string) => api.post(`/orders/${id}/receive`),
-  ship: (id: string, expectedDelivery?: string) => 
+  ship: (id: string, expectedDelivery?: string) =>
     api.post(`/orders/${id}/ship`, expectedDelivery ? { expected_delivery: expectedDelivery } : {}),
   deliver: (id: string) => api.post(`/orders/${id}/deliver`),
-  cancel: (id: string, notes?: string) => 
+  cancel: (id: string, notes?: string) =>
     api.post(`/orders/${id}/cancel`, notes ? { notes } : {}),
   // Advanced features
   search: (params: {
@@ -888,22 +807,22 @@ export const orderService = {
     limit?: number;
     offset?: number;
   }) => api.get('/orders/search', { params }),
-  getHistory: (id: string, params?: { limit?: number; offset?: number }) => 
+  getHistory: (id: string, params?: { limit?: number; offset?: number }) =>
     api.get(`/orders/${id}/history`, { params }),
-  getAnalytics: (params?: { start_date?: string; end_date?: string }) => 
+  getAnalytics: (params?: { start_date?: string; end_date?: string }) =>
     api.get('/orders/analytics', { params }),
 };
 
 // Invoice Services
 export const invoiceService = {
-  list: (params?: { page?: number; limit?: number; status?: string }) => 
+  list: (params?: { page?: number; limit?: number; status?: string }) =>
     api.get('/invoices', { params }),
   getById: (id: string) => api.get(`/invoices/${id}`),
   create: (data: Record<string, unknown>) => api.post('/invoices', data),
-  bulkCreate: (data: Record<string, unknown>[]) => 
+  bulkCreate: (data: Record<string, unknown>[]) =>
     api.post('/invoices/bulk-create', { invoices: data }),
   update: (id: string, data: Record<string, unknown>) => api.put(`/invoices/${id}`, data),
-  updateStatus: (id: string, status: string) => 
+  updateStatus: (id: string, status: string) =>
     api.put(`/invoices/${id}/status`, { status }),
   getUnpaid: () => api.get('/invoices/unpaid'),
   generatePDF: (id: string) => api.post(`/invoices/${id}/generate-pdf`),

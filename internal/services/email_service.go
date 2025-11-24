@@ -79,6 +79,7 @@ func initSMTPConfig() {
 
 func SendVerificationEmailAsync(ctx context.Context, toEmail string, token string, frontendURL string) <-chan error {
 	if ctx == nil {
+		log.Printf("WARNING: SendVerificationEmailAsync called with nil context, using background context - audit trail may be incomplete")
 		ctx = context.Background()
 	}
 	errCh := make(chan error, 1)
@@ -136,7 +137,7 @@ func sendVerificationEmailWithRetry(ctx context.Context, toEmail string, token s
 	}
 	
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		log.Printf("WARNING: frontendURL is empty in sendVerificationEmailWithRetry. Email links will be broken.")
 	}
 	
 	verificationURL := fmt.Sprintf("%s/verify-email?token=%s", strings.TrimSuffix(frontendURL, "/"), url.QueryEscape(token))

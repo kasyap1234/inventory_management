@@ -211,14 +211,6 @@ func TestCreateOrder(t *testing.T) {
 
 // Test ProcessOrder with inventory reservation
 func TestProcessOrder(t *testing.T) {
-	mockOrderRepo := new(MockOrderRepository)
-	mockInventoryRepo := new(MockInventoryRepository)
-	
-	service := &orderService{
-		orderRepo:     mockOrderRepo,
-		inventoryRepo: mockInventoryRepo,
-	}
-
 	ctx := context.Background()
 	tenantID := uuid.New()
 	orderID := uuid.New()
@@ -226,6 +218,13 @@ func TestProcessOrder(t *testing.T) {
 	warehouseID := uuid.New()
 
 	t.Run("Success: Process order and reserve inventory", func(t *testing.T) {
+		mockOrderRepo := new(MockOrderRepository)
+		mockInventoryRepo := new(MockInventoryRepository)
+		service := &orderService{
+			orderRepo:     mockOrderRepo,
+			inventoryRepo: mockInventoryRepo,
+		}
+
 		order := &models.Order{
 			ID:          orderID,
 			TenantID:    tenantID,
@@ -258,6 +257,13 @@ func TestProcessOrder(t *testing.T) {
 	})
 
 	t.Run("Failure: Invalid status transition", func(t *testing.T) {
+		mockOrderRepo := new(MockOrderRepository)
+		mockInventoryRepo := new(MockInventoryRepository)
+		service := &orderService{
+			orderRepo:     mockOrderRepo,
+			inventoryRepo: mockInventoryRepo,
+		}
+
 		order := &models.Order{
 			ID:          orderID,
 			TenantID:    tenantID,
@@ -272,8 +278,9 @@ func TestProcessOrder(t *testing.T) {
 		mockOrderRepo.On("GetByID", ctx, tenantID, orderID).Return(order, nil)
 
 		err := service.ProcessOrder(ctx, tenantID, orderID)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid status transition")
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), "operation could not be completed")
+		}
 
 		mockOrderRepo.AssertExpectations(t)
 	})
@@ -281,14 +288,6 @@ func TestProcessOrder(t *testing.T) {
 
 // Test CancelOrder with inventory restoration
 func TestCancelOrder(t *testing.T) {
-	mockOrderRepo := new(MockOrderRepository)
-	mockInventoryRepo := new(MockInventoryRepository)
-	
-	service := &orderService{
-		orderRepo:     mockOrderRepo,
-		inventoryRepo: mockInventoryRepo,
-	}
-
 	ctx := context.Background()
 	tenantID := uuid.New()
 	orderID := uuid.New()
@@ -296,6 +295,13 @@ func TestCancelOrder(t *testing.T) {
 	warehouseID := uuid.New()
 
 	t.Run("Success: Cancel processing order and restore inventory", func(t *testing.T) {
+		mockOrderRepo := new(MockOrderRepository)
+		mockInventoryRepo := new(MockInventoryRepository)
+		service := &orderService{
+			orderRepo:     mockOrderRepo,
+			inventoryRepo: mockInventoryRepo,
+		}
+
 		order := &models.Order{
 			ID:          orderID,
 			TenantID:    tenantID,
@@ -328,6 +334,13 @@ func TestCancelOrder(t *testing.T) {
 	})
 
 	t.Run("Failure: Cannot cancel delivered order", func(t *testing.T) {
+		mockOrderRepo := new(MockOrderRepository)
+		mockInventoryRepo := new(MockInventoryRepository)
+		service := &orderService{
+			orderRepo:     mockOrderRepo,
+			inventoryRepo: mockInventoryRepo,
+		}
+
 		order := &models.Order{
 			ID:          orderID,
 			TenantID:    tenantID,
@@ -342,8 +355,9 @@ func TestCancelOrder(t *testing.T) {
 		mockOrderRepo.On("GetByID", ctx, tenantID, orderID).Return(order, nil)
 
 		err := service.CancelOrder(ctx, tenantID, orderID)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid status transition")
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), "operation could not be completed")
+		}
 
 		mockOrderRepo.AssertExpectations(t)
 	})

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Package, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { AxiosError } from 'axios';
 
-export default function CompleteRegistrationPage() {
+function CompleteRegistrationContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { completeGoogleSignup } = useAuth();
@@ -166,5 +166,19 @@ export default function CompleteRegistrationPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function CompleteRegistrationPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center bg-background px-4">
+                <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-sm animate-pulse">
+                    <Package className="w-8 h-8 text-primary-foreground" />
+                </div>
+            </div>
+        }>
+            <CompleteRegistrationContent />
+        </Suspense>
     );
 }

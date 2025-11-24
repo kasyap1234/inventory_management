@@ -146,6 +146,11 @@ func main() {
 		frontendURL = "http://localhost:3000"
 	}
 
+	backendURL := os.Getenv("BACKEND_URL")
+	if backendURL == "" {
+		backendURL = "http://localhost:8080"
+	}
+
 	enforceHTTPS := os.Getenv("ENFORCE_HTTPS") == "true"
 	if isProduction && !enforceHTTPS {
 		log.Fatal("PRODUCTION SECURITY VIOLATION: ENFORCE_HTTPS must be set to 'true' in production")
@@ -260,6 +265,8 @@ func main() {
 		userRoleRepo,
 		rolePermissionRepo,
 		permissionRepo,
+		frontendURL,
+		backendURL,
 	)
 
 	// Create product service

@@ -2,7 +2,11 @@ import axios from 'axios';
 
 import { csrfTokenManager, tokenStorage } from '@/lib/security';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+
+if (!process.env.NEXT_PUBLIC_API_URL && typeof window !== 'undefined') {
+  console.warn('NEXT_PUBLIC_API_URL is not defined, falling back to relative path /api/v1');
+}
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -52,13 +56,13 @@ api.interceptors.response.use(
       console.error('Network error:', error.message);
       return Promise.reject(new Error('Network error. Please check your connection.'));
     }
-    
+
     // Handle timeout errors
     if (error.code === 'ECONNABORTED') {
       console.error('Request timeout');
       return Promise.reject(new Error('Request timeout. Please try again.'));
     }
-    
+
     const status = error.response?.status;
     const requestConfig = error.config as typeof error.config & { __isRetryRequest?: boolean };
 
@@ -108,9 +112,9 @@ export const roleAPI = {
   update: (id: string, data: { name: string; description?: string }) => api.put(`/roles/${id}`, data),
   delete: (id: string) => api.delete(`/roles/${id}`),
   getPermissions: (id: string) => api.get(`/roles/${id}/permissions`),
-  assignPermissions: (id: string, permissionIds: string[]) => 
+  assignPermissions: (id: string, permissionIds: string[]) =>
     api.post(`/roles/${id}/permissions`, { permission_ids: permissionIds }),
-  removePermission: (id: string, permissionId: string) => 
+  removePermission: (id: string, permissionId: string) =>
     api.delete(`/roles/${id}/permissions/${permissionId}`),
 };
 
@@ -121,7 +125,7 @@ export const permissionAPI = {
 
 // Notification Template API
 export const notificationTemplateAPI = {
-  list: (eventType?: string) => 
+  list: (eventType?: string) =>
     api.get('/notification-templates', { params: eventType ? { event_type: eventType } : {} }),
   get: (id: string) => api.get(`/notification-templates/${id}`),
   create: (data: {
@@ -143,13 +147,13 @@ export const notificationTemplateAPI = {
     is_active: boolean;
   }) => api.put(`/notification-templates/${id}`, data),
   delete: (id: string) => api.delete(`/notification-templates/${id}`),
-  test: (id: string, testData: Record<string, any>) => 
+  test: (id: string, testData: Record<string, any>) =>
     api.post(`/notification-templates/${id}/test`, { test_data: testData }),
 };
 
 // Alert Rule API
 export const alertRuleAPI = {
-  list: (eventType?: string) => 
+  list: (eventType?: string) =>
     api.get('/alert-rules', { params: eventType ? { event_type: eventType } : {} }),
   get: (id: string) => api.get(`/alert-rules/${id}`),
   create: (data: {
@@ -179,7 +183,7 @@ export const alertRuleAPI = {
     is_active?: boolean;
   }) => api.put(`/alert-rules/${id}`, data),
   delete: (id: string) => api.delete(`/alert-rules/${id}`),
-  test: (id: string, testData: Record<string, any>) => 
+  test: (id: string, testData: Record<string, any>) =>
     api.post(`/alert-rules/${id}/test`, { test_data: testData }),
 };
 
