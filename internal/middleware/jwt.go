@@ -152,14 +152,9 @@ func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.Middlewar
 				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid tenant ID for user")
 			}
 
-			// Check for explicit tenant_id override in request context (set by handlers)
-			// Handle both direct UUID and uuid.UUID types
-			if explicitTenantID := c.Get("explicit_tenant_id"); explicitTenantID != nil {
-				if tenantUUID, ok := explicitTenantID.(uuid.UUID); ok {
-					// Use explicit tenant_id for cross-tenant operations
-					defaultTenantID = tenantUUID
-				}
-			}
+			// SECURITY: Tenant context is IMMUTABLE after JWT validation
+			// No handler should be able to override the tenant context
+			// to prevent cross-tenant data access vulnerabilities
 
 			ctx := context.WithValue(c.Request().Context(), common.UserIDKey, userID)
 			ctx = context.WithValue(ctx, common.TenantIDKey, defaultTenantID)

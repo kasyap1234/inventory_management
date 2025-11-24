@@ -26,26 +26,30 @@ func NewBatchRepository(db *pgxpool.Pool) *BatchRepository {
 func (r *BatchRepository) Create(ctx context.Context, batch *models.Batch) error {
 	query := `
 		INSERT INTO batches (
-			product_id, batch_number, quantity, expiry_date, 
+			tenant_id, product_id, batch_number, quantity, expiry_date,
 			manufacturing_date, location, status, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 		) RETURNING id`
 
 	err := r.db.QueryRow(ctx, query,
-		batch.ProductID, batch.BatchNumber, batch.Quantity, batch.ExpiryDate,
+		batch.TenantID, batch.ProductID, batch.BatchNumber, batch.Quantity, batch.ExpiryDate,
 		batch.ManufacturingDate, batch.Location, batch.Status, batch.CreatedAt, batch.UpdatedAt,
 	).Scan(&batch.ID)
 
 	return err
 }
 
-// GetByID retrieves a batch by ID
-func (r *BatchRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Batch, error) {
+// GetByID retrieves a batch by ID with tenant isolation
+func (r *BatchRepository) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Batch, error) {
 	var batch models.Batch
-	query := `SELECT id, product_id, batch_number, quantity, expiry_date, manufacturing_date, location, status, created_at, updated_at FROM batches WHERE id = $1`
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&batch.ID, &batch.ProductID, &batch.BatchNumber, &batch.Quantity, &batch.ExpiryDate,
+	query := `
+		SELECT id, tenant_id, product_id, batch_number, quantity, expiry_date,
+		       manufacturing_date, location, status, created_at, updated_at
+		FROM batches
+		WHERE id = $1 AND tenant_id = $2`
+	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(
+		&batch.ID, &batch.TenantID, &batch.ProductID, &batch.BatchNumber, &batch.Quantity, &batch.ExpiryDate,
 		&batch.ManufacturingDate, &batch.Location, &batch.Status, &batch.CreatedAt, &batch.UpdatedAt,
 	)
 	if err != nil {
@@ -54,11 +58,16 @@ func (r *BatchRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Ba
 	return &batch, nil
 }
 
-// GetByProductID retrieves all batches for a product
-func (r *BatchRepository) GetByProductID(ctx context.Context, productID uuid.UUID) ([]models.Batch, error) {
+// GetByProductID retrieves all batches for a product with tenant isolation
+func (r *BatchRepository) GetByProductID(ctx context.Context, tenantID, productID uuid.UUID) ([]models.Batch, error) {
 	var batches []models.Batch
-	query := `SELECT id, product_id, batch_number, quantity, expiry_date, manufacturing_date, location, status, created_at, updated_at FROM batches WHERE product_id = $1 ORDER BY expiry_date ASC`
-	rows, err := r.db.Query(ctx, query, productID)
+	query := `
+		SELECT id, tenant_id, product_id, batch_number, quantity, expiry_date,
+		       manufacturing_date, location, status, created_at, updated_at
+		FROM batches
+		WHERE product_id = $1 AND tenant_id = $2
+		ORDER BY expiry_date ASC`
+	rows, err := r.db.Query(ctx, query, productID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +75,7 @@ func (r *BatchRepository) GetByProductID(ctx context.Context, productID uuid.UUI
 
 	for rows.Next() {
 		var batch models.Batch
-		if err := rows.Scan(&batch.ID, &batch.ProductID, &batch.BatchNumber, &batch.Quantity, &batch.ExpiryDate,
+		if err := rows.Scan(&batch.ID, &batch.TenantID, &batch.ProductID, &batch.BatchNumber, &batch.Quantity, &batch.ExpiryDate,
 			&batch.ManufacturingDate, &batch.Location, &batch.Status, &batch.CreatedAt, &batch.UpdatedAt); err != nil {
 			return nil, err
 		}
@@ -75,7 +84,7 @@ func (r *BatchRepository) GetByProductID(ctx context.Context, productID uuid.UUI
 	return batches, nil
 }
 
-// Update updates an existing batch
+// Update updates an existing batch with tenant isolation
 func (r *BatchRepository) Update(ctx context.Context, batch *models.Batch) error {
 	batch.UpdatedAt = time.Now()
 	query := `
@@ -86,47 +95,47 @@ func (r *BatchRepository) Update(ctx context.Context, batch *models.Batch) error
 			location = $4,
 			status = $5,
 			updated_at = $6
-		WHERE id = $7`
+		WHERE id = $7 AND tenant_id = $8`
 
 	result, err := r.db.Exec(ctx, query,
 		batch.Quantity, batch.ExpiryDate, batch.ManufacturingDate,
-		batch.Location, batch.Status, batch.UpdatedAt, batch.ID,
+		batch.Location, batch.Status, batch.UpdatedAt, batch.ID, batch.TenantID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update batch: %w", err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return errors.New("batch not found")
+		return errors.New("batch not found or access denied")
 	}
 
 	return nil
 }
 
-// Delete deletes a batch
-func (r *BatchRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM batches WHERE id = $1`
-	result, err := r.db.Exec(ctx, query, id)
+// Delete deletes a batch with tenant isolation
+func (r *BatchRepository) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	query := `DELETE FROM batches WHERE id = $1 AND tenant_id = $2`
+	result, err := r.db.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to delete batch: %w", err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return errors.New("batch not found")
+		return errors.New("batch not found or access denied")
 	}
 
 	return nil
 }
 
-// GetTotalQuantityByProductID gets the sum of quantities of all active batches for a product
-func (r *BatchRepository) GetTotalQuantityByProductID(ctx context.Context, productID uuid.UUID) (int, error) {
+// GetTotalQuantityByProductID gets the sum of quantities of all active batches for a product with tenant isolation
+func (r *BatchRepository) GetTotalQuantityByProductID(ctx context.Context, tenantID, productID uuid.UUID) (int, error) {
 	var total int
 	query := `
-		SELECT COALESCE(SUM(quantity), 0) 
-		FROM batches 
-		WHERE product_id = $1 AND status = 'active'`
+		SELECT COALESCE(SUM(quantity), 0)
+		FROM batches
+		WHERE product_id = $1 AND tenant_id = $2 AND status = 'active'`
 
-	if err := r.db.QueryRow(ctx, query, productID).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, query, productID, tenantID).Scan(&total); err != nil {
 		return 0, fmt.Errorf("failed to get total quantity: %w", err)
 	}
 	return total, nil

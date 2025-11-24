@@ -9,7 +9,7 @@ import { format, formatDistance } from 'date-fns';
 import { DashboardSkeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 
 type InvoiceSummary = {
@@ -27,6 +27,12 @@ type UnpaidInvoicesResponse = {
 };
 
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useQuery<AnalyticsDashboard>({
     queryKey: ['dashboard-analytics'],
     queryFn: analyticsService.getDashboardAnalytics,
@@ -109,15 +115,33 @@ export default function DashboardPage() {
 
   if (hasErrors) {
     const errorMessage = analyticsError?.message || lowStockError?.message || invoicesError?.message || 'Unknown error';
+    console.error('Dashboard errors:', {
+      analyticsError,
+      lowStockError,
+      invoicesError,
+    });
+
     return (
       <div className="space-y-6 p-6">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Dashboard</AlertTitle>
-          <AlertDescription>
-            {errorMessage.includes('Network')
-              ? 'Network error. Please check your connection and try again.'
-              : 'We encountered an error while loading your dashboard data. Please try refreshing the page.'}
+          <AlertDescription className="space-y-2">
+            <p>
+              {errorMessage.includes('Network')
+                ? 'Network error. Please check your connection and try again.'
+                : errorMessage.includes('Missing token') || errorMessage.includes('Unauthorized')
+                ? 'Authentication error. Please try logging out and logging back in.'
+                : 'We encountered an error while loading your dashboard data. Please try refreshing the page.'}
+            </p>
+            {process.env.NODE_ENV === 'development' && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-sm">Error details (dev only)</summary>
+                <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto">
+                  {JSON.stringify({ analyticsError, lowStockError, invoicesError }, null, 2)}
+                </pre>
+              </details>
+            )}
           </AlertDescription>
         </Alert>
       </div>
@@ -150,7 +174,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
-              {stat.helper && (
+              {stat.helper && mounted && (
                 <p className="text-xs text-muted-foreground">
                   Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
                 </p>
