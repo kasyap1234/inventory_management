@@ -149,6 +149,11 @@ func (r *productRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offse
 		}
 		products = append(products, product)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products: %w", err)
+	}
+
 	return products, nil
 }
 
@@ -282,6 +287,10 @@ func (r *productRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, fi
 		products = append(products, product)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating advanced search results: %w", err)
+	}
+
 	return products, nil
 }
 
@@ -334,6 +343,10 @@ func (r *productRepo) ListWithCategory(ctx context.Context, tenantID uuid.UUID, 
 		products = append(products, product)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products with category: %w", err)
+	}
+
 	return products, nil
 }
 
@@ -364,6 +377,10 @@ func (r *productRepo) CategoryAnalytics(ctx context.Context, tenantID uuid.UUID)
 			return nil, err
 		}
 		analytics[categoryName] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating category analytics: %w", err)
 	}
 
 	return analytics, nil

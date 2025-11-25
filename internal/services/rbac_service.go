@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
 	"agromart2/internal/caching"
+	"agromart2/internal/logging"
 	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
@@ -45,64 +46,94 @@ func NewRBACServiceWithCache(userRoleRepo repositories.UserRoleRepository, roleP
 }
 
 func (s *rbacService) UserHasPermission(ctx context.Context, userID, tenantID uuid.UUID, permissionName string) (bool, error) {
+	logger := logging.WithContext(ctx)
+	
 	// Try cache first if available
 	if s.cacheService != nil {
 		cacheKey := fmt.Sprintf("agromart:rbac:permission:%s:%s:%s", tenantID.String(), userID.String(), permissionName)
 		cachedValue, err := s.cacheService.GetString(ctx, cacheKey)
 		if err == nil && cachedValue != "" {
-			log.Printf("RBAC: Cache hit for permission check - User: %s, Tenant: %s, Permission: %s", userID, tenantID, permissionName)
+			if logger.IsDebugEnabled() {
+				logger.Debug().
+					UUID("user_id", userID).
+					UUID("tenant_id", tenantID).
+					Str("permission", permissionName).
+					Msg("RBAC cache hit for permission check")
+			}
 			return cachedValue == "true", nil
 		}
 	}
 
-	log.Printf("RBAC: Checking permission - User: %s, Tenant: %s, Permission: %s", userID, tenantID, permissionName)
-
-	userRoles, err := s.userRoleRepo.ListByUser(ctx, tenantID, userID)
-	if err != nil {
-		log.Printf("RBAC: Error fetching user roles - User: %s, Error: %v", userID, err)
-		return false, fmt.Errorf("failed to fetch user roles: %w", err)
+	if logger.IsDebugEnabled() {
+		logger.Debug().
+			UUID("user_id", userID).
+			UUID("tenant_id", tenantID).
+			Str("permission", permissionName).
+			Msg("RBAC checking permission")
 	}
 
-	if len(userRoles) == 0 {
-		log.Printf("RBAC: User has no roles - User: %s, Tenant: %s", userID, tenantID)
+	// Use optimized single-query method that handles role hierarchy
+	permissions, err := s.rolePermissionRepo.GetAllUserPermissions(ctx, userID, tenantID)
+	if err != nil {
+		logger.Error().
+			Err(err).
+			UUID("user_id", userID).
+			Msg("RBAC error fetching user permissions")
+		return false, fmt.Errorf("failed to fetch user permissions: %w", err)
+	}
+
+	if len(permissions) == 0 {
+		if logger.IsDebugEnabled() {
+			logger.Debug().
+				UUID("user_id", userID).
+				UUID("tenant_id", tenantID).
+				Msg("RBAC user has no permissions")
+		}
 		s.cachePermissionResult(ctx, userID, tenantID, permissionName, false)
 		return false, nil
 	}
 
-	for _, ur := range userRoles {
-		rolePermissions, err := s.rolePermissionRepo.ListByRole(ctx, tenantID, ur.RoleID)
-		if err != nil {
-			log.Printf("RBAC: Error fetching role permissions - Role: %s, Error: %v", ur.RoleID, err)
-			return false, fmt.Errorf("failed to fetch role permissions: %w", err)
+	// Check for exact match or wildcard match
+	for _, perm := range permissions {
+		// Exact match
+		if perm.Name == permissionName {
+			if logger.IsDebugEnabled() {
+				logger.Debug().
+					UUID("user_id", userID).
+					Str("permission", permissionName).
+					Msg("RBAC permission granted (exact match)")
+			}
+			s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
+			return true, nil
 		}
-
-		for _, rp := range rolePermissions {
-			// Fetch permission details by PermissionID
-			perm, err := s.permissionRepo.GetPermissionByID(ctx, rp.PermissionID)
-			if err != nil || perm == nil {
-				log.Printf("RBAC: Warning - Could not fetch permission - PermissionID: %s", rp.PermissionID)
-				continue
+		
+		// Wildcard match (e.g., "*", "product.*", "*.read")
+		if s.matchesWildcard(perm.Name, permissionName) {
+			if logger.IsDebugEnabled() {
+				logger.Debug().
+					UUID("user_id", userID).
+					Str("pattern", perm.Name).
+					Str("permission", permissionName).
+					Msg("RBAC permission granted (wildcard match)")
 			}
-			if perm.Name == permissionName {
-			// Check for wildcard match
-			if s.matchesWildcard(perm.Name, permissionName) {
-				log.Printf("RBAC: Permission granted (wildcard) - User: %s, Pattern: %s, Permission: %s", userID, perm.Name, permissionName)
-				s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
-				return true, nil
-			}
-				log.Printf("RBAC: Permission granted - User: %s, Permission: %s", userID, permissionName)
-				s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
-				return true, nil
-			}
+			s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
+			return true, nil
 		}
 	}
 
-	log.Printf("RBAC: Permission denied - User: %s, Permission: %s", userID, permissionName)
+	if logger.IsDebugEnabled() {
+		logger.Debug().
+			UUID("user_id", userID).
+			Str("permission", permissionName).
+			Msg("RBAC permission denied")
+	}
 	s.cachePermissionResult(ctx, userID, tenantID, permissionName, false)
 	return false, nil
 }
 
 func (s *rbacService) GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]string, error) {
+	logger := logging.WithContext(ctx)
+	
 	// Try cache first if available
 	if s.cacheService != nil {
 		cacheKey := fmt.Sprintf("agromart:rbac:permissions:%s:%s", tenantID.String(), userID.String())
@@ -110,45 +141,38 @@ func (s *rbacService) GetUserPermissions(ctx context.Context, userID, tenantID u
 		if err == nil && cachedValue != "" {
 			var permissions []string
 			if unmarshalErr := json.Unmarshal([]byte(cachedValue), &permissions); unmarshalErr == nil {
-				log.Printf("RBAC: Cache hit for user permissions - User: %s, Tenant: %s", userID, tenantID)
+				if logger.IsDebugEnabled() {
+					logger.Debug().
+						UUID("user_id", userID).
+						UUID("tenant_id", tenantID).
+						Msg("RBAC cache hit for user permissions")
+				}
 				return permissions, nil
 			}
 		}
 	}
 
-	log.Printf("RBAC: Fetching user permissions - User: %s, Tenant: %s", userID, tenantID)
+	if logger.IsDebugEnabled() {
+		logger.Debug().
+			UUID("user_id", userID).
+			UUID("tenant_id", tenantID).
+			Msg("RBAC fetching user permissions")
+	}
 
-	userRoles, err := s.userRoleRepo.ListByUser(ctx, tenantID, userID)
+	// Use optimized single-query method that handles role hierarchy
+	permissions, err := s.rolePermissionRepo.GetAllUserPermissions(ctx, userID, tenantID)
 	if err != nil {
-		log.Printf("RBAC: Error fetching user roles - User: %s, Error: %v", userID, err)
-		return nil, fmt.Errorf("failed to fetch user roles: %w", err)
+		logger.Error().
+			Err(err).
+			UUID("user_id", userID).
+			Msg("RBAC error fetching user permissions")
+		return nil, fmt.Errorf("failed to fetch user permissions: %w", err)
 	}
 
-	permissionNames := make(map[string]bool)
-	for _, ur := range userRoles {
-		rolePermissions, err := s.rolePermissionRepo.ListByRole(ctx, tenantID, ur.RoleID)
-		if err != nil {
-			log.Printf("RBAC: Error fetching role permissions - Role: %s, Error: %v", ur.RoleID, err)
-			continue // Log error but continue processing other roles
-		}
-
-		for _, rp := range rolePermissions {
-			perm, err := s.permissionRepo.GetPermissionByID(ctx, rp.PermissionID)
-			if err != nil {
-				log.Printf("RBAC: Error fetching permission - PermissionID: %s, Error: %v", rp.PermissionID, err)
-				continue // Log error but continue processing other permissions
-			}
-			if perm == nil {
-				log.Printf("RBAC: Warning - Permission not found - PermissionID: %s", rp.PermissionID)
-				continue // Skip nil permissions
-			}
-			permissionNames[perm.Name] = true
-		}
-	}
-
+	// Extract permission names
 	var perms []string
-	for p := range permissionNames {
-		perms = append(perms, p)
+	for _, p := range permissions {
+		perms = append(perms, p.Name)
 	}
 
 	// Cache the result if cache service is available
@@ -156,12 +180,22 @@ func (s *rbacService) GetUserPermissions(ctx context.Context, userID, tenantID u
 		if data, err := json.Marshal(perms); err == nil {
 			cacheKey := fmt.Sprintf("agromart:rbac:permissions:%s:%s", tenantID.String(), userID.String())
 			if cacheErr := s.cacheService.SetString(ctx, cacheKey, string(data), 10*time.Minute); cacheErr != nil {
-				log.Printf("RBAC: Failed to cache user permissions - User: %s, Error: %v", userID, cacheErr)
+				logger.Warn().
+					Err(cacheErr).
+					UUID("user_id", userID).
+					Msg("RBAC failed to cache user permissions")
 			}
 		}
 	}
 
-	log.Printf("RBAC: Retrieved %d permissions for user - User: %s, Tenant: %s", len(perms), userID, tenantID)
+	if logger.IsDebugEnabled() {
+		logger.Debug().
+			UUID("user_id", userID).
+			UUID("tenant_id", tenantID).
+			Int("permission_count", len(perms)).
+			Msg("RBAC retrieved user permissions")
+	}
+	
 	return perms, nil
 }
 
@@ -179,22 +213,37 @@ func (s *rbacService) cachePermissionResult(ctx context.Context, userID, tenantI
 
 	// Cache for 10 minutes - shorter TTL for security-sensitive data
 	if err := s.cacheService.SetString(ctx, cacheKey, value, 10*time.Minute); err != nil {
-		log.Printf("RBAC: Failed to cache permission result - User: %s, Permission: %s, Error: %v", userID, permissionName, err)
+		logger := logging.WithContext(ctx)
+		logger.Warn().
+			Err(err).
+			UUID("user_id", userID).
+			Str("permission", permissionName).
+			Msg("RBAC failed to cache permission result")
 	}
 }
 
 // InvalidateUserPermissionsCache invalidates all cached permissions for a user
 func (s *rbacService) InvalidateUserPermissionsCache(ctx context.Context, userID, tenantID uuid.UUID) error {
+	logger := logging.WithContext(ctx)
+	
 	if s.cacheService == nil {
 		return nil // No cache service, nothing to invalidate
 	}
 
-	log.Printf("RBAC: Invalidating permission cache - User: %s, Tenant: %s", userID, tenantID)
+	if logger.IsDebugEnabled() {
+		logger.Debug().
+			UUID("user_id", userID).
+			UUID("tenant_id", tenantID).
+			Msg("RBAC invalidating permission cache")
+	}
 
 	// Delete the user permissions list cache
 	permissionsKey := fmt.Sprintf("agromart:rbac:permissions:%s:%s", tenantID.String(), userID.String())
 	if err := s.cacheService.Delete(ctx, permissionsKey); err != nil {
-		log.Printf("RBAC: Failed to invalidate permissions cache - Key: %s, Error: %v", permissionsKey, err)
+		logger.Warn().
+			Err(err).
+			Str("key", permissionsKey).
+			Msg("RBAC failed to invalidate permissions cache")
 	}
 
 	// Note: Individual permission checks are cached separately with pattern:
@@ -203,9 +252,7 @@ func (s *rbacService) InvalidateUserPermissionsCache(ctx context.Context, userID
 	// For now, we rely on the TTL to expire these caches
 
 	return nil
-}package services
-
-import "strings"
+}
 
 // matchesWildcard checks if a permission matches a wildcard pattern
 // Supports patterns like:

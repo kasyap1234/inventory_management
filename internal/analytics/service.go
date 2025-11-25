@@ -146,6 +146,32 @@ func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantI
 		return data, err
 	}
 
+	// Batch fetch all products to avoid N+1 query pattern
+	productIDs := make([]uuid.UUID, 0, len(inventories))
+	productIDSet := make(map[uuid.UUID]bool)
+	for _, inv := range inventories {
+		if !productIDSet[inv.ProductID] {
+			productIDs = append(productIDs, inv.ProductID)
+			productIDSet[inv.ProductID] = true
+		}
+	}
+
+	// Fetch all products in a single batch query
+	productMap := make(map[uuid.UUID]float64) // productID -> unitPrice
+	if len(productIDs) > 0 {
+		// Use batch query to get all products at once
+		products, err := a.productRepo.List(ctx, tenantID, len(productIDs), 0)
+		if err != nil {
+			log.Printf("Failed to batch fetch products for analytics: %v", err)
+		} else {
+			for _, p := range products {
+				if productIDSet[p.ID] {
+					productMap[p.ID] = p.UnitPrice
+				}
+			}
+		}
+	}
+
 	var totalStockValue float64
 	lowStockCount := 0
 	for _, inv := range inventories {
@@ -153,12 +179,13 @@ func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantI
 			lowStockCount++
 		}
 
-		product, err := a.productRepo.GetByID(ctx, tenantID, inv.ProductID)
-		if err != nil {
-			log.Printf("Failed to get product %s: %v", inv.ProductID.String(), err)
+		// Use pre-fetched product price from map
+		unitPrice, found := productMap[inv.ProductID]
+		if !found {
+			log.Printf("Product %s not found in batch fetch, skipping", inv.ProductID.String())
 			continue
 		}
-		value, err := common.SafeMultiplyMonetary(float64(inv.Quantity), product.UnitPrice)
+		value, err := common.SafeMultiplyMonetary(float64(inv.Quantity), unitPrice)
 		if err != nil {
 			log.Printf("WARN: overflow computing stock value for product %s: %v", inv.ProductID.String(), err)
 			continue

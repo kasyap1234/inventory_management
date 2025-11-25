@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"agromart2/internal/common"
 	"agromart2/internal/models"
 
 	"github.com/google/uuid"
@@ -107,6 +108,11 @@ func (r *orderRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset 
 		}
 		orders = append(orders, order)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating orders: %w", err)
+	}
+
 	return orders, nil
 }
 
@@ -134,27 +140,29 @@ func (r *orderRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filt
 
 	// Full-text search across notes and related entities
 	if filter.Query != "" {
+		// Escape LIKE special characters to prevent SQL pattern manipulation
+		escapedQuery := common.EscapeLikePattern(filter.Query)
 		conditionCount++
 		queryBase += fmt.Sprintf(` AND (
-			COALESCE(o.notes, '') ILIKE $%d OR
+			COALESCE(o.notes, '') ILIKE $%d ESCAPE '\' OR
 			EXISTS (
 				SELECT 1 FROM products p
-				WHERE p.tenant_id = o.tenant_id AND p.id = o.product_id AND p.name ILIKE $%d
+				WHERE p.tenant_id = o.tenant_id AND p.id = o.product_id AND p.name ILIKE $%d ESCAPE '\'
 			) OR
 			EXISTS (
 				SELECT 1 FROM suppliers s
-				WHERE s.tenant_id = o.tenant_id AND s.id = o.supplier_id AND s.name ILIKE $%d
+				WHERE s.tenant_id = o.tenant_id AND s.id = o.supplier_id AND s.name ILIKE $%d ESCAPE '\'
 			) OR
 			EXISTS (
 				SELECT 1 FROM distributors d
-				WHERE d.tenant_id = o.tenant_id AND d.id = o.distributor_id AND d.name ILIKE $%d
+				WHERE d.tenant_id = o.tenant_id AND d.id = o.distributor_id AND d.name ILIKE $%d ESCAPE '\'
 			) OR
 			EXISTS (
 				SELECT 1 FROM warehouses w
-				WHERE w.tenant_id = o.tenant_id AND w.id = o.warehouse_id AND w.name ILIKE $%d
+				WHERE w.tenant_id = o.tenant_id AND w.id = o.warehouse_id AND w.name ILIKE $%d ESCAPE '\'
 			)
 		)`, conditionCount, conditionCount, conditionCount, conditionCount, conditionCount)
-		args = append(args, "%"+filter.Query+"%")
+		args = append(args, "%"+escapedQuery+"%")
 	}
 
 	// Status filter

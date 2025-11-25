@@ -56,6 +56,9 @@ func (r *productImageRepo) GetByProductID(ctx context.Context, tenantID, product
 		}
 		images = append(images, image)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return images, nil
 }
 

@@ -85,5 +85,8 @@ func (r *orderItemRepo) ListByOrderID(ctx context.Context, tenantID, orderID uui
 		}
 		orderItems = append(orderItems, orderItem)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return orderItems, nil
 }

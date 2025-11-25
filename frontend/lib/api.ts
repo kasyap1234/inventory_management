@@ -15,16 +15,15 @@ export const api = axios.create({
   },
   timeout: 30000, // 30 seconds
   validateStatus: (status) => status >= 200 && status < 500, // Don't throw on 4xx errors
+  withCredentials: true, // Send cookies with requests for HttpOnly cookie authentication
 });
 
 api.interceptors.request.use(
   async (config) => {
     const headers = config.headers ?? {};
 
-    const accessToken = tokenStorage.getAccessToken();
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
-    }
+    // No need to manually add Authorization header - tokens are sent as HttpOnly cookies
+    // The backend reads the auth_token cookie automatically
 
     const method = config.method?.toLowerCase();
     if (method && !['get', 'head', 'options'].includes(method)) {
@@ -64,40 +63,16 @@ api.interceptors.response.use(
     }
 
     const status = error.response?.status;
-    const requestConfig = error.config as typeof error.config & { __isRetryRequest?: boolean };
 
-    if (status === 401 && requestConfig && !requestConfig.__isRetryRequest) {
-      const refreshToken = tokenStorage.getRefreshToken();
-      if (!refreshToken) {
-        tokenStorage.clear();
-        csrfTokenManager.clearToken();
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
+    // With HttpOnly cookies, token refresh is handled automatically by the backend
+    // When a 401 occurs, it means the refresh token is also invalid/expired
+    if (status === 401) {
+      tokenStorage.clear();
+      csrfTokenManager.clearToken();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
       }
-
-      try {
-        requestConfig.__isRetryRequest = true;
-        const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
-        const { access_token, refresh_token: newRefreshToken } = response.data;
-        tokenStorage.setTokens(access_token, newRefreshToken);
-        csrfTokenManager.clearToken();
-
-        requestConfig.headers = {
-          ...(requestConfig.headers ?? {}),
-          Authorization: `Bearer ${access_token}`,
-        };
-
-        return api(requestConfig);
-      } catch (refreshError) {
-        tokenStorage.clear();
-        csrfTokenManager.clearToken();
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(refreshError);
-      }
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);

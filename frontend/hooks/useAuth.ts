@@ -41,7 +41,8 @@ export function useAuth() {
         return;
       }
 
-      tokenStorage.setTokens(data.access_token, data.refresh_token);
+      // Tokens are now set as HttpOnly cookies by the backend
+      // No need to store them in localStorage
       csrfTokenManager.clearToken();
       queryClient.setQueryData(['user'], data.user);
       router.push('/dashboard');
@@ -80,7 +81,8 @@ export function useAuth() {
       return response.data;
     },
     onSuccess: (data) => {
-      tokenStorage.setTokens(data.access_token, data.refresh_token);
+      // Tokens are now set as HttpOnly cookies by the backend
+      // No need to store them in localStorage
       csrfTokenManager.clearToken();
       queryClient.setQueryData(['user'], data.user);
       router.push('/dashboard');
@@ -123,15 +125,16 @@ export function useAuth() {
     },
   });
 
-  const isAuthenticatedToken = isClient && tokenStorage.hasAccessToken();
-
+  // With HttpOnly cookies, we can't check token presence from JavaScript
+  // Instead, we always try to fetch the user if on client side
+  // The backend will return 401 if not authenticated
   const { data: user, isLoading } = useQuery<User>({
     queryKey: ['user'],
     queryFn: async () => {
       const response = await api.get<User>('/me');
       return response.data;
     },
-    enabled: isAuthenticatedToken,
+    enabled: isClient,
     retry: false,
   });
 

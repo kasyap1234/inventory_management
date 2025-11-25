@@ -19,6 +19,9 @@ type RolePermissionRepository interface {
 	RemoveAllPermissionsFromRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) error
 	AssignPermissionToRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID) error
 	RemovePermissionFromRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID) error
+	// GetAllUserPermissions fetches all permissions for a user in a single optimized query
+	// This traverses the role hierarchy and returns all inherited permissions
+	GetAllUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]*models.Permission, error)
 }
 
 type rolePermissionRepo struct {
@@ -74,6 +77,9 @@ func (r *rolePermissionRepo) ListByRole(ctx context.Context, tenantID, roleID uu
 		}
 		rolePermissions = append(rolePermissions, rolePermission)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return rolePermissions, nil
 }
 
@@ -98,6 +104,9 @@ func (r *rolePermissionRepo) ListByPermission(ctx context.Context, permissionID 
 			return nil, err
 		}
 		rolePermissions = append(rolePermissions, rolePermission)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return rolePermissions, nil
 }
@@ -125,6 +134,9 @@ func (r *rolePermissionRepo) List(ctx context.Context, tenantID uuid.UUID, limit
 		}
 		rolePermissions = append(rolePermissions, rolePermission)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return rolePermissions, nil
 }
 
@@ -149,6 +161,9 @@ func (r *rolePermissionRepo) GetPermissionsByRole(ctx context.Context, tenantID 
 			return nil, err
 		}
 		permissions = append(permissions, permission)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return permissions, nil
 }
@@ -184,4 +199,78 @@ func (r *rolePermissionRepo) RemovePermissionFromRole(ctx context.Context, tenan
 	`
 	_, err := r.db.Exec(ctx, query, roleID, permissionID, tenantID)
 	return err
+}
+
+// GetAllUserPermissions fetches all permissions for a user in a single optimized query.
+// This eliminates the N+1 query problem by using a recursive CTE to traverse role hierarchy
+// and joining all tables in a single query.
+func (r *rolePermissionRepo) GetAllUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]*models.Permission, error) {
+	// Use a recursive CTE to traverse the role hierarchy and get all permissions
+	query := `
+		WITH RECURSIVE role_hierarchy AS (
+			-- Base case: get user's directly assigned roles
+			SELECT r.id, r.name, r.parent_role_id, r.priority, 0 as depth
+			FROM roles r
+			INNER JOIN user_roles ur ON r.id = ur.role_id
+			WHERE ur.user_id = $1 
+			  AND ur.tenant_id = $2
+			  AND r.tenant_id = $2
+			  AND r.is_active = true
+			  AND COALESCE(ur.is_active, true) = true
+			
+			UNION ALL
+			
+			-- Recursive case: get parent roles
+			SELECT r.id, r.name, r.parent_role_id, r.priority, rh.depth + 1
+			FROM roles r
+			INNER JOIN role_hierarchy rh ON r.id = rh.parent_role_id
+			WHERE r.tenant_id = $2
+			  AND r.is_active = true
+			  AND rh.depth < 10  -- Prevent infinite recursion (max 10 levels)
+		)
+		SELECT DISTINCT ON (p.name)
+			p.id, 
+			p.name, 
+			p.resource,
+			p.action,
+			COALESCE(rp.conditions, p.conditions) as conditions,
+			p.description, 
+			p.created_at
+		FROM role_hierarchy rh
+		INNER JOIN role_permissions rp ON rh.id = rp.role_id
+		INNER JOIN permissions p ON rp.permission_id = p.id
+		ORDER BY p.name, rh.priority DESC, rh.depth ASC
+	`
+	rows, err := r.db.Query(ctx, query, userID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var permissions []*models.Permission
+	for rows.Next() {
+		permission := &models.Permission{}
+		var conditions []byte
+		if err := rows.Scan(
+			&permission.ID,
+			&permission.Name,
+			&permission.Resource,
+			&permission.Action,
+			&conditions,
+			&permission.Description,
+			&permission.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		// Parse conditions JSON if present
+		if len(conditions) > 0 {
+			// Store raw conditions for later use
+			permission.ConditionsRaw = conditions
+		}
+		permissions = append(permissions, permission)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return permissions, nil
 }

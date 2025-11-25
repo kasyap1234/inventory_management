@@ -70,6 +70,9 @@ func (r *userRoleRepo) ListByUser(ctx context.Context, tenantID, userID uuid.UUI
 		}
 		userRoles = append(userRoles, userRole)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return userRoles, nil
 }
 
@@ -94,6 +97,9 @@ func (r *userRoleRepo) ListByRole(ctx context.Context, tenantID, roleID uuid.UUI
 			return nil, err
 		}
 		userRoles = append(userRoles, userRole)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return userRoles, nil
 }
@@ -121,6 +127,9 @@ func (r *userRoleRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offs
 			return nil, err
 		}
 		userRoles = append(userRoles, userRole)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return userRoles, nil
 }

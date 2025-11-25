@@ -123,6 +123,9 @@ func (r *deviceTokenRepository) GetTokensByUser(ctx context.Context, tenantID, u
 		}
 		tokens = append(tokens, token)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating device tokens: %w", err)
+	}
 
 	return tokens, nil
 }
@@ -166,6 +169,9 @@ func (r *deviceTokenRepository) GetActiveTokensByUser(ctx context.Context, tenan
 			return nil, fmt.Errorf("failed to scan device token: %w", err)
 		}
 		tokens = append(tokens, token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating active device tokens: %w", err)
 	}
 
 	return tokens, nil

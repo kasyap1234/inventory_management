@@ -178,6 +178,9 @@ func (r *roleRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*models.Role
 
 		roles = append(roles, &role)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating roles: %w", err)
+	}
 
 	return roles, nil
 }
@@ -285,6 +288,9 @@ func (r *roleRepo) GetUserRoles(ctx context.Context, tenantID uuid.UUID, userID 
 
 		roles = append(roles, &role)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user roles: %w", err)
+	}
 
 	return roles, nil
 }
@@ -324,6 +330,9 @@ func (r *roleRepo) GetRoleUsers(ctx context.Context, tenantID uuid.UUID, roleID 
 		}
 
 		users = append(users, &user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating role users: %w", err)
 	}
 
 	return users, nil

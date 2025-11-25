@@ -50,6 +50,9 @@ type CacheService interface {
 	SetString(ctx context.Context, key string, value string, ttl time.Duration) error
 	GetString(ctx context.Context, key string) (string, error)
 	Delete(ctx context.Context, key string) error
+
+	// Pattern-based deletion for token revocation
+	DeleteByPattern(ctx context.Context, pattern string) error
 }
 
 type redisCacheService struct {
@@ -325,4 +328,39 @@ func (r *redisCacheService) GetString(ctx context.Context, key string) (string, 
 
 func (r *redisCacheService) Delete(ctx context.Context, key string) error {
 	return r.client.Del(ctx, key).Err()
+}
+
+// DeleteByPattern deletes all keys matching the given pattern
+// Uses SCAN instead of KEYS for production safety (non-blocking)
+func (r *redisCacheService) DeleteByPattern(ctx context.Context, pattern string) error {
+	var cursor uint64
+	var deletedCount int64
+
+	for {
+		// Use SCAN to iterate through keys matching the pattern
+		keys, nextCursor, err := r.client.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			return fmt.Errorf("failed to scan keys with pattern %s: %w", pattern, err)
+		}
+
+		// Delete found keys in batches
+		if len(keys) > 0 {
+			deleted, err := r.client.Del(ctx, keys...).Result()
+			if err != nil {
+				log.Printf("WARN: Failed to delete some keys matching pattern %s: %v", pattern, err)
+			}
+			deletedCount += deleted
+		}
+
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if deletedCount > 0 {
+		log.Printf("Deleted %d keys matching pattern: %s", deletedCount, pattern)
+	}
+
+	return nil
 }

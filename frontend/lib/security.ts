@@ -2,58 +2,36 @@ import axios, { AxiosInstance } from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
+// TokenStorage is no longer needed for HttpOnly cookie authentication
+// Tokens are stored in HttpOnly cookies and sent automatically with credentials: 'include'
 class TokenStorage {
-  private accessToken: string | null = null;
-  private refreshToken: string | null = null;
-
-  constructor() {
-    if (typeof window !== 'undefined') {
-      this.accessToken = localStorage.getItem('access_token');
-      this.refreshToken = localStorage.getItem('refresh_token');
-    }
-  }
-
+  // Keep these methods for backward compatibility but they no longer interact with localStorage
+  // The backend sets HttpOnly cookies that are automatically sent with requests
+  
   getAccessToken() {
-    if (typeof window === 'undefined') return null;
-    if (!this.accessToken) {
-      this.accessToken = localStorage.getItem('access_token');
-    }
-    return this.accessToken;
+    // Tokens are in HttpOnly cookies - not accessible from JavaScript
+    return null;
   }
 
   getRefreshToken() {
-    if (typeof window === 'undefined') return null;
-    if (!this.refreshToken) {
-      this.refreshToken = localStorage.getItem('refresh_token');
-    }
-    return this.refreshToken;
+    // Tokens are in HttpOnly cookies - not accessible from JavaScript
+    return null;
   }
 
-  setTokens(accessToken?: string, refreshToken?: string) {
-    if (typeof window === 'undefined') return;
-
-    if (accessToken) {
-      this.accessToken = accessToken;
-      localStorage.setItem('access_token', accessToken);
-    }
-
-    if (refreshToken) {
-      this.refreshToken = refreshToken;
-      localStorage.setItem('refresh_token', refreshToken);
-    }
+  setTokens(_accessToken?: string, _refreshToken?: string) {
+    // No-op: Tokens are set by backend as HttpOnly cookies
+    // This method is kept for backward compatibility
   }
 
   clear() {
-    if (typeof window === 'undefined') return;
-
-    this.accessToken = null;
-    this.refreshToken = null;
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    // Tokens are cleared by calling the logout endpoint
+    // The backend will clear the HttpOnly cookies
   }
 
   hasAccessToken() {
-    return !!this.getAccessToken();
+    // Cannot check token presence from JavaScript with HttpOnly cookies
+    // Auth state is determined by making an authenticated API call
+    return false;
   }
 }
 

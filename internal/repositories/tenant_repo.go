@@ -99,6 +99,9 @@ func (r *tenantRepo) List(ctx context.Context, limit, offset int) ([]*models.Ten
 		}
 		tenants = append(tenants, tenant)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return tenants, nil
 }
 

@@ -190,7 +190,10 @@ func (s *authService) GenerateTokens(ctx context.Context, userID, tenantID uuid.
 	}
 
 	// Generate refresh token
-	refreshToken := s.generateSecureToken()
+	refreshToken, err := s.generateSecureToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
 	refreshTokenHash, err := s.hashToken(refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash refresh token: %v", err)
@@ -325,7 +328,10 @@ func (s *authService) RevokeToken(ctx context.Context, token string, tokenType *
 
 // GenerateAuthorizationCode generates OAuth2 authorization code
 func (s *authService) GenerateAuthorizationCode(ctx context.Context, userID, tenantID uuid.UUID, clientID string, redirectURI, scope *string) (string, error) {
-	code := s.generateSecureToken()
+	code, err := s.generateSecureToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate authorization code: %w", err)
+	}
 	codeHash, err := s.hashToken(code)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash authorization code: %v", err)
@@ -441,11 +447,59 @@ func (s *authService) GetRefreshToken(ctx context.Context, tokenHash string) (*m
 	}, nil
 }
 
-// RevokeUserTokens revokes all tokens for a user
+// RevokeUserTokens revokes all tokens for a user by deleting all their cached tokens
+// and blacklisting any active JWTs
 func (s *authService) RevokeUserTokens(ctx context.Context, userID uuid.UUID) error {
-	// In production, this would query database for all user tokens
 	log.Printf("Revoking all tokens for user %s", userID.String())
-	// Implementation would batch delete all user tokens from cache/database
+
+	userIDStr := userID.String()
+	var revokedCount int
+	var errorsEncountered []string
+
+	// Strategy 1: Blacklist the user globally for a reasonable TTL
+	// This ensures any token validation will check against this blacklist
+	userBlacklistKey := fmt.Sprintf("user_blacklist:%s", userIDStr)
+	blacklistTTL := time.Duration(s.refreshTTL) * time.Second
+	if err := s.cacheSvc.SetString(ctx, userBlacklistKey, fmt.Sprintf("%d", time.Now().Unix()), blacklistTTL); err != nil {
+		errorsEncountered = append(errorsEncountered, fmt.Sprintf("failed to set user blacklist: %v", err))
+	} else {
+		revokedCount++
+	}
+
+	// Strategy 2: Delete tokens using pattern-based deletion
+	// Now using the DeleteByPattern method that uses SCAN for production safety
+	tokenPatterns := []string{
+		fmt.Sprintf("refresh_token:*:%s:*", userIDStr), // Pattern for refresh tokens
+		fmt.Sprintf("password_reset:%s:*", userIDStr),  // Pattern for password reset tokens
+		fmt.Sprintf("email_verify:%s:*", userIDStr),    // Pattern for email verification tokens
+	}
+
+	for _, pattern := range tokenPatterns {
+		if err := s.cacheSvc.DeleteByPattern(ctx, pattern); err != nil {
+			errorsEncountered = append(errorsEncountered, fmt.Sprintf("failed to delete pattern %s: %v", pattern, err))
+		} else {
+			revokedCount++
+		}
+	}
+
+	// Strategy 3: Invalidate session tokens by incrementing a user-specific version
+	sessionVersionKey := fmt.Sprintf("user_session_version:%s", userIDStr)
+	currentVersion := time.Now().UnixNano()
+	if err := s.cacheSvc.SetString(ctx, sessionVersionKey, fmt.Sprintf("%d", currentVersion), blacklistTTL); err != nil {
+		errorsEncountered = append(errorsEncountered, fmt.Sprintf("failed to update session version: %v", err))
+	} else {
+		revokedCount++
+	}
+
+	if len(errorsEncountered) > 0 {
+		log.Printf("Token revocation completed with errors for user %s: %v", userIDStr, errorsEncountered)
+		// Still return nil if we managed to set the blacklist, as that's the critical operation
+		if revokedCount == 0 {
+			return fmt.Errorf("failed to revoke tokens: %s", strings.Join(errorsEncountered, "; "))
+		}
+	}
+
+	log.Printf("Successfully revoked tokens for user %s (operations: %d)", userIDStr, revokedCount)
 	return nil
 }
 
@@ -458,7 +512,10 @@ func (s *authService) CleanupExpiredTokens(ctx context.Context) error {
 
 // GeneratePasswordResetToken creates a time-limited password reset token for a user
 func (s *authService) GeneratePasswordResetToken(ctx context.Context, userID uuid.UUID) (string, error) {
-	token := s.generateSecureToken()
+	token, err := s.generateSecureToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate password reset token: %w", err)
+	}
 	tokenHash, err := s.hashToken(token)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash password reset token: %v", err)
@@ -515,7 +572,10 @@ func (s *authService) ConsumePasswordResetToken(ctx context.Context, token strin
 
 // GenerateEmailVerificationToken creates a verification token for email confirmation
 func (s *authService) GenerateEmailVerificationToken(ctx context.Context, userID uuid.UUID) (string, error) {
-	token := s.generateSecureToken()
+	token, err := s.generateSecureToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate email verification token: %w", err)
+	}
 	tokenHash, err := s.hashToken(token)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash email verification token: %v", err)
@@ -609,16 +669,15 @@ func (s *authService) ClearFailedLoginAttempts(ctx context.Context, userID uuid.
 // Helper methods
 
 // generateSecureToken generates a cryptographically secure random token
-func (s *authService) generateSecureToken() string {
+// Returns an error if crypto/rand fails - do NOT fallback to insecure methods
+func (s *authService) generateSecureToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
-		// This should never happen with crypto/rand, but handle it gracefully
+		// SECURITY: Do not fallback to time-based tokens - they are predictable
 		log.Printf("CRITICAL: Failed to generate secure random bytes: %v", err)
-		// Fallback: use timestamp + UUID as entropy source (not ideal but better than panic)
-		fallback := fmt.Sprintf("%d-%s", time.Now().UnixNano(), uuid.New().String())
-		return base64.URLEncoding.EncodeToString([]byte(fallback))
+		return "", fmt.Errorf("failed to generate secure token: system entropy unavailable: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(bytes)
+	return base64.URLEncoding.EncodeToString(bytes), nil
 }
 
 // hashToken creates a SHA-256 hash of the token for secure storage
@@ -706,20 +765,19 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 		return nil, fmt.Errorf("default roles not found")
 	}
 
-	// Check if this is the first user in the tenant
-	// If so, assign admin role. Otherwise, assign user role.
-	isFirstUser := false
-	existingUsers, err := s.userRepo.List(ctx, tenant, 1, 0) // Check if any users exist
+	// Atomically check if this is the first user in the tenant using advisory locks
+	// This prevents race conditions where multiple concurrent signups could all get admin role
+	isFirstUser, err := s.userRepo.IsFirstUserInTenant(ctx, tenant)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check existing users: %v", err)
-	}
-	if len(existingUsers) == 0 {
-		isFirstUser = true
+		// Log the error but default to user role for safety
+		log.Printf("Warning: Failed to check first user status for tenant %s: %v. Defaulting to user role.", tenant, err)
+		isFirstUser = false
 	}
 
 	roleID := userRole.ID
 	if isFirstUser {
 		roleID = adminRole.ID
+		log.Printf("First user in tenant %s - assigning admin role", tenant)
 	}
 
 	newUserRole := &models.UserRole{

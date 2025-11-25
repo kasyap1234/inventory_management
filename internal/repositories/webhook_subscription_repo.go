@@ -190,6 +190,9 @@ func (r *webhookSubscriptionRepo) List(ctx context.Context, tenantID uuid.UUID) 
 
 		webhooks = append(webhooks, &webhook)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating webhook subscriptions: %w", err)
+	}
 
 	return webhooks, nil
 }
@@ -252,6 +255,9 @@ func (r *webhookSubscriptionRepo) GetActiveWebhooksForEvent(ctx context.Context,
 		}
 
 		webhooks = append(webhooks, &webhook)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating active webhooks: %w", err)
 	}
 
 	return webhooks, nil

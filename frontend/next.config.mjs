@@ -25,9 +25,9 @@ const nextConfig = {
     } : false,
   },
 
-  // Ignore ESLint errors during build
+  // Enable ESLint during builds for code quality
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
 
   // Experimental features for better performance

@@ -38,15 +38,8 @@ type ListInventoriesRequest struct {
 }
 
 // ListInventories handles getting a list of inventories with tenant filtering
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) ListInventories(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.list")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err // RBAC middleware will return appropriate error
-	}
-
 	ctx := c.Request().Context()
 
 	var req ListInventoriesRequest
@@ -92,15 +85,8 @@ type CreateInventoryRequest struct {
 }
 
 // CreateInventory handles creating/updating inventory records (handles unique constraint)
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) CreateInventory(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.create")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	var req CreateInventoryRequest
@@ -136,15 +122,8 @@ func (h *InventoryHandlers) CreateInventory(c echo.Context) error {
 }
 
 // GetInventory handles getting inventory details by ID
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) GetInventory(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.read")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	inventoryIDStr := c.Param("id")
@@ -180,15 +159,8 @@ type UpdateInventoryRequest struct {
 }
 
 // UpdateInventory handles updating inventory details
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) UpdateInventory(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.update")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	inventoryIDStr := c.Param("id")
@@ -246,15 +218,8 @@ func (h *InventoryHandlers) UpdateInventory(c echo.Context) error {
 }
 
 // DeleteInventory handles deleting an inventory record
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) DeleteInventory(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.delete")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	inventoryIDStr := c.Param("id")
@@ -296,15 +261,8 @@ type AdjustStockRequest struct {
 }
 
 // AdjustStock handles stock adjustments
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.update")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	var req AdjustStockRequest
@@ -339,14 +297,8 @@ func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
 }
 
 // GetInventoryHistory returns audit history for an inventory record
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) GetInventoryHistory(c echo.Context) error {
-	err := h.rbacMiddleware.RequirePermission("inventory.read")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	inventoryIDStr := c.Param("id")
@@ -398,15 +350,8 @@ type CheckAvailabilityRequest struct {
 }
 
 // CheckAvailability handles stock availability queries
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) CheckAvailability(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.read")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	var req CheckAvailabilityRequest
@@ -444,15 +389,8 @@ func (h *InventoryHandlers) CheckAvailability(c echo.Context) error {
 }
 
 // TransferStock handles stock transfers between warehouses
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) TransferStock(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.update")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	type TransferRequest struct {
@@ -487,15 +425,8 @@ func (h *InventoryHandlers) TransferStock(c echo.Context) error {
 }
 
 // SearchInventories handles advanced search with filters
+// Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) SearchInventories(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventory.list")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
     start := time.Now()
 

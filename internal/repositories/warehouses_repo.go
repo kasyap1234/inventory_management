@@ -99,5 +99,8 @@ func (r *warehouseRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 		}
 		warehouses = append(warehouses, warehouse)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return warehouses, nil
 }

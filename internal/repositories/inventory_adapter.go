@@ -3,9 +3,11 @@ package repositories
 import (
 	"context"
 	"fmt"
-	"agromart2/internal/models"
-	"github.com/google/uuid"
 	"time"
+
+	"agromart2/internal/models"
+
+	"github.com/google/uuid"
 )
 
 // InventoryReservation represents inventory reservations
@@ -96,6 +98,24 @@ func (a *InventoryAdapter) UpdateStock(ctx context.Context, tenantID uuid.UUID, 
 	// Update the first inventory record
 	inventory := inventories[0]
 	inventory.Quantity = quantity
+	return a.repo.Update(ctx, inventory)
+}
+
+// UpdateReservedQuantity updates only the reserved quantity for a product
+// This is separate from UpdateStock to ensure reservation updates don't accidentally modify quantity
+func (a *InventoryAdapter) UpdateReservedQuantity(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, reservedQuantity int) error {
+	inventories, err := a.repo.GetByProduct(ctx, tenantID, productID)
+	if err != nil {
+		return err
+	}
+	if len(inventories) == 0 {
+		return fmt.Errorf("no inventory found for product")
+	}
+	
+	// Update the first inventory record's reserved quantity
+	inventory := inventories[0]
+	inventory.ReservedQuantity = reservedQuantity
+	inventory.LastUpdated = time.Now()
 	return a.repo.Update(ctx, inventory)
 }
 

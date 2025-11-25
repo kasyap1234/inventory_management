@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -85,14 +86,14 @@ func ValidatePassword(password string, requirements PasswordRequirements) Passwo
 	// Check length
 	if len(password) < requirements.MinLength {
 		result.Valid = false
-		result.Errors = append(result.Errors, "Password must be at least "+string(rune(requirements.MinLength+'0'))+" characters long")
+		result.Errors = append(result.Errors, "Password must be at least "+strconv.Itoa(requirements.MinLength)+" characters long")
 	} else if len(password) >= requirements.MinLength {
 		result.Score += 1
 	}
 
 	if len(password) > requirements.MaxLength {
 		result.Valid = false
-		result.Errors = append(result.Errors, "Password must not exceed "+string(rune(requirements.MaxLength+'0'))+" characters")
+		result.Errors = append(result.Errors, "Password must not exceed "+strconv.Itoa(requirements.MaxLength)+" characters")
 	}
 
 	// Check character requirements

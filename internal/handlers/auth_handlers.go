@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"agromart2/internal/common"
@@ -163,6 +164,28 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate tokens")
 	}
 
+	// Set HttpOnly cookie with JWT token
+	cookie := new(http.Cookie)
+	cookie.Name = "auth_token"
+	cookie.Value = tokenResponse.AccessToken
+	cookie.HttpOnly = true
+	cookie.Secure = os.Getenv("ENV") != "development"
+	cookie.SameSite = http.SameSiteStrictMode
+	cookie.Path = "/"
+	cookie.MaxAge = tokenResponse.ExpiresIn // Match JWT token expiration
+	c.SetCookie(cookie)
+
+	// Set refresh token cookie
+	refreshCookie := new(http.Cookie)
+	refreshCookie.Name = "refresh_token"
+	refreshCookie.Value = tokenResponse.RefreshToken
+	refreshCookie.HttpOnly = true
+	refreshCookie.Secure = os.Getenv("ENV") != "development"
+	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Path = "/"
+	refreshCookie.MaxAge = 604800 // 7 days
+	c.SetCookie(refreshCookie)
+
 	response := LoginResponse{
 		TokenResponse: *tokenResponse,
 		User:          user,
@@ -307,6 +330,38 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 		}
 	}(user.Email)
 
+	// For auto-approved users (e.g., first user/admin), generate tokens and set cookies
+	if user.Status == "active" {
+		// Get tenant ID
+		userTenantID, err := h.userRepo.GetTenantIDByUserID(ctx, user.ID)
+		if err == nil {
+			tokenResponse, err := h.authService.GenerateTokens(ctx, user.ID, userTenantID, nil)
+			if err == nil {
+				// Set HttpOnly cookie with JWT token
+				cookie := new(http.Cookie)
+				cookie.Name = "auth_token"
+				cookie.Value = tokenResponse.AccessToken
+				cookie.HttpOnly = true
+				cookie.Secure = os.Getenv("ENV") != "development"
+				cookie.SameSite = http.SameSiteStrictMode
+				cookie.Path = "/"
+				cookie.MaxAge = tokenResponse.ExpiresIn
+				c.SetCookie(cookie)
+
+				// Set refresh token cookie
+				refreshCookie := new(http.Cookie)
+				refreshCookie.Name = "refresh_token"
+				refreshCookie.Value = tokenResponse.RefreshToken
+				refreshCookie.HttpOnly = true
+				refreshCookie.Secure = os.Getenv("ENV") != "development"
+				refreshCookie.SameSite = http.SameSiteStrictMode
+				refreshCookie.Path = "/"
+				refreshCookie.MaxAge = 604800 // 7 days
+				c.SetCookie(refreshCookie)
+			}
+		}
+	}
+
 	response := SignupResponse{
 		User:                 user,
 		Message:              "Account created. Please verify your email to activate access.",
@@ -321,7 +376,7 @@ type LogoutRequest struct {
 	TokenTypeHint *string `json:"token_type_hint"` // "access_token" or "refresh_token"
 }
 
-// Logout handles user logout by revoking tokens
+// Logout handles user logout by revoking tokens and clearing cookies
 func (h *AuthHandlers) Logout(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -330,13 +385,18 @@ func (h *AuthHandlers) Logout(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "User not authenticated")
 	}
 
-	// Get the token from Authorization header
+	// Get the token from Authorization header or cookie
+	var tokenString string
 	authHeader := c.Request().Header.Get("Authorization")
-	if authHeader == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Authorization header missing")
+	if authHeader != "" {
+		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+	} else {
+		// Try to get token from cookie
+		cookie, err := c.Cookie("auth_token")
+		if err == nil && cookie != nil {
+			tokenString = cookie.Value
+		}
 	}
-
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 	var req LogoutRequest
 	if err := c.Bind(&req); err != nil {
@@ -344,10 +404,35 @@ func (h *AuthHandlers) Logout(c echo.Context) error {
 		req.TokenTypeHint = nil
 	}
 
-	// Revoke the access token (and optionally refresh token)
-	if err := h.authService.RevokeToken(ctx, tokenString, req.TokenTypeHint); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke token")
+	// Revoke the access token if present
+	if tokenString != "" {
+		if err := h.authService.RevokeToken(ctx, tokenString, req.TokenTypeHint); err != nil {
+			log.Printf("Failed to revoke token during logout: %v", err)
+			// Continue with logout even if revocation fails
+		}
 	}
+
+	// Clear auth_token cookie
+	authCookie := new(http.Cookie)
+	authCookie.Name = "auth_token"
+	authCookie.Value = ""
+	authCookie.HttpOnly = true
+	authCookie.Secure = os.Getenv("ENV") != "development"
+	authCookie.SameSite = http.SameSiteStrictMode
+	authCookie.Path = "/"
+	authCookie.MaxAge = -1 // Delete cookie
+	c.SetCookie(authCookie)
+
+	// Clear refresh_token cookie
+	refreshCookie := new(http.Cookie)
+	refreshCookie.Name = "refresh_token"
+	refreshCookie.Value = ""
+	refreshCookie.HttpOnly = true
+	refreshCookie.Secure = os.Getenv("ENV") != "development"
+	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Path = "/"
+	refreshCookie.MaxAge = -1 // Delete cookie
+	c.SetCookie(refreshCookie)
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Logged out successfully",
@@ -388,6 +473,28 @@ func (h *AuthHandlers) Refresh(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid or expired refresh token")
 	}
+
+	// Set new HttpOnly cookies with refreshed tokens
+	cookie := new(http.Cookie)
+	cookie.Name = "auth_token"
+	cookie.Value = tokenResponse.AccessToken
+	cookie.HttpOnly = true
+	cookie.Secure = os.Getenv("ENV") != "development"
+	cookie.SameSite = http.SameSiteStrictMode
+	cookie.Path = "/"
+	cookie.MaxAge = tokenResponse.ExpiresIn
+	c.SetCookie(cookie)
+
+	// Set new refresh token cookie
+	refreshCookie := new(http.Cookie)
+	refreshCookie.Name = "refresh_token"
+	refreshCookie.Value = tokenResponse.RefreshToken
+	refreshCookie.HttpOnly = true
+	refreshCookie.Secure = os.Getenv("ENV") != "development"
+	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Path = "/"
+	refreshCookie.MaxAge = 604800 // 7 days
+	c.SetCookie(refreshCookie)
 
 	return c.JSON(http.StatusOK, tokenResponse)
 }
@@ -756,6 +863,28 @@ func (h *AuthHandlers) Verify2FA(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate tokens")
 	}
+
+	// Set HttpOnly cookies after 2FA verification
+	cookie := new(http.Cookie)
+	cookie.Name = "auth_token"
+	cookie.Value = tokenResponse.AccessToken
+	cookie.HttpOnly = true
+	cookie.Secure = os.Getenv("ENV") != "development"
+	cookie.SameSite = http.SameSiteStrictMode
+	cookie.Path = "/"
+	cookie.MaxAge = tokenResponse.ExpiresIn
+	c.SetCookie(cookie)
+
+	// Set refresh token cookie
+	refreshCookie := new(http.Cookie)
+	refreshCookie.Name = "refresh_token"
+	refreshCookie.Value = tokenResponse.RefreshToken
+	refreshCookie.HttpOnly = true
+	refreshCookie.Secure = os.Getenv("ENV") != "development"
+	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Path = "/"
+	refreshCookie.MaxAge = 604800 // 7 days
+	c.SetCookie(refreshCookie)
 
 	// Consume the temporary token
 	if _, err := h.authService.ConsumePasswordResetToken(ctx, req.Token); err != nil {

@@ -32,14 +32,6 @@ type ListSuppliersRequest struct {
 
 // ListSuppliers handles getting a list of suppliers with tenant filtering
 func (h *SupplierHandlers) ListSuppliers(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("supplier.list")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err // RBAC middleware will return appropriate error
-	}
-
 	ctx := c.Request().Context()
 
 	var req ListSuppliersRequest
@@ -88,14 +80,6 @@ type CreateSupplierRequest struct {
 
 // CreateSupplier handles creating a new supplier
 func (h *SupplierHandlers) CreateSupplier(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("supplier.create")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	var req CreateSupplierRequest
@@ -132,14 +116,6 @@ func (h *SupplierHandlers) CreateSupplier(c echo.Context) error {
 
 // GetSupplier handles getting supplier details by ID
 func (h *SupplierHandlers) GetSupplier(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("supplier.read")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	supplierIDStr := c.Param("id")
@@ -178,14 +154,6 @@ type UpdateSupplierRequest struct {
 
 // UpdateSupplier handles updating supplier details
 func (h *SupplierHandlers) UpdateSupplier(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("supplier.update")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	supplierIDStr := c.Param("id")
@@ -241,14 +209,6 @@ func (h *SupplierHandlers) UpdateSupplier(c echo.Context) error {
 
 // DeleteSupplier handles deleting a supplier
 func (h *SupplierHandlers) DeleteSupplier(c echo.Context) error {
-	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("supplier.delete")(func(c echo.Context) error {
-		return nil
-	})(c)
-	if err != nil {
-		return err
-	}
-
 	ctx := c.Request().Context()
 
 	supplierIDStr := c.Param("id")

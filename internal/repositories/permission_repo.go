@@ -105,7 +105,8 @@ func (r *permissionRepo) HasPermission(ctx context.Context, userID, tenantID uui
 	return hasPermission, nil
 }
 
-// CheckResourceAccess checks if a user has access to a specific resource
+// CheckResourceAccess checks if a user has access to a specific resource with data-level restrictions.
+// It enforces permission conditions like data_scope ("own"/"all") from the permission's JSONB conditions.
 func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenantID uuid.UUID, resource, action string, resourceID *uuid.UUID) (bool, error) {
 	// First check if user has the general permission
 	permissionName := fmt.Sprintf("%s.%s", resource, action)
@@ -115,7 +116,16 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 	}
 
 	if !hasPermission {
-		return false, nil
+		// Also check for wildcard permissions
+		wildcardResource := fmt.Sprintf("%s.*", resource)
+		wildcardAction := fmt.Sprintf("*.%s", action)
+		hasWildcardResource, _ := r.HasPermission(ctx, userID, tenantID, wildcardResource)
+		hasWildcardAction, _ := r.HasPermission(ctx, userID, tenantID, wildcardAction)
+		hasFullWildcard, _ := r.HasPermission(ctx, userID, tenantID, "*")
+		
+		if !hasWildcardResource && !hasWildcardAction && !hasFullWildcard {
+			return false, nil
+		}
 	}
 
 	// If no specific resource ID, general permission is sufficient
@@ -123,30 +133,78 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 		return true, nil
 	}
 
-	// Check for resource-specific conditions
-	// This is a simplified implementation - in practice, you might have more complex logic
-	// based on ownership, team membership, etc.
+	// Get the user's permissions with conditions for this resource/action
+	query := `
+		WITH RECURSIVE role_hierarchy AS (
+			SELECT r.id, r.parent_role_id, 0 as depth
+			FROM roles r
+			INNER JOIN user_roles ur ON r.id = ur.role_id
+			WHERE ur.user_id = $1 
+			  AND ur.tenant_id = $2
+			  AND r.tenant_id = $2
+			  AND r.is_active = true
+			  AND COALESCE(ur.is_active, true) = true
+			
+			UNION ALL
+			
+			SELECT r.id, r.parent_role_id, rh.depth + 1
+			FROM roles r
+			INNER JOIN role_hierarchy rh ON r.id = rh.parent_role_id
+			WHERE r.tenant_id = $2
+			  AND r.is_active = true
+			  AND rh.depth < 10
+		)
+		SELECT COALESCE(rp.conditions, p.conditions, '{}'::jsonb) as conditions
+		FROM role_hierarchy rh
+		INNER JOIN role_permissions rp ON rh.id = rp.role_id
+		INNER JOIN permissions p ON rp.permission_id = p.id
+		WHERE (p.name = $3 OR p.name = $4 OR p.name = $5 OR p.name = '*')
+		  AND (p.resource = $6 OR p.resource IS NULL OR p.name = '*')
+		ORDER BY 
+			CASE WHEN p.name = $3 THEN 0 ELSE 1 END, -- Exact match first
+			rh.depth ASC
+		LIMIT 1
+	`
 	
-	// For now, we'll check if the user has "all" data scope or if they own the resource
-	permissions, err := r.GetUserPermissions(ctx, userID, tenantID)
+	wildcardResource := fmt.Sprintf("%s.*", resource)
+	wildcardAction := fmt.Sprintf("*.%s", action)
+	
+	var conditionsJSON []byte
+	err = r.db.QueryRow(ctx, query, userID, tenantID, permissionName, wildcardResource, wildcardAction, resource).Scan(&conditionsJSON)
 	if err != nil {
-		return false, err
+		if err == pgx.ErrNoRows {
+			// No specific conditions, default to tenant-level access
+			return true, nil
+		}
+		return false, fmt.Errorf("failed to get permission conditions: %w", err)
 	}
-
-	for _, perm := range permissions {
-		if perm.Resource == resource && perm.Action == action {
-			// Check data scope conditions
-			if dataScope, ok := perm.Conditions["data_scope"]; ok {
-				if scope, ok := dataScope.(string); ok && scope == "all" {
-					return true, nil
-				}
-			}
+	
+	// Parse conditions
+	var conditions map[string]interface{}
+	if len(conditionsJSON) > 0 {
+		if err := json.Unmarshal(conditionsJSON, &conditions); err != nil {
+			return false, fmt.Errorf("failed to parse permission conditions: %w", err)
 		}
 	}
-
-	// Check if user owns the resource (simplified check)
-	// In practice, this would be more sophisticated based on the resource type
-	return r.checkResourceOwnership(ctx, userID, tenantID, resource, *resourceID)
+	
+	// Check data_scope condition
+	if dataScope, ok := conditions["data_scope"].(string); ok {
+		switch dataScope {
+		case "all":
+			// User has access to all resources of this type in the tenant
+			return true, nil
+		case "own":
+			// User only has access to resources they own/created
+			return r.checkResourceOwnership(ctx, userID, tenantID, resource, *resourceID)
+		case "team":
+			// User has access to resources owned by their team (future implementation)
+			// For now, fall back to ownership check
+			return r.checkResourceOwnership(ctx, userID, tenantID, resource, *resourceID)
+		}
+	}
+	
+	// No data_scope restriction, default to tenant-level access
+	return true, nil
 }
 
 // GetRolePermissions retrieves all permissions for a role

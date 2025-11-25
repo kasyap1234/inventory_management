@@ -100,6 +100,11 @@ func (m *MockUserRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, sta
 	return args.Get(0).([]*models.User), args.Error(1)
 }
 
+func (m *MockUserRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, tenantID)
+	return args.Bool(0), args.Error(1)
+}
+
 type MockTenantRepo struct {
 	mock.Mock
 }
@@ -324,6 +329,14 @@ func (m *MockRolePermissionRepo) RemovePermissionFromRole(ctx context.Context, t
 	return args.Error(0)
 }
 
+func (m *MockRolePermissionRepo) GetAllUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]*models.Permission, error) {
+	args := m.Called(ctx, userID, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Permission), args.Error(1)
+}
+
 type MockPermissionRepo struct {
 	mock.Mock
 }
@@ -470,8 +483,8 @@ func TestAuthService_Signup_AdminRole(t *testing.T) {
 	// 4. Create User
 	mockUserRepo.On("Create", ctx, mock.AnythingOfType("*models.User")).Return(nil)
 
-	// 5. Check existing users to determine if first user
-	mockUserRepo.On("List", ctx, mock.AnythingOfType("uuid.UUID"), 1, 0).Return([]*models.User{}, nil) // No users exist
+	// 5. Check if first user in tenant using IsFirstUserInTenant
+	mockUserRepo.On("IsFirstUserInTenant", ctx, mock.AnythingOfType("uuid.UUID")).Return(true, nil) // First user
 
 	// 6. Assign Role - EXPECT ADMIN ROLE
 	mockUserRoleRepo.On("Create", ctx, mock.AnythingOfType("uuid.UUID"), mock.MatchedBy(func(ur *models.UserRole) bool {
@@ -552,8 +565,8 @@ func TestAuthService_Signup_UserRole(t *testing.T) {
 	// 4. Create User
 	mockUserRepo.On("Create", ctx, mock.AnythingOfType("*models.User")).Return(nil)
 
-	// 5. Check existing users - RETURN EXISTING USERS
-	mockUserRepo.On("List", ctx, tenantID, 1, 0).Return([]*models.User{{ID: uuid.New()}}, nil)
+	// 5. Check if first user in tenant using IsFirstUserInTenant
+	mockUserRepo.On("IsFirstUserInTenant", ctx, tenantID).Return(false, nil) // Not first user
 
 	// 6. Assign Role - EXPECT USER ROLE
 	mockUserRoleRepo.On("Create", ctx, tenantID, mock.MatchedBy(func(ur *models.UserRole) bool {

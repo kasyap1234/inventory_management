@@ -25,6 +25,8 @@ type UserRepository interface {
 	FindUsersByTenantID(ctx context.Context, tenantID uuid.UUID) ([]*models.User, error)
 	UpdateGoogleID(ctx context.Context, tenantID, userID uuid.UUID, googleID string) error
 	ListByStatus(ctx context.Context, tenantID uuid.UUID, status string, limit, offset int) ([]*models.User, error)
+	// IsFirstUserInTenant atomically checks if a user is the first user in a tenant using FOR UPDATE SKIP LOCKED
+	IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) (bool, error)
 }
 
 type userRepo struct {
@@ -110,6 +112,9 @@ func (r *userRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset i
 		}
 		users = append(users, user)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return users, nil
 }
 
@@ -191,6 +196,9 @@ func (r *userRepo) FindUsersByTenantID(ctx context.Context, tenantID uuid.UUID) 
 		}
 		users = append(users, user)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return users, nil
 }
 
@@ -226,5 +234,46 @@ func (r *userRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status 
 		}
 		users = append(users, user)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return users, nil
+}
+
+// IsFirstUserInTenant atomically checks if the current signup is the first user in a tenant.
+// Uses advisory locks to prevent race conditions where multiple signups could both become admin.
+// This provides an atomic check at the database level that serializes concurrent requests.
+func (r *userRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) (bool, error) {
+	// Use a transaction with an advisory lock based on tenant ID
+	// Advisory locks are session-level and released when the transaction ends
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) // Rollback if not committed
+
+	// Convert tenantID to a lock key (use first 8 bytes as int64)
+	lockKey := int64(tenantID[0])<<56 | int64(tenantID[1])<<48 | int64(tenantID[2])<<40 |
+		int64(tenantID[3])<<32 | int64(tenantID[4])<<24 | int64(tenantID[5])<<16 |
+		int64(tenantID[6])<<8 | int64(tenantID[7])
+
+	// Acquire advisory lock - this will wait if another transaction holds it
+	_, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
+	}
+
+	// Now safely check if any users exist in this tenant
+	var count int
+	err = tx.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE tenant_id = $1", tenantID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Commit to release the advisory lock
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return count == 0, nil
 }

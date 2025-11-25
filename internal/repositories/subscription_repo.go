@@ -102,6 +102,9 @@ func (r *subscriptionRepo) List(ctx context.Context, tenantID uuid.UUID, limit, 
 		}
 		subscriptions = append(subscriptions, subscription)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return subscriptions, nil
 }
 

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import api from '@/lib/api';
-import { Product } from '@/types';
+import { Product, Category } from '@/types';
 
 interface ProductFormProps {
   product?: Product | null;
@@ -99,7 +99,7 @@ export function ProductForm({ product, onSuccess, onCancel }: ProductFormProps) 
             onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
           >
             <option value="">Select category</option>
-            {categories?.categories?.map((cat: any) => (
+            {categories?.categories?.map((cat: Category) => (
               <option key={cat.id} value={cat.id}>
                 {cat.name}
               </option>

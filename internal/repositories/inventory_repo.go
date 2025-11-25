@@ -80,10 +80,10 @@ func (r *inventoryRepo) GetByWarehouseAndProduct(ctx context.Context, tenantID, 
 func (r *inventoryRepo) Update(ctx context.Context, inventory *models.Inventory) error {
 	query := `
 		UPDATE inventory
-		SET quantity = $1, last_updated = NOW()
-		WHERE tenant_id = $2 AND id = $3
+		SET quantity = $1, reserved_quantity = $2, last_updated = NOW()
+		WHERE tenant_id = $3 AND id = $4
 	`
-	_, err := r.db.Exec(ctx, query, inventory.Quantity, inventory.TenantID, inventory.ID)
+	_, err := r.db.Exec(ctx, query, inventory.Quantity, inventory.ReservedQuantity, inventory.TenantID, inventory.ID)
 	return err
 }
 
@@ -124,6 +124,11 @@ func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 		}
 		inventories = append(inventories, inventory)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inventories: %w", err)
+	}
+
 	return inventories, nil
 }
 
@@ -147,6 +152,10 @@ func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uu
 			return nil, err
 		}
 		inventories = append(inventories, inventory)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inventories by product: %w", err)
 	}
 
 	return inventories, nil

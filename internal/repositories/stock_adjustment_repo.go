@@ -294,6 +294,9 @@ func (r *stockAdjustmentRepo) scanAdjustments(ctx context.Context, query string,
 
 		adjustments = append(adjustments, adjustment)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating stock adjustments: %w", err)
+	}
 
 	return adjustments, nil
 }

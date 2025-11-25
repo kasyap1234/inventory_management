@@ -99,5 +99,8 @@ func (r *distributorRepo) List(ctx context.Context, tenantID uuid.UUID, limit, o
 		}
 		distributors = append(distributors, distributor)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return distributors, nil
 }

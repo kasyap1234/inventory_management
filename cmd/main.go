@@ -649,43 +649,43 @@ func main() {
 
 	// User routes
 	protected.GET("/me", authHandlers.Me)
-	protected.GET("/users/pending", userHandlers.GetPendingUsers, rbacMiddleware.RequirePermission("users:approve"))
-	protected.POST("/users/:id/approve", userHandlers.ApproveUser, rbacMiddleware.RequirePermission("users:approve"))
-	protected.GET("/users", userHandlers.ListUsers, rbacMiddleware.RequirePermission("users:list||read_users"))
-	protected.GET("/users/:id", userHandlers.GetUser, rbacMiddleware.RequirePermission("users:read||read_users"))
-	protected.POST("/users", userHandlers.CreateUser, rbacMiddleware.RequirePermission("users:create||create_users"))
-	protected.PUT("/users/:id", userHandlers.UpdateUser, rbacMiddleware.RequirePermission("users:update||update_users"))
+	protected.GET("/users/pending", userHandlers.GetPendingUsers, rbacMiddleware.RequirePermission("user.approve"))
+	protected.POST("/users/:id/approve", userHandlers.ApproveUser, rbacMiddleware.RequirePermission("user.approve"))
+	protected.GET("/users", userHandlers.ListUsers, rbacMiddleware.RequirePermission("user.list"))
+	protected.GET("/users/:id", userHandlers.GetUser, rbacMiddleware.RequirePermission("user.read"))
+	protected.POST("/users", userHandlers.CreateUser, rbacMiddleware.RequirePermission("user.create"))
+	protected.PUT("/users/:id", userHandlers.UpdateUser, rbacMiddleware.RequirePermission("user.update"))
 	protected.PUT("/users/me", userHandlers.UpdateUserProfile)
-	protected.DELETE("/users/:id", userHandlers.DeleteUser, rbacMiddleware.RequirePermission("users:delete||delete_users"))
+	protected.DELETE("/users/:id", userHandlers.DeleteUser, rbacMiddleware.RequirePermission("user.delete"))
 
 	// Tenant routes (restricted to system admins)
 	// SECURITY: These routes manage the multi-tenant system itself and must be restricted
-	protected.GET("/tenants", tenantHandlers.ListTenants, rbacMiddleware.RequirePermission("tenants:list||system:admin"))
-	protected.POST("/tenants", tenantHandlers.CreateTenant, rbacMiddleware.RequirePermission("tenants:create||system:admin"))
-	protected.GET("/tenants/:id", tenantHandlers.GetTenant, rbacMiddleware.RequirePermission("tenants:read||system:admin"))
-	protected.PUT("/tenants/:id", tenantHandlers.UpdateTenant, rbacMiddleware.RequirePermission("tenants:update||system:admin"))
-	protected.DELETE("/tenants/:id", tenantHandlers.DeleteTenant, rbacMiddleware.RequirePermission("tenants:delete||system:admin"))
+	protected.GET("/tenants", tenantHandlers.ListTenants, rbacMiddleware.RequirePermission("tenant.list||system.admin"))
+	protected.POST("/tenants", tenantHandlers.CreateTenant, rbacMiddleware.RequirePermission("tenant.create||system.admin"))
+	protected.GET("/tenants/:id", tenantHandlers.GetTenant, rbacMiddleware.RequirePermission("tenant.read||system.admin"))
+	protected.PUT("/tenants/:id", tenantHandlers.UpdateTenant, rbacMiddleware.RequirePermission("tenant.update||system.admin"))
+	protected.DELETE("/tenants/:id", tenantHandlers.DeleteTenant, rbacMiddleware.RequirePermission("tenant.delete||system.admin"))
 	// Tenant settings routes (accessible by tenant admins)
 	protected.GET("/tenant/settings", tenantHandlers.GetTenantSettings)
-	protected.PUT("/tenant/settings", tenantHandlers.UpdateTenantSettings, rbacMiddleware.RequirePermission("tenant:manage_settings"))
+	protected.PUT("/tenant/settings", tenantHandlers.UpdateTenantSettings, rbacMiddleware.RequirePermission("tenant.manage_settings"))
 
 	// Category routes
-	protected.GET("/categories", categoryHandlers.ListCategories, rbacMiddleware.RequirePermission("categories:list||read_products"))
-	protected.POST("/categories", categoryHandlers.CreateCategory, rbacMiddleware.RequirePermission("categories:create||create_products"))
-	protected.GET("/categories/:id", categoryHandlers.GetCategory, rbacMiddleware.RequirePermission("categories:read||read_products"))
-	protected.PUT("/categories/:id", categoryHandlers.UpdateCategory, rbacMiddleware.RequirePermission("categories:update||update_products"))
-	protected.DELETE("/categories/:id", categoryHandlers.DeleteCategory, rbacMiddleware.RequirePermission("categories:delete||delete_products"))
+	protected.GET("/categories", categoryHandlers.ListCategories, rbacMiddleware.RequirePermission("category.list"))
+	protected.POST("/categories", categoryHandlers.CreateCategory, rbacMiddleware.RequirePermission("category.create"))
+	protected.GET("/categories/:id", categoryHandlers.GetCategory, rbacMiddleware.RequirePermission("category.read"))
+	protected.PUT("/categories/:id", categoryHandlers.UpdateCategory, rbacMiddleware.RequirePermission("category.update"))
+	protected.DELETE("/categories/:id", categoryHandlers.DeleteCategory, rbacMiddleware.RequirePermission("category.delete"))
 
 	// Product routes
-	protected.GET("/products", productHandlers.ListProducts, rbacMiddleware.RequirePermission("products:list||read_products"))
-	protected.POST("/products", productHandlers.CreateProduct, rbacMiddleware.RequirePermission("products:create||create_products"))
-	protected.GET("/products/:id", productHandlers.GetProduct, rbacMiddleware.RequirePermission("products:read||read_products"))
-	protected.PUT("/products/:id", productHandlers.UpdateProduct, rbacMiddleware.RequirePermission("products:update||update_products"))
-	protected.DELETE("/products/:id", productHandlers.DeleteProduct, rbacMiddleware.RequirePermission("products:delete||delete_products"))
-	protected.GET("/products/search", productHandlers.SearchProducts, rbacMiddleware.RequirePermission("products:search||read_products"))
-	protected.POST("/products/bulk/update", productHandlers.BulkUpdateProducts, rbacMiddleware.RequirePermission("products:bulk_update||update_products"))
-	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts, rbacMiddleware.RequirePermission("products:bulk_create||create_products"))
-	protected.POST("/products/bulk-price-update", productHandlers.BulkPriceUpdate, rbacMiddleware.RequirePermission("products:bulk_price_update||update_products"))
+	protected.GET("/products", productHandlers.ListProducts, rbacMiddleware.RequirePermission("product.list"))
+	protected.POST("/products", productHandlers.CreateProduct, rbacMiddleware.RequirePermission("product.create"))
+	protected.GET("/products/:id", productHandlers.GetProduct, rbacMiddleware.RequirePermission("product.read"))
+	protected.PUT("/products/:id", productHandlers.UpdateProduct, rbacMiddleware.RequirePermission("product.update"))
+	protected.DELETE("/products/:id", productHandlers.DeleteProduct, rbacMiddleware.RequirePermission("product.delete"))
+	protected.GET("/products/search", productHandlers.SearchProducts, rbacMiddleware.RequirePermission("product.search"))
+	protected.POST("/products/bulk/update", productHandlers.BulkUpdateProducts, rbacMiddleware.RequirePermission("product.bulk_update"))
+	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts, rbacMiddleware.RequirePermission("product.bulk_create"))
+	protected.POST("/products/bulk-price-update", productHandlers.BulkPriceUpdate, rbacMiddleware.RequirePermission("product.bulk_price_update"))
 
 	// Batch routes
 	protected.POST("/products/:productId/batches", batchHandler.CreateBatch)
@@ -700,35 +700,35 @@ func main() {
 	protected.DELETE("/products/:id/images/:imageId", productHandlers.DeleteProductImage)
 
 	// Warehouse routes
-	protected.GET("/warehouses", warehouseHandlers.ListWarehouses, rbacMiddleware.RequirePermission("warehouses:list||read_products"))
-	protected.POST("/warehouses", warehouseHandlers.CreateWarehouse, rbacMiddleware.RequirePermission("warehouses:create||create_products"))
-	protected.GET("/warehouses/:id", warehouseHandlers.GetWarehouse, rbacMiddleware.RequirePermission("warehouses:read||read_products"))
-	protected.PUT("/warehouses/:id", warehouseHandlers.UpdateWarehouse, rbacMiddleware.RequirePermission("warehouses:update||update_products"))
-	protected.DELETE("/warehouses/:id", warehouseHandlers.DeleteWarehouse, rbacMiddleware.RequirePermission("warehouses:delete||delete_products"))
+	protected.GET("/warehouses", warehouseHandlers.ListWarehouses, rbacMiddleware.RequirePermission("warehouse.list"))
+	protected.POST("/warehouses", warehouseHandlers.CreateWarehouse, rbacMiddleware.RequirePermission("warehouse.create"))
+	protected.GET("/warehouses/:id", warehouseHandlers.GetWarehouse, rbacMiddleware.RequirePermission("warehouse.read"))
+	protected.PUT("/warehouses/:id", warehouseHandlers.UpdateWarehouse, rbacMiddleware.RequirePermission("warehouse.update"))
+	protected.DELETE("/warehouses/:id", warehouseHandlers.DeleteWarehouse, rbacMiddleware.RequirePermission("warehouse.delete"))
 
 	// Distributor routes
-	protected.GET("/distributors", distributorHandlers.ListDistributors, rbacMiddleware.RequirePermission("distributors:list||read_products"))
-	protected.POST("/distributors", distributorHandlers.CreateDistributor, rbacMiddleware.RequirePermission("distributors:create||create_products"))
-	protected.GET("/distributors/:id", distributorHandlers.GetDistributor, rbacMiddleware.RequirePermission("distributors:read||read_products"))
-	protected.PUT("/distributors/:id", distributorHandlers.UpdateDistributor, rbacMiddleware.RequirePermission("distributors:update||update_products"))
-	protected.DELETE("/distributors/:id", distributorHandlers.DeleteDistributor, rbacMiddleware.RequirePermission("distributors:delete||delete_products"))
+	protected.GET("/distributors", distributorHandlers.ListDistributors, rbacMiddleware.RequirePermission("distributor.list"))
+	protected.POST("/distributors", distributorHandlers.CreateDistributor, rbacMiddleware.RequirePermission("distributor.create"))
+	protected.GET("/distributors/:id", distributorHandlers.GetDistributor, rbacMiddleware.RequirePermission("distributor.read"))
+	protected.PUT("/distributors/:id", distributorHandlers.UpdateDistributor, rbacMiddleware.RequirePermission("distributor.update"))
+	protected.DELETE("/distributors/:id", distributorHandlers.DeleteDistributor, rbacMiddleware.RequirePermission("distributor.delete"))
 
 	// Supplier routes
-	protected.GET("/suppliers", supplierHandlers.ListSuppliers, rbacMiddleware.RequirePermission("suppliers:list||read_products"))
-	protected.POST("/suppliers", supplierHandlers.CreateSupplier, rbacMiddleware.RequirePermission("suppliers:create||create_products"))
-	protected.GET("/suppliers/:id", supplierHandlers.GetSupplier, rbacMiddleware.RequirePermission("suppliers:read||read_products"))
-	protected.PUT("/suppliers/:id", supplierHandlers.UpdateSupplier, rbacMiddleware.RequirePermission("suppliers:update||update_products"))
-	protected.DELETE("/suppliers/:id", supplierHandlers.DeleteSupplier, rbacMiddleware.RequirePermission("suppliers:delete||delete_products"))
+	protected.GET("/suppliers", supplierHandlers.ListSuppliers, rbacMiddleware.RequirePermission("supplier.list"))
+	protected.POST("/suppliers", supplierHandlers.CreateSupplier, rbacMiddleware.RequirePermission("supplier.create"))
+	protected.GET("/suppliers/:id", supplierHandlers.GetSupplier, rbacMiddleware.RequirePermission("supplier.read"))
+	protected.PUT("/suppliers/:id", supplierHandlers.UpdateSupplier, rbacMiddleware.RequirePermission("supplier.update"))
+	protected.DELETE("/suppliers/:id", supplierHandlers.DeleteSupplier, rbacMiddleware.RequirePermission("supplier.delete"))
 
 	// Inventory routes
-	protected.GET("/inventory", inventoryHandlers.ListInventories, rbacMiddleware.RequirePermission("inventory:list||read_products"))
-	protected.POST("/inventory", inventoryHandlers.CreateInventory, rbacMiddleware.RequirePermission("inventory:create||create_products"))
-	protected.POST("/inventory/adjust", inventoryHandlers.AdjustStock, rbacMiddleware.RequirePermission("inventory:adjust||update_products"))
-	protected.GET("/inventory/:id", inventoryHandlers.GetInventory, rbacMiddleware.RequirePermission("inventory:read||read_products"))
-	protected.GET("/inventory/:id/history", inventoryHandlers.GetInventoryHistory, rbacMiddleware.RequirePermission("inventory:read||read_products"))
-	protected.PUT("/inventory/:id", inventoryHandlers.UpdateInventory, rbacMiddleware.RequirePermission("inventory:update||update_products"))
-	protected.DELETE("/inventory/:id", inventoryHandlers.DeleteInventory, rbacMiddleware.RequirePermission("inventory:delete||delete_products"))
-	protected.GET("/inventory/search", inventoryHandlers.SearchInventories, rbacMiddleware.RequirePermission("inventory:search||read_products"))
+	protected.GET("/inventory", inventoryHandlers.ListInventories, rbacMiddleware.RequirePermission("inventory.list"))
+	protected.POST("/inventory", inventoryHandlers.CreateInventory, rbacMiddleware.RequirePermission("inventory.create"))
+	protected.POST("/inventory/adjust", inventoryHandlers.AdjustStock, rbacMiddleware.RequirePermission("inventory.adjust"))
+	protected.GET("/inventory/:id", inventoryHandlers.GetInventory, rbacMiddleware.RequirePermission("inventory.read"))
+	protected.GET("/inventory/:id/history", inventoryHandlers.GetInventoryHistory, rbacMiddleware.RequirePermission("inventory.read"))
+	protected.PUT("/inventory/:id", inventoryHandlers.UpdateInventory, rbacMiddleware.RequirePermission("inventory.update"))
+	protected.DELETE("/inventory/:id", inventoryHandlers.DeleteInventory, rbacMiddleware.RequirePermission("inventory.delete"))
+	protected.GET("/inventory/search", inventoryHandlers.SearchInventories, rbacMiddleware.RequirePermission("inventory.search"))
 	// Start Asynq server in a goroutine
 	go func() {
 		if err := asynqSrv.Start(mux); err != nil {
@@ -749,11 +749,11 @@ func main() {
 
 		for range ticker.C {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			defer cancel()
 
 			tenants, err := tenantRepo.List(ctx, 1000, 0)
 			if err != nil {
 				logger.ErrorWithContext(ctx, "Retry deliveries: failed to list tenants", err, nil)
+				cancel()
 				continue
 			}
 
@@ -802,32 +802,33 @@ func main() {
 					break // Success, exit retry loop
 				}
 			}
+			cancel()
 		}
 	}()
 
 	// Order routes
-	protected.GET("/orders", orderHandlers.GetOrders, rbacMiddleware.RequirePermission("orders:list||read_products"))
-	protected.POST("/orders", orderHandlers.CreateOrder, rbacMiddleware.RequirePermission("orders:create||create_products"))
-	protected.GET("/orders/:id", orderHandlers.GetOrder, rbacMiddleware.RequirePermission("orders:read||read_products"))
-	protected.PUT("/orders/:id", orderHandlers.UpdateOrder, rbacMiddleware.RequirePermission("orders:update||update_products"))
-	protected.DELETE("/orders/:id", orderHandlers.DeleteOrder, rbacMiddleware.RequirePermission("orders:delete||delete_products"))
-	protected.POST("/orders/:id/approve", orderHandlers.ApproveOrder, rbacMiddleware.RequirePermission("orders:approve||update_products"))
-	protected.POST("/orders/:id/process", orderHandlers.ProcessOrder, rbacMiddleware.RequirePermission("orders:process||update_products"))
-	protected.POST("/orders/:id/receive", orderHandlers.ReceiveOrder, rbacMiddleware.RequirePermission("orders:receive||update_products"))
-	protected.POST("/orders/:id/ship", orderHandlers.ShipOrder, rbacMiddleware.RequirePermission("orders:ship||update_products"))
-	protected.POST("/orders/:id/deliver", orderHandlers.DeliverOrder, rbacMiddleware.RequirePermission("orders:deliver||update_products"))
-	protected.POST("/orders/:id/cancel", orderHandlers.CancelOrder, rbacMiddleware.RequirePermission("orders:cancel||update_products"))
+	protected.GET("/orders", orderHandlers.GetOrders, rbacMiddleware.RequirePermission("order.list"))
+	protected.POST("/orders", orderHandlers.CreateOrder, rbacMiddleware.RequirePermission("order.create"))
+	protected.GET("/orders/:id", orderHandlers.GetOrder, rbacMiddleware.RequirePermission("order.read"))
+	protected.PUT("/orders/:id", orderHandlers.UpdateOrder, rbacMiddleware.RequirePermission("order.update"))
+	protected.DELETE("/orders/:id", orderHandlers.DeleteOrder, rbacMiddleware.RequirePermission("order.delete"))
+	protected.POST("/orders/:id/approve", orderHandlers.ApproveOrder, rbacMiddleware.RequirePermission("order.approve"))
+	protected.POST("/orders/:id/process", orderHandlers.ProcessOrder, rbacMiddleware.RequirePermission("order.process"))
+	protected.POST("/orders/:id/receive", orderHandlers.ReceiveOrder, rbacMiddleware.RequirePermission("order.receive"))
+	protected.POST("/orders/:id/ship", orderHandlers.ShipOrder, rbacMiddleware.RequirePermission("order.ship"))
+	protected.POST("/orders/:id/deliver", orderHandlers.DeliverOrder, rbacMiddleware.RequirePermission("order.deliver"))
+	protected.POST("/orders/:id/cancel", orderHandlers.CancelOrder, rbacMiddleware.RequirePermission("order.cancel"))
 
 	// Invoice routes
-	protected.GET("/invoices", invoiceHandlers.ListInvoices, rbacMiddleware.RequirePermission("invoices:list||read_products"))
-	protected.POST("/invoices", invoiceHandlers.CreateInvoice, rbacMiddleware.RequirePermission("invoices:create||create_products"))
-	protected.POST("/invoices/bulk-create", invoiceHandlers.BulkCreateInvoices, rbacMiddleware.RequirePermission("invoices:bulk_create||create_products"))
-	protected.GET("/invoices/:id", invoiceHandlers.GetInvoice, rbacMiddleware.RequirePermission("invoices:read||read_products"))
-	protected.PUT("/invoices/:id", invoiceHandlers.UpdateInvoice, rbacMiddleware.RequirePermission("invoices:update||update_products"))
-	protected.PUT("/invoices/:id/status", invoiceHandlers.UpdateInvoiceStatus, rbacMiddleware.RequirePermission("invoices:update_status||update_products"))
-	protected.GET("/invoices/unpaid", invoiceHandlers.GetUnpaidInvoices, rbacMiddleware.RequirePermission("invoices:list||read_products"))
-	protected.POST("/invoices/:id/generate-pdf", invoiceHandlers.GenerateInvoicePDF, rbacMiddleware.RequirePermission("invoices:generate_pdf||read_products"))
-	protected.DELETE("/invoices/:id", invoiceHandlers.DeleteInvoice, rbacMiddleware.RequirePermission("invoices:delete||delete_products"))
+	protected.GET("/invoices", invoiceHandlers.ListInvoices, rbacMiddleware.RequirePermission("invoice.list"))
+	protected.POST("/invoices", invoiceHandlers.CreateInvoice, rbacMiddleware.RequirePermission("invoice.create"))
+	protected.POST("/invoices/bulk-create", invoiceHandlers.BulkCreateInvoices, rbacMiddleware.RequirePermission("invoice.bulk_create"))
+	protected.GET("/invoices/:id", invoiceHandlers.GetInvoice, rbacMiddleware.RequirePermission("invoice.read"))
+	protected.PUT("/invoices/:id", invoiceHandlers.UpdateInvoice, rbacMiddleware.RequirePermission("invoice.update"))
+	protected.PUT("/invoices/:id/status", invoiceHandlers.UpdateInvoiceStatus, rbacMiddleware.RequirePermission("invoice.update_status"))
+	protected.GET("/invoices/unpaid", invoiceHandlers.GetUnpaidInvoices, rbacMiddleware.RequirePermission("invoice.list"))
+	protected.POST("/invoices/:id/generate-pdf", invoiceHandlers.GenerateInvoicePDF, rbacMiddleware.RequirePermission("invoice.generate_pdf"))
+	protected.DELETE("/invoices/:id", invoiceHandlers.DeleteInvoice, rbacMiddleware.RequirePermission("invoice.delete"))
 
 	// Tally routes
 	protected.POST("/api/tally/export", tallyHandlers.ExportTallyData)
@@ -863,7 +864,7 @@ func main() {
 	// Test webhook route (protected + RBAC OR check webhooks:test||notifications:manage)
 	protected.POST("/webhooks/test",
 		webhookTestHandlers.TestWebhook,
-		rbacMiddleware.RequirePermission("webhooks:test||notifications:manage"),
+		rbacMiddleware.RequirePermission("webhook.test||notification.manage"),
 	)
 
 	// Notification template routes
@@ -933,7 +934,7 @@ func main() {
 
 	// Database optimization routes (admin only)
 	dbOptimization := protected.Group("/db-optimization")
-	dbOptimization.Use(rbacMiddleware.RequirePermission("system:admin"))
+	dbOptimization.Use(rbacMiddleware.RequirePermission("system.admin"))
 	dbOptimization.POST("/refresh-views", dbOptimizationHandlers.RefreshMaterializedViews)
 	dbOptimization.GET("/slow-queries", dbOptimizationHandlers.GetSlowQueries)
 	dbOptimization.GET("/unused-indexes", dbOptimizationHandlers.GetUnusedIndexes)

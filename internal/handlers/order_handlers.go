@@ -1,15 +1,17 @@
 package handlers
 
 import (
-	"agromart2/internal/common"
-	"agromart2/internal/middleware"
-	"fmt"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
 
+	"agromart2/internal/common"
+	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -57,17 +59,23 @@ func (h *OrderHandlers) CreateOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-	// First, check if payload is bulk by binding to a flexible structure
+	// Read the request body once to avoid double binding issues
+	bodyBytes, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return common.SendClientError(c, "Failed to read request body")
+	}
+
+	// First, unmarshal into a generic map to check the structure
 	var payload map[string]interface{}
-	if err := c.Bind(&payload); err != nil {
-		return common.SendClientError(c, "Invalid request format")
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return common.SendClientError(c, "Invalid JSON format")
 	}
 
 	// Check if this is a bulk request (has "orders" array)
 	if _, exists := payload["orders"]; exists {
-		// Handle bulk creation
+		// Handle bulk creation - parse the body as bulk request
 		var bulkReq models.OrderBulkCreate
-		if err := c.Bind(&bulkReq); err != nil {
+		if err := json.Unmarshal(bodyBytes, &bulkReq); err != nil {
 			return common.SendClientError(c, "Invalid bulk request format")
 		}
 
@@ -93,7 +101,7 @@ func (h *OrderHandlers) CreateOrder(c echo.Context) error {
 		})
 	}
 
-	// Handle single order creation
+	// Handle single order creation - parse from the payload map
 	var req struct {
 		OrderType        string  `json:"order_type"`
 		ProductID        string  `json:"product_id"`
@@ -106,7 +114,7 @@ func (h *OrderHandlers) CreateOrder(c echo.Context) error {
 		Notes            *string `json:"notes"`
 	}
 
-	if err := c.Bind(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		return common.SendClientError(c, "Invalid request format")
 	}
 

@@ -111,6 +111,11 @@ func (r *invoiceRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offse
 		}
 		invoices = append(invoices, invoice)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating invoices: %w", err)
+	}
+
 	return invoices, nil
 }
 
@@ -135,6 +140,11 @@ func (r *invoiceRepo) GetInvoicesByTenantAndDateRange(ctx context.Context, tenan
 		}
 		invoices = append(invoices, invoice)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating invoices by date range: %w", err)
+	}
+
 	return invoices, nil
 }
 
@@ -161,6 +171,11 @@ func (r *invoiceRepo) GetInvoicesByStatus(ctx context.Context, tenantID uuid.UUI
 		}
 		invoices = append(invoices, invoice)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating invoices by status: %w", err)
+	}
+
 	return invoices, nil
 }
 
@@ -177,6 +192,7 @@ func (r *invoiceRepo) GetInvoicesByOrderID(ctx context.Context, tenantID, orderI
 		return nil, err
 	}
 	defer rows.Close()
+
 
 	var invoices []*models.Invoice
 	for rows.Next() {

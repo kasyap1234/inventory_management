@@ -2,13 +2,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { Product } from '@/types';
 
-export function useProducts() {
-  const queryClient = useQueryClient();
+export interface PaginationParams {
+  page?: number;
+  pageSize?: number;
+}
 
-  const { data: products, isLoading, error, refetch } = useQuery<{ products: Product[] }>({
-    queryKey: ['products'],
+export interface PaginatedProductsResponse {
+  products: Product[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+}
+
+export function useProducts(params?: PaginationParams) {
+  const queryClient = useQueryClient();
+  
+  const page = params?.page ?? 1;
+  const pageSize = params?.pageSize ?? 20;
+
+  const { data: products, isLoading, error, refetch } = useQuery<PaginatedProductsResponse>({
+    queryKey: ['products', { page, pageSize }],
     queryFn: async () => {
-      const response = await api.get('/products?limit=100');
+      const response = await api.get(`/products?page=${page}&limit=${pageSize}`);
       return response.data;
     },
     retry: 3,

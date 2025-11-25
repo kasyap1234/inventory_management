@@ -81,18 +81,17 @@ func (m *MockProductRepository) AdvancedSearch(ctx context.Context, tenantID uui
 	return args.Get(0).([]*models.Product), args.Error(1)
 }
 
-// MockInventoryRepository is now defined in mocks_test.go
-
-type MockCategoryRepository struct {
+// MockCategoryRepoForProduct is a mock implementation of CategoryRepository for product tests
+type MockCategoryRepoForProduct struct {
 	mock.Mock
 }
 
-func (m *MockCategoryRepository) Create(ctx context.Context, category *models.Category) error {
+func (m *MockCategoryRepoForProduct) Create(ctx context.Context, category *models.Category) error {
 	args := m.Called(ctx, category)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Category, error) {
+func (m *MockCategoryRepoForProduct) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Category, error) {
 	args := m.Called(ctx, tenantID, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -100,62 +99,62 @@ func (m *MockCategoryRepository) GetByID(ctx context.Context, tenantID, id uuid.
 	return args.Get(0).(*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) Update(ctx context.Context, category *models.Category) error {
+func (m *MockCategoryRepoForProduct) Update(ctx context.Context, category *models.Category) error {
 	args := m.Called(ctx, category)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+func (m *MockCategoryRepoForProduct) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	args := m.Called(ctx, tenantID, id)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+func (m *MockCategoryRepoForProduct) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
 	args := m.Called(ctx, tenantID, limit, offset)
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) Search(ctx context.Context, tenantID uuid.UUID, query string, limit, offset int) ([]*models.Category, error) {
+func (m *MockCategoryRepoForProduct) Search(ctx context.Context, tenantID uuid.UUID, query string, limit, offset int) ([]*models.Category, error) {
 	args := m.Called(ctx, tenantID, query, limit, offset)
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) ListSubcategories(ctx context.Context, tenantID, parentID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+func (m *MockCategoryRepoForProduct) ListSubcategories(ctx context.Context, tenantID, parentID uuid.UUID, limit, offset int) ([]*models.Category, error) {
 	args := m.Called(ctx, tenantID, parentID, limit, offset)
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) ListRootCategories(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+func (m *MockCategoryRepoForProduct) ListRootCategories(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
 	args := m.Called(ctx, tenantID, limit, offset)
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) GetCategoryTree(ctx context.Context, tenantID uuid.UUID) ([]*models.Category, error) {
+func (m *MockCategoryRepoForProduct) GetCategoryTree(ctx context.Context, tenantID uuid.UUID) ([]*models.Category, error) {
 	args := m.Called(ctx, tenantID)
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) ListWithChildren(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
+func (m *MockCategoryRepoForProduct) ListWithChildren(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Category, error) {
 	args := m.Called(ctx, tenantID, limit, offset)
 	return args.Get(0).([]*models.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) BulkCreate(ctx context.Context, categories []*models.Category) error {
+func (m *MockCategoryRepoForProduct) BulkCreate(ctx context.Context, categories []*models.Category) error {
 	args := m.Called(ctx, categories)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) BulkUpdate(ctx context.Context, updates []*models.CategoryBulkUpdate) error {
+func (m *MockCategoryRepoForProduct) BulkUpdate(ctx context.Context, updates []*models.CategoryBulkUpdate) error {
 	args := m.Called(ctx, updates)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+func (m *MockCategoryRepoForProduct) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
 	args := m.Called(ctx, tenantID, ids)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) UpdateHierarchy(ctx context.Context, category *models.Category) error {
+func (m *MockCategoryRepoForProduct) UpdateHierarchy(ctx context.Context, category *models.Category) error {
 	args := m.Called(ctx, category)
 	return args.Error(0)
 }
@@ -362,7 +361,7 @@ type ProductServiceTestSuite struct {
 	suite.Suite
 	mockProductRepo      *MockProductRepository
 	mockInventoryRepo    *MockInventoryRepository
-	mockCategoryRepo     *MockCategoryRepository
+	mockCategoryRepo     *MockCategoryRepoForProduct
 	mockProductImageRepo *MockProductImageRepository
 	mockMinioService     *MockMinioService
 	mockCacheService     *MockCacheService
@@ -373,7 +372,7 @@ type ProductServiceTestSuite struct {
 func (suite *ProductServiceTestSuite) SetupTest() {
 	suite.mockProductRepo = &MockProductRepository{}
 	suite.mockInventoryRepo = &MockInventoryRepository{}
-	suite.mockCategoryRepo = &MockCategoryRepository{}
+	suite.mockCategoryRepo = &MockCategoryRepoForProduct{}
 	suite.mockProductImageRepo = &MockProductImageRepository{}
 	suite.mockMinioService = &MockMinioService{}
 	suite.mockCacheService = &MockCacheService{}

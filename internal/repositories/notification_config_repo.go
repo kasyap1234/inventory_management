@@ -215,6 +215,9 @@ func (r *notificationConfigRepo) List(ctx context.Context, tenantID uuid.UUID, u
 
 		configs = append(configs, &config)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating notification configs: %w", err)
+	}
 
 	return configs, nil
 }
@@ -248,6 +251,9 @@ func (r *notificationConfigRepo) ListByUser(ctx context.Context, tenantID uuid.U
 		}
 
 		configs = append(configs, &config)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user notification configs: %w", err)
 	}
 
 	return configs, nil

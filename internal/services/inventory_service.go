@@ -16,6 +16,7 @@ import (
 type InventoryRepository interface {
 	GetStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) (*models.Inventory, error)
 	UpdateStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int) error
+	UpdateReservedQuantity(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, reservedQuantity int) error
 	CreateReservation(ctx context.Context, reservation *repositories.InventoryReservation) error
 	GetReservation(ctx context.Context, tenantID uuid.UUID, reservationID string) (*repositories.InventoryReservation, error)
 	DeleteReservation(ctx context.Context, tenantID uuid.UUID, reservationID string) error
@@ -89,9 +90,61 @@ func (s *inventoryService) AdvancedSearch(ctx context.Context, tenantID uuid.UUI
 }
 
 // GetInventoryHistory retrieves audit history for inventory records
+// Uses the stock adjustments repository to get actual change history
 func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uuid.UUID, inventoryID uuid.UUID, limit, offset int) ([]*models.AuditLog, error) {
-	// Implementation would go here
-	return []*models.AuditLog{}, nil
+	// Get the inventory record to find the product ID
+	inventory, err := s.repository.GetByID(ctx, tenantID, inventoryID)
+	if err != nil {
+		s.logger.ErrorWithContext(ctx, "Failed to get inventory for history lookup", err, map[string]interface{}{
+			"inventory_id": inventoryID,
+		})
+		return nil, common.CreateDatabaseError("get_inventory_history", err)
+	}
+
+	// Get stock adjustment history for this product
+	adjustments, err := s.repository.GetStockHistory(ctx, tenantID, inventory.ProductID)
+	if err != nil {
+		s.logger.ErrorWithContext(ctx, "Failed to get stock history", err, map[string]interface{}{
+			"product_id": inventory.ProductID,
+		})
+		return nil, common.CreateDatabaseError("get_inventory_history", err)
+	}
+
+	// Convert stock adjustments to audit log format for consistent API response
+	auditLogs := make([]*models.AuditLog, 0, len(adjustments))
+	for _, adj := range adjustments {
+		auditLog := &models.AuditLog{
+			ID:        adj.ID,
+			TenantID:  adj.TenantID,
+			TableName: "inventory",
+			RecordID:  inventoryID.String(),
+			Action:    adj.AdjustmentType,
+			NewValues: map[string]interface{}{
+				"quantity":       adj.NewStock,
+				"adjustment":     adj.Quantity,
+				"reason":         adj.Reason,
+				"reference_type": adj.ReferenceType,
+			},
+			OldValues: map[string]interface{}{
+				"quantity": adj.PreviousStock,
+			},
+			ChangedBy: adj.AdjustedBy,
+			CreatedAt: adj.AdjustedAt,
+		}
+		auditLogs = append(auditLogs, auditLog)
+	}
+
+	// Apply pagination manually (ideally this would be done at the repository level)
+	start := offset
+	if start > len(auditLogs) {
+		return []*models.AuditLog{}, nil
+	}
+	end := offset + limit
+	if end > len(auditLogs) {
+		end = len(auditLogs)
+	}
+
+	return auditLogs[start:end], nil
 }
 
 
@@ -437,17 +490,9 @@ func (s *inventoryService) GetReservedStock(ctx context.Context, tenantID uuid.U
 
 // updateReservedQuantity updates the reserved quantity for a product
 func (s *inventoryService) updateReservedQuantity(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, newReservedQuantity int) error {
-	// Get current stock to update
-	stock, err := s.repository.GetStock(ctx, tenantID, productID)
-	if err != nil {
-		return common.CreateDatabaseError("update_reserved_quantity", err)
-	}
-
-	// Update the stock record with new reserved quantity
-	stock.ReservedQuantity = newReservedQuantity
-	stock.LastUpdated = time.Now()
-
-	if err := s.repository.UpdateStock(ctx, tenantID, productID, stock.Quantity); err != nil {
+	// Use UpdateReservedQuantity to properly persist reserved quantity
+	// This fixes the bug where UpdateStock was called but only updated quantity, not reserved_quantity
+	if err := s.repository.UpdateReservedQuantity(ctx, tenantID, productID, newReservedQuantity); err != nil {
 		s.logger.ErrorWithContext(ctx, "Failed to update reserved quantity", err, map[string]interface{}{
 			"product_id":            productID,
 			"new_reserved_quantity": newReservedQuantity,

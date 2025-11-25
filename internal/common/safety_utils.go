@@ -97,6 +97,17 @@ func ValidateEmailDomain(email string) error {
 	return nil
 }
 
+// EscapeLikePattern escapes SQL LIKE special characters to prevent pattern injection
+// Special characters: % (wildcard), _ (single char), \ (escape char)
+// Uses \ as the escape character - queries should include ESCAPE '\\'
+func EscapeLikePattern(input string) string {
+	// Order matters: escape backslashes first
+	result := strings.ReplaceAll(input, "\\", "\\\\")
+	result = strings.ReplaceAll(result, "%", "\\%")
+	result = strings.ReplaceAll(result, "_", "\\_")
+	return result
+}
+
 // SafeSliceAccess safely accesses a slice element with bounds checking
 func SafeSliceAccess[T any](slice []T, index int, defaultVal T) T {
 	if index < 0 || index >= len(slice) {

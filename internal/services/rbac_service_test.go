@@ -521,6 +521,14 @@ func (m *MockRolePermissionRepository) RemovePermissionFromRole(ctx context.Cont
 	return args.Error(0)
 }
 
+func (m *MockRolePermissionRepository) GetAllUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]*models.Permission, error) {
+	args := m.Called(ctx, userID, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Permission), args.Error(1)
+}
+
 // MockPermissionRepository for testing
 type MockPermissionRepository struct {
 	mock.Mock
