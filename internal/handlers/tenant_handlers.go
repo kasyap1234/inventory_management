@@ -33,7 +33,7 @@ type ListTenantsRequest struct {
 // ListTenants handles getting a list of tenants (admin only)
 func (h *TenantHandlers) ListTenants(c echo.Context) error {
 	// Check admin permission - only admins can list all tenants
-	err := h.rbacMiddleware.RequirePermission("tenants:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("tenant.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -112,7 +112,7 @@ func (h *TenantHandlers) CreateTenant(c echo.Context) error {
 // GetTenant handles getting tenant details by ID
 func (h *TenantHandlers) GetTenant(c echo.Context) error {
 	// Check if user can read tenant details
-	err := h.rbacMiddleware.RequirePermission("tenants:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("tenant.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -149,7 +149,7 @@ type UpdateTenantRequest struct {
 // UpdateTenant handles updating tenant details
 func (h *TenantHandlers) UpdateTenant(c echo.Context) error {
 	// Check admin permission
-	err := h.rbacMiddleware.RequirePermission("tenants:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("tenant.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -222,7 +222,7 @@ type DeleteTenantRequest struct {
 // DeleteTenant handles deleting a tenant (admin only)
 func (h *TenantHandlers) DeleteTenant(c echo.Context) error {
 	// Check admin permission
-	err := h.rbacMiddleware.RequirePermission("tenants:delete")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("tenant.delete")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {

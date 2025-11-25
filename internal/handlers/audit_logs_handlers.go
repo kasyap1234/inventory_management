@@ -33,7 +33,7 @@ func (h *AuditLogsHandlers) ListAuditLogs(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check if user has permission to view audit logs
-	err := h.rbacMiddleware.RequirePermission("audit:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("audit.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -355,7 +355,7 @@ func (h *AuditLogsHandlers) GetAuditTimeline(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check if user has permission to view audit logs
-	err := h.rbacMiddleware.RequirePermission("audit:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("audit.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -411,7 +411,7 @@ func (h *AuditLogsHandlers) GetEntityTimeline(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check if user has permission to view audit logs
-	err := h.rbacMiddleware.RequirePermission("audit:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("audit.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {

@@ -40,7 +40,7 @@ type ListInventoriesRequest struct {
 // ListInventories handles getting a list of inventories with tenant filtering
 func (h *InventoryHandlers) ListInventories(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -94,7 +94,7 @@ type CreateInventoryRequest struct {
 // CreateInventory handles creating/updating inventory records (handles unique constraint)
 func (h *InventoryHandlers) CreateInventory(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:create")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.create")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -138,7 +138,7 @@ func (h *InventoryHandlers) CreateInventory(c echo.Context) error {
 // GetInventory handles getting inventory details by ID
 func (h *InventoryHandlers) GetInventory(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -182,7 +182,7 @@ type UpdateInventoryRequest struct {
 // UpdateInventory handles updating inventory details
 func (h *InventoryHandlers) UpdateInventory(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -248,7 +248,7 @@ func (h *InventoryHandlers) UpdateInventory(c echo.Context) error {
 // DeleteInventory handles deleting an inventory record
 func (h *InventoryHandlers) DeleteInventory(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:delete")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.delete")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -298,7 +298,7 @@ type AdjustStockRequest struct {
 // AdjustStock handles stock adjustments
 func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -340,7 +340,7 @@ func (h *InventoryHandlers) AdjustStock(c echo.Context) error {
 
 // GetInventoryHistory returns audit history for an inventory record
 func (h *InventoryHandlers) GetInventoryHistory(c echo.Context) error {
-	err := h.rbacMiddleware.RequirePermission("inventories:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -400,7 +400,7 @@ type CheckAvailabilityRequest struct {
 // CheckAvailability handles stock availability queries
 func (h *InventoryHandlers) CheckAvailability(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -446,7 +446,7 @@ func (h *InventoryHandlers) CheckAvailability(c echo.Context) error {
 // TransferStock handles stock transfers between warehouses
 func (h *InventoryHandlers) TransferStock(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -489,7 +489,7 @@ func (h *InventoryHandlers) TransferStock(c echo.Context) error {
 // SearchInventories handles advanced search with filters
 func (h *InventoryHandlers) SearchInventories(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("inventories:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("inventory.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {

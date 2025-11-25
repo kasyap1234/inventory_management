@@ -33,7 +33,7 @@ type ListSuppliersRequest struct {
 // ListSuppliers handles getting a list of suppliers with tenant filtering
 func (h *SupplierHandlers) ListSuppliers(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("suppliers:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("supplier.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -89,7 +89,7 @@ type CreateSupplierRequest struct {
 // CreateSupplier handles creating a new supplier
 func (h *SupplierHandlers) CreateSupplier(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("suppliers:create")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("supplier.create")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -133,7 +133,7 @@ func (h *SupplierHandlers) CreateSupplier(c echo.Context) error {
 // GetSupplier handles getting supplier details by ID
 func (h *SupplierHandlers) GetSupplier(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("suppliers:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("supplier.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -179,7 +179,7 @@ type UpdateSupplierRequest struct {
 // UpdateSupplier handles updating supplier details
 func (h *SupplierHandlers) UpdateSupplier(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("suppliers:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("supplier.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -242,7 +242,7 @@ func (h *SupplierHandlers) UpdateSupplier(c echo.Context) error {
 // DeleteSupplier handles deleting a supplier
 func (h *SupplierHandlers) DeleteSupplier(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("suppliers:delete")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("supplier.delete")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {

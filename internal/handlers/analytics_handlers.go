@@ -30,7 +30,7 @@ func (h *AnalyticsHandlers) GetDashboardAnalytics(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -249,7 +249,7 @@ func (h *AnalyticsHandlers) GetCustomerSegmentation(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -278,7 +278,7 @@ func (h *AnalyticsHandlers) GetProductPerformance(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -314,7 +314,7 @@ func (h *AnalyticsHandlers) GetInventoryTurnover(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -342,7 +342,7 @@ func (h *AnalyticsHandlers) GetSupplierPerformance(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -373,7 +373,7 @@ func (h *AnalyticsHandlers) GetCustomerLifetimeValue(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -410,7 +410,7 @@ func (h *AnalyticsHandlers) GetMarketTrends(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -438,7 +438,7 @@ func (h *AnalyticsHandlers) GetProfitMarginAnalysis(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Check RBAC permission
-	err := h.rbacMiddleware.RequirePermission("analytics:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {

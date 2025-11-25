@@ -84,6 +84,12 @@ func (s *rbacService) UserHasPermission(ctx context.Context, userID, tenantID uu
 				continue
 			}
 			if perm.Name == permissionName {
+			// Check for wildcard match
+			if s.matchesWildcard(perm.Name, permissionName) {
+				log.Printf("RBAC: Permission granted (wildcard) - User: %s, Pattern: %s, Permission: %s", userID, perm.Name, permissionName)
+				s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
+				return true, nil
+			}
 				log.Printf("RBAC: Permission granted - User: %s, Permission: %s", userID, permissionName)
 				s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
 				return true, nil
@@ -197,4 +203,44 @@ func (s *rbacService) InvalidateUserPermissionsCache(ctx context.Context, userID
 	// For now, we rely on the TTL to expire these caches
 
 	return nil
+}package services
+
+import "strings"
+
+// matchesWildcard checks if a permission matches a wildcard pattern
+// Supports patterns like:
+// - "*" (matches all)
+// - "product.*" (matches all product permissions)
+// - "*.read" (matches all read permissions)
+func (s *rbacService) matchesWildcard(pattern, permission string) bool {
+	// Full wildcard
+	if pattern == "*" {
+		return true
+	}
+
+	// No wildcard in pattern
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	// Split both pattern and permission
+	patternParts := strings.Split(pattern, ".")
+	permParts := strings.Split(permission, ".")
+
+	// Must have same number of parts
+	if len(patternParts) != len(permParts) {
+		return false
+	}
+
+	// Check each part
+	for i := range patternParts {
+		if patternParts[i] == "*" {
+			continue // Wildcard matches anything
+		}
+		if patternParts[i] != permParts[i] {
+			return false
+		}
+	}
+
+	return true
 }

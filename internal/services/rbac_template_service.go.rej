@@ -1,0 +1,33 @@
+*** /dev/null
+--- /dev/null
+***************
+*** 234,246
+- // Assign permissions to role
+- for _, permName := range expandedPermissions {
+- add_business_permissions.sql // Get permission by name
+- add_business_permissions.sql permission, err := s.permissionRepo.GetPermissionByName(ctx, permName)
+- add_business_permissions.sql if err != nil {
+- add_category_permissions.sql // Permission doesn't exist, skip it
+- continue
+- }
+- if permission == nil {
+- continue
+- }
+- 
+- // Create role-permission assignment
+--- 234,248 -----
++ // Assign permissions to role
++ allPerms, err := s.permissionRepo.ListPermissions(ctx)
++ if err != nil {
++ return fmt.Errorf("failed to list permissions: %w", err)
++ }
++ 
++ // Create a map for quick lookup
++ permMap := make(map[string]uuid.UUID)
++ for _, p := range allPerms {
++ permMap[p.Name] = p.ID
++ }
++ 
++ for _, permName := range expandedPermissions {
++ permID, exists := permMap[permName]
++ if !exists {

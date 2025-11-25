@@ -128,6 +128,10 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 		log.Printf("Failed to clear login attempts for user %s: %v", user.ID.String(), err)
 	}
 
+	if user.Status == "pending_approval" {
+		return echo.NewHTTPError(http.StatusForbidden, "Your account is pending approval by an administrator. You will be notified once approved.")
+	}
+
 	if user.Status != "active" {
 		return echo.NewHTTPError(http.StatusForbidden, "Email not verified. Please check your inbox for the verification link.")
 	}
@@ -521,7 +525,25 @@ func (h *AuthHandlers) VerifyEmail(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to verify email")
 	}
 
-	if err := h.userRepo.UpdateStatus(ctx, tenantID, userID, "active"); err != nil {
+	// Check if user has admin role
+	isAdmin := false
+	userRoles, err := h.userRoleRepo.ListByUser(ctx, tenantID, userID)
+	if err == nil {
+		for _, ur := range userRoles {
+			role, err := h.roleRepo.GetByID(ctx, tenantID, ur.RoleID)
+			if err == nil && role.Name == "admin" {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	newStatus := "pending_approval"
+	if isAdmin {
+		newStatus = "active"
+	}
+
+	if err := h.userRepo.UpdateStatus(ctx, tenantID, userID, newStatus); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to activate account")
 	}
 
@@ -529,8 +551,13 @@ func (h *AuthHandlers) VerifyEmail(c echo.Context) error {
 		log.Printf("Failed to clear login attempts for user %s after verification: %v", userID.String(), err)
 	}
 
+	message := "Email verified successfully. Your account is pending approval by an administrator."
+	if isAdmin {
+		message = "Email verified successfully. You can now sign in."
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{
-		"message": "Email verified successfully. You can now sign in.",
+		"message": message,
 	})
 }
 

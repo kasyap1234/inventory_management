@@ -24,6 +24,7 @@ type UserRepository interface {
 	UpdateStatus(ctx context.Context, tenantID, userID uuid.UUID, status string) error
 	FindUsersByTenantID(ctx context.Context, tenantID uuid.UUID) ([]*models.User, error)
 	UpdateGoogleID(ctx context.Context, tenantID, userID uuid.UUID, googleID string) error
+	ListByStatus(ctx context.Context, tenantID uuid.UUID, status string, limit, offset int) ([]*models.User, error)
 }
 
 type userRepo struct {
@@ -201,4 +202,29 @@ func (r *userRepo) UpdateGoogleID(ctx context.Context, tenantID, userID uuid.UUI
 	`
 	_, err := r.db.Exec(ctx, query, googleID, tenantID, userID)
 	return err
+}
+
+func (r *userRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status string, limit, offset int) ([]*models.User, error) {
+	query := `
+		SELECT id, tenant_id, email, first_name, last_name, status, created_at, updated_at
+		FROM users
+		WHERE tenant_id = $1 AND status = $2
+		ORDER BY created_at DESC
+		LIMIT $3 OFFSET $4
+	`
+	rows, err := r.db.Query(ctx, query, tenantID, status, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		user := &models.User{}
+		if err := rows.Scan(&user.ID, &user.TenantID, &user.Email, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }

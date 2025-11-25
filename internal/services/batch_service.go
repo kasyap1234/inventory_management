@@ -27,7 +27,7 @@ func NewBatchService(batchRepo *repositories.BatchRepository, productRepo reposi
 }
 
 // CreateBatch creates a new batch and updates the product total quantity
-func (s *BatchService) CreateBatch(ctx context.Context, batch *models.Batch) error {
+func (s *BatchService) CreateBatch(ctx context.Context, tenantID uuid.UUID, batch *models.Batch) error {
 	// Validate batch
 	if batch.ProductID == uuid.Nil {
 		return errors.New("product ID is required")
@@ -46,6 +46,7 @@ func (s *BatchService) CreateBatch(ctx context.Context, batch *models.Batch) err
 	now := time.Now()
 	batch.CreatedAt = now
 	batch.UpdatedAt = now
+	batch.TenantID = tenantID
 
 	// Create batch
 	if err := s.batchRepo.Create(ctx, batch); err != nil {
@@ -55,30 +56,31 @@ func (s *BatchService) CreateBatch(ctx context.Context, batch *models.Batch) err
 	// Update product total quantity
 	// Note: In a real production system, this should be in a transaction
 	// For now, we do best effort update
-	return s.updateProductTotalQuantity(ctx, batch.ProductID)
+	return s.updateProductTotalQuantity(ctx, tenantID, batch.ProductID)
 }
 
 // UpdateBatch updates a batch and the product total quantity
-func (s *BatchService) UpdateBatch(ctx context.Context, batch *models.Batch) error {
+func (s *BatchService) UpdateBatch(ctx context.Context, tenantID uuid.UUID, batch *models.Batch) error {
+	batch.TenantID = tenantID
 	if err := s.batchRepo.Update(ctx, batch); err != nil {
 		return err
 	}
-	return s.updateProductTotalQuantity(ctx, batch.ProductID)
+	return s.updateProductTotalQuantity(ctx, tenantID, batch.ProductID)
 }
 
 // GetBatch retrieves a batch by ID
-func (s *BatchService) GetBatch(ctx context.Context, id uuid.UUID) (*models.Batch, error) {
-	return s.batchRepo.GetByID(ctx, id)
+func (s *BatchService) GetBatch(ctx context.Context, tenantID, id uuid.UUID) (*models.Batch, error) {
+	return s.batchRepo.GetByID(ctx, tenantID, id)
 }
 
 // GetBatchesByProduct retrieves all batches for a product
-func (s *BatchService) GetBatchesByProduct(ctx context.Context, productID uuid.UUID) ([]models.Batch, error) {
-	return s.batchRepo.GetByProductID(ctx, productID)
+func (s *BatchService) GetBatchesByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]models.Batch, error) {
+	return s.batchRepo.GetByProductID(ctx, tenantID, productID)
 }
 
 // updateProductTotalQuantity recalculates and updates the total quantity for a product
-func (s *BatchService) updateProductTotalQuantity(ctx context.Context, productID uuid.UUID) error {
-	total, err := s.batchRepo.GetTotalQuantityByProductID(ctx, productID)
+func (s *BatchService) updateProductTotalQuantity(ctx context.Context, tenantID, productID uuid.UUID) error {
+	total, err := s.batchRepo.GetTotalQuantityByProductID(ctx, tenantID, productID)
 	if err != nil {
 		return fmt.Errorf("failed to calculate total quantity: %w", err)
 	}

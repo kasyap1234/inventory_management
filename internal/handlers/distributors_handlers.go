@@ -33,7 +33,7 @@ type ListDistributorsRequest struct {
 // ListDistributors handles getting a list of distributors with tenant filtering
 func (h *DistributorHandlers) ListDistributors(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("distributors:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("distributor.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -89,7 +89,7 @@ type CreateDistributorRequest struct {
 // CreateDistributor handles creating a new distributor
 func (h *DistributorHandlers) CreateDistributor(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("distributors:create")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("distributor.create")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -133,7 +133,7 @@ func (h *DistributorHandlers) CreateDistributor(c echo.Context) error {
 // GetDistributor handles getting distributor details by ID
 func (h *DistributorHandlers) GetDistributor(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("distributors:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("distributor.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -179,7 +179,7 @@ type UpdateDistributorRequest struct {
 // UpdateDistributor handles updating distributor details
 func (h *DistributorHandlers) UpdateDistributor(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("distributors:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("distributor.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -242,7 +242,7 @@ func (h *DistributorHandlers) UpdateDistributor(c echo.Context) error {
 // DeleteDistributor handles deleting a distributor
 func (h *DistributorHandlers) DeleteDistributor(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("distributors:delete")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("distributor.delete")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {

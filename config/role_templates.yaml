@@ -1,0 +1,116 @@
+# RBAC Role Templates
+# Define role templates with permissions that can be applied to tenants
+
+roles:
+  # Admin role with full system access
+  admin:
+    description: "Administrator with full access to all resources"
+    permissions:
+      - "*"  # Wildcard: all permissions
+
+  # Manager role with operational permissions
+  manager:
+    description: "Manager with operational permissions for business resources"
+    permissions:
+      # Full access to core business resources
+      - "product.*"
+      - "inventory.*"
+      - "order.*"
+      - "invoice.*"
+      - "warehouse.*"
+      - "supplier.*"
+      - "distributor.*"
+      - "batch.*"
+      - "category.*"
+      # Read-only access to analytics and audit
+      - "analytics.read"
+      - "audit.read"
+
+  # User role with basic operational permissions
+  user:
+    description: "Regular user with basic operational permissions"
+    permissions:
+      # Product management
+      - "product.list"
+      - "product.read"
+      - "product.create"
+      - "product.update"
+      # Inventory management
+      - "inventory.list"
+      - "inventory.read"
+      - "inventory.create"
+      - "inventory.update"
+      # Order management
+      - "order.list"
+      - "order.read"
+      - "order.create"
+      - "order.update"
+      # Warehouse access
+      - "warehouse.list"
+      - "warehouse.read"
+      # Supplier and distributor read access
+      - "supplier.list"
+      - "supplier.read"
+      - "distributor.list"
+      - "distributor.read"
+
+  # Viewer role with read-only access
+  viewer:
+    description: "Read-only access to most resources"
+    permissions:
+      # Wildcard patterns for all list and read operations
+      - "*.list"
+      - "*.read"
+
+  # Inventory Manager - specialized role
+  inventory_manager:
+    description: "Specialized role for inventory and warehouse management"
+    permissions:
+      - "inventory.*"
+      - "warehouse.*"
+      - "batch.*"
+      - "product.list"
+      - "product.read"
+      - "supplier.list"
+      - "supplier.read"
+
+  # Sales role - specialized for orders and invoices
+  sales:
+    description: "Sales team with order and invoice management"
+    permissions:
+      - "order.*"
+      - "invoice.*"
+      - "product.list"
+      - "product.read"
+      - "inventory.list"
+      - "inventory.read"
+      - "distributor.*"
+
+  # Analyst role - read access plus analytics
+  analyst:
+    description: "Data analyst with read access and analytics capabilities"
+    permissions:
+      - "*.list"
+      - "*.read"
+      - "analytics.*"
+
+# Permission groups for easy assignment
+permission_groups:
+  inventory_management:
+    description: "Full inventory and warehouse operations"
+    permissions:
+      - "inventory.*"
+      - "warehouse.*"
+      - "batch.*"
+  
+  financial:
+    description: "Financial operations - orders and invoices"
+    permissions:
+      - "order.*"
+      - "invoice.*"
+  
+  read_only:
+    description: "Read-only access to all resources"
+    permissions:
+      - "*.list"
+      - "*.read"

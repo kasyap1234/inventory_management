@@ -130,7 +130,7 @@ func NewAuthService(
 	if backendURL == "" {
 		backendURL = "http://localhost:8080" // Default for backend if not provided
 	}
-	
+
 	return &authService{
 		cacheSvc:             cacheSvc,
 		jwtSecret:            []byte(jwtSecret),
@@ -697,18 +697,34 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 	}
 
 	// Ensure default roles and assign user role
-	userRole, err := s.ensureTenantDefaults(ctx, tenant)
+	adminRole, userRole, err := s.ensureTenantDefaults(ctx, tenant)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure default roles: %v", err)
 	}
 
-	if userRole == nil {
-		return nil, fmt.Errorf("default user role not found")
+	if userRole == nil || adminRole == nil {
+		return nil, fmt.Errorf("default roles not found")
+	}
+
+	// Check if this is the first user in the tenant
+	// If so, assign admin role. Otherwise, assign user role.
+	isFirstUser := false
+	existingUsers, err := s.userRepo.List(ctx, tenant, 1, 0) // Check if any users exist
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing users: %v", err)
+	}
+	if len(existingUsers) == 0 {
+		isFirstUser = true
+	}
+
+	roleID := userRole.ID
+	if isFirstUser {
+		roleID = adminRole.ID
 	}
 
 	newUserRole := &models.UserRole{
 		UserID: userID,
-		RoleID: userRole.ID,
+		RoleID: roleID,
 	}
 	if err := s.userRoleRepo.Create(ctx, tenant, newUserRole); err != nil {
 		return nil, fmt.Errorf("failed to assign role to user: %v", err)
@@ -748,7 +764,7 @@ func (s *authService) getOrCreateTenantForSignup(ctx context.Context, email stri
 
 	sanitizedDomain := sanitizeSubdomain(domain)
 	if tenant, err := s.tenantRepo.GetBySubdomain(ctx, sanitizedDomain); err == nil {
-		if _, ensureErr := s.ensureTenantDefaults(ctx, tenant.ID); ensureErr != nil {
+		if _, _, ensureErr := s.ensureTenantDefaults(ctx, tenant.ID); ensureErr != nil {
 			return uuid.Nil, ensureErr
 		}
 		return tenant.ID, nil
@@ -796,7 +812,7 @@ func (s *authService) createTenant(ctx context.Context, name, baseSubdomain stri
 			return uuid.Nil, err
 		}
 
-		if _, err := s.ensureTenantDefaults(ctx, tenant.ID); err != nil {
+		if _, _, err := s.ensureTenantDefaults(ctx, tenant.ID); err != nil {
 			return uuid.Nil, err
 		}
 
@@ -816,7 +832,7 @@ func (s *authService) createTenant(ctx context.Context, name, baseSubdomain stri
 		return uuid.Nil, err
 	}
 
-	if _, err := s.ensureTenantDefaults(ctx, tenant.ID); err != nil {
+	if _, _, err := s.ensureTenantDefaults(ctx, tenant.ID); err != nil {
 		return uuid.Nil, err
 	}
 
@@ -824,71 +840,121 @@ func (s *authService) createTenant(ctx context.Context, name, baseSubdomain stri
 }
 
 // ensureTenantDefaults ensures default roles and permissions exist for a tenant
-func (s *authService) ensureTenantDefaults(ctx context.Context, tenantID uuid.UUID) (*models.Role, error) {
-	role, err := s.roleRepo.GetByName(ctx, tenantID, "user")
+func (s *authService) ensureTenantDefaults(ctx context.Context, tenantID uuid.UUID) (*models.Role, *models.Role, error) {
+	// 1. Ensure 'user' role exists
+	userRole, err := s.roleRepo.GetByName(ctx, tenantID, "user")
 	if err != nil {
-		// Check for both pgx.ErrNoRows and "role not found" error message
 		if !errors.Is(err, pgx.ErrNoRows) && !strings.Contains(err.Error(), "role not found") {
-			return nil, err
+			return nil, nil, err
 		}
 
 		description := "Regular user role"
-		role = &models.Role{
+		userRole = &models.Role{
 			ID:          uuid.New(),
 			TenantID:    tenantID,
 			Name:        "user",
 			Description: &description,
 		}
 
-		if err := s.roleRepo.Create(ctx, role); err != nil {
-			return nil, err
+		if err := s.roleRepo.Create(ctx, userRole); err != nil {
+			return nil, nil, err
 		}
 	}
 
+	// 2. Ensure 'admin' role exists
+	adminRole, err := s.roleRepo.GetByName(ctx, tenantID, "admin")
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) && !strings.Contains(err.Error(), "role not found") {
+			return nil, nil, err
+		}
+
+		description := "Administrator role with full access"
+		adminRole = &models.Role{
+			ID:          uuid.New(),
+			TenantID:    tenantID,
+			Name:        "admin",
+			Description: &description,
+		}
+
+		if err := s.roleRepo.Create(ctx, adminRole); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// 3. Assign permissions
 	if s.permissionRepo != nil && s.rolePermissionRepo != nil {
 		allPermissions, err := s.permissionRepo.ListPermissions(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		for _, permission := range allPermissions {
 			name := permission.Name
-			// Grant all permissions for core business entities to default user role
-			shouldGrantPermission := false
+
+			// --- Admin Role Permissions ---
+			// Admin gets EVERYTHING
+			if err := s.rolePermissionRepo.Create(ctx, tenantID, &models.RolePermission{
+				RoleID:       adminRole.ID,
+				PermissionID: permission.ID,
+			}); err != nil {
+				// Ignore duplicate key errors (permission already assigned)
+				var pgErr *pgconn.PgError
+				if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+					return nil, nil, err
+				}
+			}
+
+			// --- User Role Permissions ---
+			// Grant specific permissions for core business entities to default user role
+			shouldGrantToUser := false
 
 			// Core modules that users should have full access to
+			// UPDATED: Using singular + dot notation to match DB seeds
 			coreModules := []string{
-				"users:", "tenants:", "analytics:", "categories:",
-				"products:", "inventories:", "warehouses:",
-				"distributors:", "suppliers:", "orders:", "invoices:",
+				"product.", "inventory.", "warehouse.",
+				"distributor.", "supplier.", "order.", "invoice.",
+				"category.",
 			}
 
 			for _, module := range coreModules {
 				if strings.HasPrefix(name, module) {
-					shouldGrantPermission = true
+					shouldGrantToUser = true
 					break
 				}
 			}
 
-			// Also keep legacy read_ prefix support
-			if !shouldGrantPermission && strings.HasPrefix(name, "read_") {
-				shouldGrantPermission = true
+			// Explicitly EXCLUDE sensitive modules for regular users
+			sensitiveModules := []string{
+				"user.", "tenant.", "analytics.", "role.", "permission.",
+			}
+			for _, module := range sensitiveModules {
+				if strings.HasPrefix(name, module) {
+					shouldGrantToUser = false
+					break
+				}
 			}
 
-			if !shouldGrantPermission {
-				continue
+			// Also keep legacy read_ prefix support but be careful
+			if !shouldGrantToUser && strings.HasPrefix(name, "read_") {
+				shouldGrantToUser = true
 			}
 
-			if err := s.rolePermissionRepo.Create(ctx, tenantID, &models.RolePermission{
-				RoleID:       role.ID,
-				PermissionID: permission.ID,
-			}); err != nil {
-				return nil, err
+			if shouldGrantToUser {
+				if err := s.rolePermissionRepo.Create(ctx, tenantID, &models.RolePermission{
+					RoleID:       userRole.ID,
+					PermissionID: permission.ID,
+				}); err != nil {
+					// Ignore duplicate key errors
+					var pgErr *pgconn.PgError
+					if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+						return nil, nil, err
+					}
+				}
 			}
 		}
 	}
 
-	return role, nil
+	return adminRole, userRole, nil
 }
 
 // Utility functions

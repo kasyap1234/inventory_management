@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"agromart2/internal/common"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
 
@@ -20,6 +21,12 @@ func NewBatchHandler(batchService *services.BatchService) *BatchHandler {
 
 // CreateBatch handles the creation of a new batch
 func (h *BatchHandler) CreateBatch(c echo.Context) error {
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
 	productIDStr := c.Param("productId")
 	productID, err := uuid.Parse(productIDStr)
 	if err != nil {
@@ -33,7 +40,7 @@ func (h *BatchHandler) CreateBatch(c echo.Context) error {
 
 	batch.ProductID = productID
 
-	if err := h.batchService.CreateBatch(c.Request().Context(), batch); err != nil {
+	if err := h.batchService.CreateBatch(ctx, tenantID, batch); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
@@ -42,13 +49,19 @@ func (h *BatchHandler) CreateBatch(c echo.Context) error {
 
 // GetBatchesByProduct handles fetching all batches for a product
 func (h *BatchHandler) GetBatchesByProduct(c echo.Context) error {
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
 	productIDStr := c.Param("productId")
 	productID, err := uuid.Parse(productIDStr)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid product ID")
 	}
 
-	batches, err := h.batchService.GetBatchesByProduct(c.Request().Context(), productID)
+	batches, err := h.batchService.GetBatchesByProduct(ctx, tenantID, productID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -58,6 +71,12 @@ func (h *BatchHandler) GetBatchesByProduct(c echo.Context) error {
 
 // UpdateBatch handles updating a batch
 func (h *BatchHandler) UpdateBatch(c echo.Context) error {
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
 	batchIDStr := c.Param("id")
 	batchID, err := uuid.Parse(batchIDStr)
 	if err != nil {
@@ -71,7 +90,7 @@ func (h *BatchHandler) UpdateBatch(c echo.Context) error {
 
 	batch.ID = batchID
 
-	if err := h.batchService.UpdateBatch(c.Request().Context(), batch); err != nil {
+	if err := h.batchService.UpdateBatch(ctx, tenantID, batch); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
@@ -80,13 +99,19 @@ func (h *BatchHandler) UpdateBatch(c echo.Context) error {
 
 // GetBatch handles fetching a single batch
 func (h *BatchHandler) GetBatch(c echo.Context) error {
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
 	batchIDStr := c.Param("id")
 	batchID, err := uuid.Parse(batchIDStr)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid batch ID")
 	}
 
-	batch, err := h.batchService.GetBatch(c.Request().Context(), batchID)
+	batch, err := h.batchService.GetBatch(ctx, tenantID, batchID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

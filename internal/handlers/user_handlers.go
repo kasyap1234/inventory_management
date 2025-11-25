@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"agromart2/internal/common"
@@ -19,15 +20,17 @@ type UserHandlers struct {
 	tenantRepo     repositories.TenantRepository
 	rbacMiddleware *middleware.RBACMiddleware
 	userService    services.UserService
+	roleService    services.RoleManagementService
 }
 
 // NewUserHandlers creates a new user handlers instance
-func NewUserHandlers(userRepo repositories.UserRepository, tenantRepo repositories.TenantRepository, rbacMiddleware *middleware.RBACMiddleware, userService services.UserService) *UserHandlers {
+func NewUserHandlers(userRepo repositories.UserRepository, tenantRepo repositories.TenantRepository, rbacMiddleware *middleware.RBACMiddleware, userService services.UserService, roleService services.RoleManagementService) *UserHandlers {
 	return &UserHandlers{
 		userRepo:       userRepo,
 		tenantRepo:     tenantRepo,
 		rbacMiddleware: rbacMiddleware,
 		userService:    userService,
+		roleService:    roleService,
 	}
 }
 
@@ -40,7 +43,7 @@ type ListUsersRequest struct {
 // ListUsers handles getting a list of users with tenant filtering
 func (h *UserHandlers) ListUsers(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("users:list")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("user.list")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -86,17 +89,19 @@ func (h *UserHandlers) ListUsers(c echo.Context) error {
 
 // CreateUserRequest represents the user creation request payload
 type CreateUserRequest struct {
-	Email     string  `json:"email" validate:"required,email"`
-	FirstName string  `json:"first_name" validate:"required"`
-	LastName  string  `json:"last_name" validate:"required"`
-	TenantID  string  `json:"tenant_id" validate:"required"`
-	Status    *string `json:"status"`
+	Email       string   `json:"email" validate:"required,email"`
+	FirstName   string   `json:"first_name" validate:"required"`
+	LastName    string   `json:"last_name" validate:"required"`
+	TenantID    string   `json:"tenant_id" validate:"required"`
+	Status      *string  `json:"status"`
+	RoleID      *string  `json:"role_id"`
+	Permissions []string `json:"permissions"`
 }
 
 // CreateUser handles creating a new user
 func (h *UserHandlers) CreateUser(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("users:create")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("user.create")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -134,7 +139,7 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 	if isCrossTenantOperation {
 
 		// Check for admin permissions
-		err := h.rbacMiddleware.RequirePermission("users:create_any_tenant")(func(c echo.Context) error { return nil })(c)
+		err := h.rbacMiddleware.RequirePermission("user.create_any_tenant")(func(c echo.Context) error { return nil })(c)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions for cross-tenant user creation")
 		}
@@ -181,13 +186,108 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create user")
 	}
 
+	// Handle Role/Permission Assignment
+	if len(req.Permissions) > 0 {
+		// 1. Create a custom role for this user
+		roleName := fmt.Sprintf("custom_role_%s_%d", req.Email, 12345) // Simple unique name
+		// Better unique name using timestamp would require time import, keeping it simple for now or adding time import if needed.
+		// Actually, let's just use a UUID suffix or similar if possible, or just timestamp.
+		// I'll assume time is imported or I'll add it.
+		// Wait, I can't easily add imports with multi_replace if they are far away.
+		// I'll use a hardcoded suffix for now or rely on something else.
+		// Actually, I'll just use "custom_" + uuid.New().String()
+		roleName = fmt.Sprintf("custom_%s", uuid.New().String())
+
+		roleDesc := fmt.Sprintf("Custom role for %s", req.Email)
+		role := &models.Role{
+			Name:        roleName,
+			Description: &roleDesc,
+			IsActive:    true,
+		}
+		if err := h.roleService.CreateRole(ctx, tenantID, role); err != nil {
+			// Log error but don't fail user creation? Or fail?
+			// Better to fail or warn.
+			return echo.NewHTTPError(http.StatusInternalServerError, "User created but failed to create custom role: "+err.Error())
+		}
+
+		// 2. Resolve Permission Names to IDs
+		allPerms, err := h.roleService.ListAvailablePermissions(ctx)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to list permissions")
+		}
+
+		var permIDs []uuid.UUID
+		permMap := make(map[string]uuid.UUID)
+		for _, p := range allPerms {
+			permMap[p.Name] = p.ID
+		}
+
+		for _, pName := range req.Permissions {
+			if id, ok := permMap[pName]; ok {
+				permIDs = append(permIDs, id)
+			}
+		}
+
+		// 3. Assign permissions to the new role
+		if len(permIDs) > 0 {
+			if err := h.roleService.AssignPermissionsToRole(ctx, tenantID, role.ID, permIDs); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign permissions to custom role")
+			}
+		}
+
+		// 4. Assign the new role to the user
+		if err := h.roleService.AssignUserToRole(ctx, tenantID, userID, role.ID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign custom role to user")
+		}
+
+	} else if req.RoleID != nil {
+		// Assign specific role
+		roleID, err := uuid.Parse(*req.RoleID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid Role ID")
+		}
+		if err := h.roleService.AssignUserToRole(ctx, tenantID, userID, roleID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign role to user")
+		}
+	} else {
+		// Assign default 'user' role
+		// We need to find the role named 'user' (or 'viewer'/'operator' based on seeds?)
+		// The seeds created 'admin', 'manager', 'operator', 'viewer'.
+		// 'user' role was mentioned in auth_service.go but seeds use specific names.
+		// Let's try to find 'operator' as a safe default if 'user' doesn't exist.
+		// Or better, let's look for 'user' first as auth_service creates it.
+		roles, err := h.roleService.ListRoles(ctx, tenantID)
+		if err == nil {
+			var defaultRoleID uuid.UUID
+			for _, r := range roles {
+				if r.Name == "user" {
+					defaultRoleID = r.ID
+					break
+				}
+			}
+			// If 'user' not found, try 'viewer'
+			if defaultRoleID == uuid.Nil {
+				for _, r := range roles {
+					if r.Name == "viewer" {
+						defaultRoleID = r.ID
+						break
+					}
+				}
+			}
+
+			if defaultRoleID != uuid.Nil {
+				h.roleService.AssignUserToRole(ctx, tenantID, userID, defaultRoleID)
+			}
+		}
+	}
+
 	return c.JSON(http.StatusCreated, user)
 }
 
 // GetUser handles getting user details by ID
 func (h *UserHandlers) GetUser(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("users:read")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("user.read")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -231,7 +331,7 @@ type UpdateUserRequest struct {
 // UpdateUser handles updating user details
 func (h *UserHandlers) UpdateUser(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("users:update")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("user.update")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -293,7 +393,7 @@ type DeleteUserRequest struct {
 // DeleteUser handles deleting a user
 func (h *UserHandlers) DeleteUser(c echo.Context) error {
 	// Use RBAC middleware directly
-	err := h.rbacMiddleware.RequirePermission("users:delete")(func(c echo.Context) error {
+	err := h.rbacMiddleware.RequirePermission("user.delete")(func(c echo.Context) error {
 		return nil
 	})(c)
 	if err != nil {
@@ -372,5 +472,97 @@ func (h *UserHandlers) UpdateUserProfile(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Profile updated successfully",
+	})
+}
+
+// GetPendingUsers handles listing users pending approval
+func (h *UserHandlers) GetPendingUsers(c echo.Context) error {
+	// Use RBAC middleware directly - require admin access
+	err := h.rbacMiddleware.RequirePermission("user.approve")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
+
+	ctx := c.Request().Context()
+
+	var req ListUsersRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
+	}
+
+	// Set defaults
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+
+	// Get tenant ID from context
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Get pending users
+	users, err := h.userRepo.ListByStatus(ctx, tenantID, "pending_approval", req.Limit, req.Offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to list pending users")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"users":  users,
+		"limit":  req.Limit,
+		"offset": req.Offset,
+	})
+}
+
+// ApproveUser handles approving a pending user
+func (h *UserHandlers) ApproveUser(c echo.Context) error {
+	// Use RBAC middleware directly - require admin access
+	err := h.rbacMiddleware.RequirePermission("user.approve")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return err
+	}
+
+	ctx := c.Request().Context()
+
+	userIDStr := c.Param("id")
+	if userIDStr == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "User ID is required")
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID format")
+	}
+
+	// Get tenant ID from context
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Get existing user
+	user, err := h.userRepo.GetByID(ctx, tenantID, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "User not found")
+	}
+
+	if user.Status != "pending_approval" {
+		return echo.NewHTTPError(http.StatusBadRequest, "User is not pending approval")
+	}
+
+	// Update status to active
+	if err := h.userRepo.UpdateStatus(ctx, tenantID, userID, "active"); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to approve user")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "User approved successfully",
 	})
 }

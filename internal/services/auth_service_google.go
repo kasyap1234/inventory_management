@@ -107,14 +107,18 @@ func (s *authService) CompleteGoogleSignup(ctx context.Context, email, googleID,
 	}
 
 	// 3. Assign Roles
-	userRole, err := s.ensureTenantDefaults(ctx, tenantID)
+	adminRole, _, err := s.ensureTenantDefaults(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure default roles: %v", err)
 	}
 
+	if adminRole == nil {
+		return nil, fmt.Errorf("admin role not found")
+	}
+
 	newUserRole := &models.UserRole{
 		UserID: userID,
-		RoleID: userRole.ID,
+		RoleID: adminRole.ID,
 	}
 	if err := s.userRoleRepo.Create(ctx, tenantID, newUserRole); err != nil {
 		return nil, fmt.Errorf("failed to assign role: %v", err)

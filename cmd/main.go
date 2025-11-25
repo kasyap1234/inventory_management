@@ -103,6 +103,9 @@ func main() {
 		log.Fatalf("Database schema verification failed: %v", err)
 	}
 
+	// Initialize structured logger
+	logger := common.NewStructuredLogger()
+
 	// Check environment for production vs development
 	goEnv := os.Getenv("GO_ENV")
 	isProduction := goEnv == "production" || goEnv == "prod"
@@ -269,6 +272,9 @@ func main() {
 		backendURL,
 	)
 
+	// Create role management service
+	roleManagementService := services.NewRoleManagementService(roleRepo, permissionRepo, logger)
+
 	// Create product service
 	productSvc := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, minioSvc, cacheSvc)
 
@@ -302,7 +308,7 @@ func main() {
 		notificationService,
 		frontendURL,
 	)
-	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware, userService)
+	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware, userService, roleManagementService)
 	tenantHandlers := handlers.NewTenantHandlers(tenantService, rbacMiddleware)
 	categoryHandlers := handlers.NewCategoryHandlers(categoryRepo, rbacMiddleware)
 	warehouseHandlers := handlers.NewWarehouseHandlers(
@@ -319,7 +325,7 @@ func main() {
 		supplierService,
 		rbacMiddleware,
 	)
-	logger := common.GetGlobalLogger()
+	// logger := common.GetGlobalLogger() // Already initialized
 	inventoryAdapter := repositories.NewInventoryAdapter(inventoryRepo)
 	inventoryService := services.NewInventoryService(inventoryAdapter, logger)
 	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
@@ -643,6 +649,8 @@ func main() {
 
 	// User routes
 	protected.GET("/me", authHandlers.Me)
+	protected.GET("/users/pending", userHandlers.GetPendingUsers, rbacMiddleware.RequirePermission("users:approve"))
+	protected.POST("/users/:id/approve", userHandlers.ApproveUser, rbacMiddleware.RequirePermission("users:approve"))
 	protected.GET("/users", userHandlers.ListUsers, rbacMiddleware.RequirePermission("users:list||read_users"))
 	protected.GET("/users/:id", userHandlers.GetUser, rbacMiddleware.RequirePermission("users:read||read_users"))
 	protected.POST("/users", userHandlers.CreateUser, rbacMiddleware.RequirePermission("users:create||create_users"))
