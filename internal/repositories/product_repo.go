@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"agromart2/internal/models"
 
@@ -17,12 +18,16 @@ type ProductRepository interface {
 	Update(ctx context.Context, product *models.Product) error
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error)
+	// ListWithCursor returns products using cursor-based pagination for better performance on large datasets
+	ListWithCursor(ctx context.Context, tenantID uuid.UUID, limit int, cursorID *uuid.UUID, cursorCreatedAt *time.Time, backward bool) ([]*models.Product, error)
+	// CountProducts returns the total count of products for a tenant (use sparingly)
+	CountProducts(ctx context.Context, tenantID uuid.UUID) (int, error)
 	GetByBarcode(ctx context.Context, tenantID uuid.UUID, barcode string) (*models.Product, error)
 	Search(ctx context.Context, tenantID uuid.UUID, query string, categoryID *uuid.UUID, limit, offset int) ([]*models.Product, error)
 	ListWithCategory(ctx context.Context, tenantID uuid.UUID, categoryID *uuid.UUID, limit, offset int) ([]*models.Product, error)
 	CategoryAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]int, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.ProductSearchFilter) ([]*models.Product, error)
-	UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error
+	UpdateQuantity(ctx context.Context, tenantID, id uuid.UUID, quantity int) error
 }
 
 type productRepo struct {
@@ -108,9 +113,9 @@ func (r *productRepo) Update(ctx context.Context, product *models.Product) error
 	return err
 }
 
-func (r *productRepo) UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error {
-	query := `UPDATE products SET quantity = $1, updated_at = NOW() WHERE id = $2`
-	_, err := r.db.Exec(ctx, query, quantity, id)
+func (r *productRepo) UpdateQuantity(ctx context.Context, tenantID, id uuid.UUID, quantity int) error {
+	query := `UPDATE products SET quantity = $1, updated_at = NOW() WHERE tenant_id = $2 AND id = $3`
+	_, err := r.db.Exec(ctx, query, quantity, tenantID, id)
 	return err
 }
 
@@ -155,6 +160,115 @@ func (r *productRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offse
 	}
 
 	return products, nil
+}
+
+// ListWithCursor returns products using cursor-based (keyset) pagination.
+// This is more performant than offset-based pagination for large datasets because
+// it uses an index seek rather than scanning and skipping rows.
+// The cursor is based on (created_at, id) for stable ordering even with concurrent inserts.
+func (r *productRepo) ListWithCursor(ctx context.Context, tenantID uuid.UUID, limit int, cursorID *uuid.UUID, cursorCreatedAt *time.Time, backward bool) ([]*models.Product, error) {
+	var query string
+	var args []interface{}
+
+	if cursorID == nil || cursorCreatedAt == nil {
+		// No cursor - return first/last page
+		if backward {
+			query = `
+				SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+				       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+				       created_at, updated_at
+				FROM products
+				WHERE tenant_id = $1
+				ORDER BY created_at ASC, id ASC
+				LIMIT $2
+			`
+		} else {
+			query = `
+				SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+				       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+				       created_at, updated_at
+				FROM products
+				WHERE tenant_id = $1
+				ORDER BY created_at DESC, id DESC
+				LIMIT $2
+			`
+		}
+		args = []interface{}{tenantID, limit}
+	} else {
+		// Cursor provided - use keyset pagination
+		// The WHERE clause uses (created_at, id) tuple comparison for stable ordering
+		if backward {
+			// Backward pagination: get items BEFORE the cursor
+			query = `
+				SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+				       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+				       created_at, updated_at
+				FROM products
+				WHERE tenant_id = $1 
+				  AND (created_at, id) > ($2, $3)
+				ORDER BY created_at ASC, id ASC
+				LIMIT $4
+			`
+		} else {
+			// Forward pagination: get items AFTER the cursor
+			query = `
+				SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, 
+				       unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, 
+				       created_at, updated_at
+				FROM products
+				WHERE tenant_id = $1 
+				  AND (created_at, id) < ($2, $3)
+				ORDER BY created_at DESC, id DESC
+				LIMIT $4
+			`
+		}
+		args = []interface{}{tenantID, *cursorCreatedAt, *cursorID, limit}
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query products with cursor: %w", err)
+	}
+	defer rows.Close()
+
+	var products []*models.Product
+	for rows.Next() {
+		product := &models.Product{}
+		if err := rows.Scan(
+			&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate,
+			&product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description,
+			&product.IsHazardous, &product.HazardClass, &product.SDSUrl, &product.ActiveIngredients,
+			&product.CreatedAt, &product.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan product: %w", err)
+		}
+		products = append(products, product)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products with cursor: %w", err)
+	}
+
+	// For backward pagination, reverse the results to maintain consistent ordering
+	if backward && len(products) > 0 {
+		for i, j := 0, len(products)-1; i < j; i, j = i+1, j-1 {
+			products[i], products[j] = products[j], products[i]
+		}
+	}
+
+	return products, nil
+}
+
+// CountProducts returns the total number of products for a tenant.
+// Note: This can be expensive for large datasets. Use sparingly, typically only on first page load.
+func (r *productRepo) CountProducts(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM products WHERE tenant_id = $1`
+	err := r.db.QueryRow(ctx, query, tenantID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count products: %w", err)
+	}
+	return count, nil
 }
 
 func (r *productRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.ProductSearchFilter) ([]*models.Product, error) {

@@ -577,9 +577,10 @@ func main() {
 	e.Use(perfMiddleware.BodyLimit("10M"))          // Limit request body size
 	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:3000", "http://localhost:3001", "https://app.agromart.com"},
-		AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-CSRF-Token"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001", "https://app.agromart.com"},
+		AllowMethods:     []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS, echo.PATCH},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-CSRF-Token"},
+		AllowCredentials: true,
 	}))
 	e.Use(echoMiddleware.RemoveTrailingSlash())
 
@@ -687,17 +688,17 @@ func main() {
 	protected.POST("/products/bulk/create", productHandlers.BulkCreateProducts, rbacMiddleware.RequirePermission("product.bulk_create"))
 	protected.POST("/products/bulk-price-update", productHandlers.BulkPriceUpdate, rbacMiddleware.RequirePermission("product.bulk_price_update"))
 
-	// Batch routes
-	protected.POST("/products/:productId/batches", batchHandler.CreateBatch)
-	protected.GET("/products/:productId/batches", batchHandler.GetBatchesByProduct)
-	protected.GET("/batches/:id", batchHandler.GetBatch)
-	protected.PUT("/batches/:id", batchHandler.UpdateBatch)
+	// Batch routes - require product permissions for batch operations
+	protected.POST("/products/:productId/batches", batchHandler.CreateBatch, rbacMiddleware.RequirePermission("product.create"))
+	protected.GET("/products/:productId/batches", batchHandler.GetBatchesByProduct, rbacMiddleware.RequirePermission("product.read"))
+	protected.GET("/batches/:id", batchHandler.GetBatch, rbacMiddleware.RequirePermission("product.read"))
+	protected.PUT("/batches/:id", batchHandler.UpdateBatch, rbacMiddleware.RequirePermission("product.update"))
 
-	// Product image routes
-	protected.POST("/products/:id/images", productHandlers.UploadProductImage)
-	protected.GET("/products/:id/images", productHandlers.GetProductImages)
-	protected.GET("/products/:id/images/:imageId/url", productHandlers.GetProductImageURL)
-	protected.DELETE("/products/:id/images/:imageId", productHandlers.DeleteProductImage)
+	// Product image routes - require product permissions
+	protected.POST("/products/:id/images", productHandlers.UploadProductImage, rbacMiddleware.RequirePermission("product.update"))
+	protected.GET("/products/:id/images", productHandlers.GetProductImages, rbacMiddleware.RequirePermission("product.read"))
+	protected.GET("/products/:id/images/:imageId/url", productHandlers.GetProductImageURL, rbacMiddleware.RequirePermission("product.read"))
+	protected.DELETE("/products/:id/images/:imageId", productHandlers.DeleteProductImage, rbacMiddleware.RequirePermission("product.update"))
 
 	// Warehouse routes
 	protected.GET("/warehouses", warehouseHandlers.ListWarehouses, rbacMiddleware.RequirePermission("warehouse.list"))
@@ -787,6 +788,7 @@ func main() {
 								jitter := time.Duration(float64(delay) * 0.1)
 								delay += time.Duration(time.Now().UnixNano() % int64(jitter))
 							case <-ctx.Done():
+								cancel()
 								return
 							}
 							continue

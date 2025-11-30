@@ -20,8 +20,8 @@ type MockProductRepository struct {
 	mock.Mock
 }
 
-func (m *MockProductRepository) UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error {
-	args := m.Called(ctx, id, quantity)
+func (m *MockProductRepository) UpdateQuantity(ctx context.Context, tenantID, id uuid.UUID, quantity int) error {
+	args := m.Called(ctx, tenantID, id, quantity)
 	return args.Error(0)
 }
 
@@ -79,6 +79,19 @@ func (m *MockProductRepository) CategoryAnalytics(ctx context.Context, tenantID 
 func (m *MockProductRepository) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.ProductSearchFilter) ([]*models.Product, error) {
 	args := m.Called(ctx, tenantID, filter)
 	return args.Get(0).([]*models.Product), args.Error(1)
+}
+
+func (m *MockProductRepository) ListWithCursor(ctx context.Context, tenantID uuid.UUID, limit int, cursorID *uuid.UUID, cursorCreatedAt *time.Time, backward bool) ([]*models.Product, error) {
+	args := m.Called(ctx, tenantID, limit, cursorID, cursorCreatedAt, backward)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Product), args.Error(1)
+}
+
+func (m *MockProductRepository) CountProducts(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	args := m.Called(ctx, tenantID)
+	return args.Int(0), args.Error(1)
 }
 
 // MockCategoryRepoForProduct is a mock implementation of CategoryRepository for product tests
@@ -325,6 +338,11 @@ func (m *MockCacheService) SetString(ctx context.Context, key string, value stri
 func (m *MockCacheService) GetString(ctx context.Context, key string) (string, error) {
 	args := m.Called(ctx, key)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockCacheService) DeleteByPattern(ctx context.Context, pattern string) error {
+	args := m.Called(ctx, pattern)
+	return args.Error(0)
 }
 
 type MockMinioService struct {

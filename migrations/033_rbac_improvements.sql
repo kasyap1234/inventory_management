@@ -9,9 +9,42 @@
 -- Convert all colon-notation permissions to dot-notation
 -- e.g., "users:list" -> "user.list", "products:create" -> "product.create"
 
--- First, update existing permissions with colon notation to dot notation
+-- First, delete any colon-notation permissions that already have a dot-notation equivalent
+-- This prevents unique constraint violations during the UPDATE
+DELETE FROM permissions WHERE name LIKE '%:%' 
+AND REPLACE(
+    CASE 
+        WHEN name LIKE 'users:%' THEN regexp_replace(name, '^users:', 'user.')
+        WHEN name LIKE 'products:%' THEN regexp_replace(name, '^products:', 'product.')
+        WHEN name LIKE 'orders:%' THEN regexp_replace(name, '^orders:', 'order.')
+        WHEN name LIKE 'invoices:%' THEN regexp_replace(name, '^invoices:', 'invoice.')
+        WHEN name LIKE 'inventories:%' THEN regexp_replace(name, '^inventories:', 'inventory.')
+        WHEN name LIKE 'warehouses:%' THEN regexp_replace(name, '^warehouses:', 'warehouse.')
+        WHEN name LIKE 'distributors:%' THEN regexp_replace(name, '^distributors:', 'distributor.')
+        WHEN name LIKE 'suppliers:%' THEN regexp_replace(name, '^suppliers:', 'supplier.')
+        WHEN name LIKE 'categories:%' THEN regexp_replace(name, '^categories:', 'category.')
+        WHEN name LIKE 'tenants:%' THEN regexp_replace(name, '^tenants:', 'tenant.')
+        ELSE REPLACE(name, ':', '.')
+    END, ':', '.')
+IN (SELECT name FROM permissions WHERE name NOT LIKE '%:%');
+
+-- Now update remaining colon-notation permissions to dot notation (also convert plural to singular)
 UPDATE permissions SET 
-    name = REPLACE(name, ':', '.'),
+    name = CASE 
+        WHEN name LIKE 'users:%' THEN regexp_replace(name, '^users:', 'user.')
+        WHEN name LIKE 'products:%' THEN regexp_replace(name, '^products:', 'product.')
+        WHEN name LIKE 'orders:%' THEN regexp_replace(name, '^orders:', 'order.')
+        WHEN name LIKE 'invoices:%' THEN regexp_replace(name, '^invoices:', 'invoice.')
+        WHEN name LIKE 'inventories:%' THEN regexp_replace(name, '^inventories:', 'inventory.')
+        WHEN name LIKE 'inventory:%' THEN regexp_replace(name, '^inventory:', 'inventory.')
+        WHEN name LIKE 'warehouses:%' THEN regexp_replace(name, '^warehouses:', 'warehouse.')
+        WHEN name LIKE 'distributors:%' THEN regexp_replace(name, '^distributors:', 'distributor.')
+        WHEN name LIKE 'suppliers:%' THEN regexp_replace(name, '^suppliers:', 'supplier.')
+        WHEN name LIKE 'categories:%' THEN regexp_replace(name, '^categories:', 'category.')
+        WHEN name LIKE 'tenants:%' THEN regexp_replace(name, '^tenants:', 'tenant.')
+        WHEN name LIKE 'analytics:%' THEN regexp_replace(name, '^analytics:', 'analytics.')
+        ELSE REPLACE(name, ':', '.')
+    END,
     resource = CASE 
         WHEN name LIKE 'users:%' THEN 'user'
         WHEN name LIKE 'products:%' THEN 'product'
@@ -28,6 +61,30 @@ UPDATE permissions SET
     END,
     action = regexp_replace(name, '^[^:]+:', '')
 WHERE name LIKE '%:%';
+
+-- First, delete any plural-form permissions that already have singular equivalents
+-- This prevents unique constraint violations during the UPDATE below
+DELETE FROM permissions p1
+WHERE p1.name LIKE 'users.%' OR p1.name LIKE 'products.%' OR p1.name LIKE 'orders.%' 
+   OR p1.name LIKE 'invoices.%' OR p1.name LIKE 'inventories.%' OR p1.name LIKE 'warehouses.%'
+   OR p1.name LIKE 'distributors.%' OR p1.name LIKE 'suppliers.%' OR p1.name LIKE 'categories.%' 
+   OR p1.name LIKE 'tenants.%'
+AND EXISTS (
+    SELECT 1 FROM permissions p2 WHERE p2.name = 
+        CASE
+            WHEN p1.name LIKE 'users.%' THEN regexp_replace(p1.name, '^users\.', 'user.')
+            WHEN p1.name LIKE 'products.%' THEN regexp_replace(p1.name, '^products\.', 'product.')
+            WHEN p1.name LIKE 'orders.%' THEN regexp_replace(p1.name, '^orders\.', 'order.')
+            WHEN p1.name LIKE 'invoices.%' THEN regexp_replace(p1.name, '^invoices\.', 'invoice.')
+            WHEN p1.name LIKE 'inventories.%' THEN regexp_replace(p1.name, '^inventories\.', 'inventory.')
+            WHEN p1.name LIKE 'warehouses.%' THEN regexp_replace(p1.name, '^warehouses\.', 'warehouse.')
+            WHEN p1.name LIKE 'distributors.%' THEN regexp_replace(p1.name, '^distributors\.', 'distributor.')
+            WHEN p1.name LIKE 'suppliers.%' THEN regexp_replace(p1.name, '^suppliers\.', 'supplier.')
+            WHEN p1.name LIKE 'categories.%' THEN regexp_replace(p1.name, '^categories\.', 'category.')
+            WHEN p1.name LIKE 'tenants.%' THEN regexp_replace(p1.name, '^tenants\.', 'tenant.')
+            ELSE p1.name
+        END
+);
 
 -- Also convert plural resource names to singular in the name field
 UPDATE permissions SET 
@@ -59,6 +116,21 @@ UPDATE permissions SET
     END
 WHERE resource IN ('users', 'products', 'orders', 'invoices', 'inventories', 
                    'warehouses', 'distributors', 'suppliers', 'categories', 'tenants');
+
+-- Delete legacy underscore-prefix permissions if dot-notation equivalents already exist
+DELETE FROM permissions WHERE name IN ('read_users', 'create_users', 'update_users', 'delete_users',
+                                        'read_products', 'create_products', 'update_products', 'delete_products', 'manage_products')
+AND (
+    (name = 'read_users' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'user.read')) OR
+    (name = 'create_users' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'user.create')) OR
+    (name = 'update_users' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'user.update')) OR
+    (name = 'delete_users' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'user.delete')) OR
+    (name = 'read_products' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'product.read')) OR
+    (name = 'create_products' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'product.create')) OR
+    (name = 'update_products' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'product.update')) OR
+    (name = 'delete_products' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'product.delete')) OR
+    (name = 'manage_products' AND EXISTS (SELECT 1 FROM permissions WHERE name = 'product.manage'))
+);
 
 -- Convert legacy underscore-prefix permissions (read_users -> user.read)
 UPDATE permissions SET
@@ -208,33 +280,16 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 
 -- ============================================================================
--- PART 5: Add Permission Validation Trigger
+-- PART 5: Permission Validation (Application Layer)
 -- ============================================================================
+-- NOTE: Permission name validation is handled at the application layer rather than
+-- via database triggers. This ensures migrations can be re-run idempotently without
+-- conflicts when earlier migrations use legacy permission naming conventions.
+-- The RBAC service validates permission names at runtime.
 
--- Create function to validate permission name format
-CREATE OR REPLACE FUNCTION validate_permission_name()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Allow system permissions like '*' or wildcard patterns
-    IF NEW.name = '*' OR NEW.name LIKE '*.%' OR NEW.name LIKE '%.*' THEN
-        RETURN NEW;
-    END IF;
-    
-    -- Validate that permission name follows resource.action format
-    IF NEW.name !~ '^[a-z_]+\.[a-z_]+$' THEN
-        RAISE EXCEPTION 'Permission name must follow "resource.action" format (lowercase with dots). Got: %', NEW.name;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger for permission name validation (only on new insertions)
+-- Drop any existing validation trigger to ensure migration idempotency
 DROP TRIGGER IF EXISTS trigger_validate_permission_name ON permissions;
-CREATE TRIGGER trigger_validate_permission_name
-    BEFORE INSERT ON permissions
-    FOR EACH ROW
-    EXECUTE FUNCTION validate_permission_name();
+DROP FUNCTION IF EXISTS validate_permission_name();
 
 -- ============================================================================
 -- PART 6: Insert Standard Permissions (Idempotent)

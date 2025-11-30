@@ -38,7 +38,7 @@ SELECT
 FROM products 
 WHERE quantity > 0;
 
--- 4. Make old columns nullable (or drop them later, for now just nullable to avoid breaking immedately)
+-- 4. Make old columns nullable (or drop them later, for now just nullable to avoid breaking immediately)
 ALTER TABLE products ALTER COLUMN batch_number DROP NOT NULL;
 ALTER TABLE products ALTER COLUMN expiry_date DROP NOT NULL;
 -- We keep quantity in products as a cached total for performance, but it should be updated via triggers or application logic.

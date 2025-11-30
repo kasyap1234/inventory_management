@@ -212,6 +212,10 @@ JOIN roles r ON ur.role_id = r.id
 JOIN role_permissions rp ON r.id = rp.role_id
 JOIN permissions p ON rp.permission_id = p.id;
 
+-- Drop any existing versions of user_has_permission to avoid conflicts
+DROP FUNCTION IF EXISTS user_has_permission(uuid, uuid, varchar, jsonb);
+DROP FUNCTION IF EXISTS user_has_permission(uuid, uuid, varchar);
+
 -- Create a function to check if a user has a specific permission
 CREATE OR REPLACE FUNCTION user_has_permission(
     p_user_id UUID,

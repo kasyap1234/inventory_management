@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"agromart2/internal/common"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/net/websocket"
@@ -186,13 +188,14 @@ func (h *WebSocketHandlers) HandleWebSocket(c echo.Context) error {
 		defer ws.Close()
 
 		// Get user info from context (set by JWT middleware)
-		userID, ok := c.Get("user_id").(uuid.UUID)
+		ctx := c.Request().Context()
+		userID, ok := common.GetUserIDFromContext(ctx)
 		if !ok {
 			log.Println("WebSocket: user_id not found in context")
 			return
 		}
 
-		tenantID, ok := c.Get("tenant_id").(uuid.UUID)
+		tenantID, ok := common.GetTenantIDFromContext(ctx)
 		if !ok {
 			log.Println("WebSocket: tenant_id not found in context")
 			return

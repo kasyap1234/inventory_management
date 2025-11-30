@@ -57,7 +57,7 @@ func (s *RepositoryTestSuite) SetupSuite() {
 	s.productRepo = repositories.NewProductRepo(container.Pool)
 	s.categoryRepo = repositories.NewCategoryRepo(container.Pool)
 	s.inventoryRepo = repositories.NewInventoryRepo(container.Pool)
-	s.warehouseRepo = repositories.NewWarehouseRepo(container.Pool)
+	s.warehouseRepo = repositories.NewWarehouseRepository(container.Pool)
 
 	// Create a test tenant
 	s.tenantID = uuid.New()
@@ -296,7 +296,7 @@ func (s *RepositoryTestSuite) TestProductUpdateQuantity() {
 	require.NoError(s.T(), err)
 
 	// Update quantity
-	err = s.productRepo.UpdateQuantity(s.ctx, product.ID, 150)
+	err = s.productRepo.UpdateQuantity(s.ctx, s.tenantID, product.ID, 150)
 	require.NoError(s.T(), err)
 
 	// Verify
@@ -314,8 +314,8 @@ func (s *RepositoryTestSuite) TestWarehouseCreate() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Test Warehouse",
-		Address:  "123 Test Street",
-		Capacity: 1000,
+		Address:  stringPtr("123 Test Street"),
+		Capacity: intPtr(1000),
 	}
 
 	err := s.warehouseRepo.Create(s.ctx, warehouse)
@@ -325,8 +325,8 @@ func (s *RepositoryTestSuite) TestWarehouseCreate() {
 	fetched, err := s.warehouseRepo.GetByID(s.ctx, s.tenantID, warehouse.ID)
 	require.NoError(s.T(), err)
 	assert.Equal(s.T(), "Test Warehouse", fetched.Name)
-	assert.Equal(s.T(), "123 Test Street", fetched.Address)
-	assert.Equal(s.T(), 1000, fetched.Capacity)
+	assert.Equal(s.T(), stringPtr("123 Test Street"), fetched.Address)
+	assert.Equal(s.T(), intPtr(1000), fetched.Capacity)
 }
 
 // =====================
@@ -358,7 +358,7 @@ func (s *RepositoryTestSuite) TestInventoryCreate() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Inventory Warehouse",
-		Capacity: 1000,
+		Capacity: intPtr(1000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse)
 	require.NoError(s.T(), err)
@@ -406,7 +406,7 @@ func (s *RepositoryTestSuite) TestInventoryUpsert() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Upsert Warehouse",
-		Capacity: 1000,
+		Capacity: intPtr(1000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse)
 	require.NoError(s.T(), err)
@@ -464,7 +464,7 @@ func (s *RepositoryTestSuite) TestInventoryTransfer() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Source Warehouse",
-		Capacity: 1000,
+		Capacity: intPtr(1000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse1)
 	require.NoError(s.T(), err)
@@ -473,7 +473,7 @@ func (s *RepositoryTestSuite) TestInventoryTransfer() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Destination Warehouse",
-		Capacity: 1000,
+		Capacity: intPtr(1000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse2)
 	require.NoError(s.T(), err)
@@ -529,7 +529,7 @@ func (s *RepositoryTestSuite) TestInventoryTransferInsufficientQuantity() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Source Insufficient",
-		Capacity: 1000,
+		Capacity: intPtr(1000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse1)
 	require.NoError(s.T(), err)
@@ -538,7 +538,7 @@ func (s *RepositoryTestSuite) TestInventoryTransferInsufficientQuantity() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "Destination Insufficient",
-		Capacity: 1000,
+		Capacity: intPtr(1000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse2)
 	require.NoError(s.T(), err)
@@ -573,7 +573,7 @@ func (s *RepositoryTestSuite) TestInventoryList() {
 		ID:       uuid.New(),
 		TenantID: s.tenantID,
 		Name:     "List Inventory Warehouse",
-		Capacity: 5000,
+		Capacity: intPtr(5000),
 	}
 	err = s.warehouseRepo.Create(s.ctx, warehouse)
 	require.NoError(s.T(), err)

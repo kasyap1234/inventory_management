@@ -50,9 +50,28 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    const originalRequest = error.config;
+
+    // Handle CSRF token errors - retry once with a fresh token
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.message?.toLowerCase().includes('csrf') &&
+      !originalRequest._csrfRetry
+    ) {
+      originalRequest._csrfRetry = true;
+      csrfTokenManager.clearToken();
+      const newToken = await csrfTokenManager.getToken();
+      if (newToken) {
+        originalRequest.headers['X-CSRF-Token'] = newToken;
+        return api.request(originalRequest);
+      }
+    }
+
     // Handle network errors
     if (!error.response) {
       console.error('Network error:', error.message);
+      // Clear CSRF token on network errors in case it's stale
+      csrfTokenManager.clearToken();
       return Promise.reject(new Error('Network error. Please check your connection.'));
     }
 

@@ -7,7 +7,6 @@ import (
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -38,8 +37,14 @@ func NewDeviceTokenHandlers(repo repositories.DeviceTokenRepository, logger *com
 // @Router /api/v1/notifications/devices [post]
 func (h *DeviceTokenHandlers) RegisterDevice(c echo.Context) error {
 	ctx := c.Request().Context()
-	tenantID := c.Get("tenant_id").(uuid.UUID)
-	userID := c.Get("user_id").(uuid.UUID)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant ID not found")
+	}
+	userID, ok := common.GetUserIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User ID not found")
+	}
 
 	var req models.DeviceTokenRequest
 	if err := c.Bind(&req); err != nil {
@@ -99,7 +104,10 @@ func (h *DeviceTokenHandlers) RegisterDevice(c echo.Context) error {
 func (h *DeviceTokenHandlers) UnregisterDevice(c echo.Context) error {
 	ctx := c.Request().Context()
 	deviceToken := c.Param("token")
-	tenantID := c.Get("tenant_id").(uuid.UUID)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant ID not found")
+	}
 
 	if deviceToken == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Device token is required")
@@ -134,8 +142,14 @@ func (h *DeviceTokenHandlers) UnregisterDevice(c echo.Context) error {
 // @Router /api/v1/notifications/devices [get]
 func (h *DeviceTokenHandlers) ListDevices(c echo.Context) error {
 	ctx := c.Request().Context()
-	tenantID := c.Get("tenant_id").(uuid.UUID)
-	userID := c.Get("user_id").(uuid.UUID)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant ID not found")
+	}
+	userID, ok := common.GetUserIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User ID not found")
+	}
 
 	tokens, err := h.repo.GetTokensByUser(ctx, tenantID, userID)
 	if err != nil {
@@ -164,7 +178,10 @@ func (h *DeviceTokenHandlers) ListDevices(c echo.Context) error {
 func (h *DeviceTokenHandlers) DeactivateDevice(c echo.Context) error {
 	ctx := c.Request().Context()
 	deviceToken := c.Param("token")
-	tenantID := c.Get("tenant_id").(uuid.UUID)
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant ID not found")
+	}
 
 	if deviceToken == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "Device token is required")

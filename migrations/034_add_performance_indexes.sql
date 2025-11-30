@@ -28,10 +28,15 @@ CREATE INDEX IF NOT EXISTS idx_orders_tenant_status ON orders(tenant_id, status)
 -- Speeds up: Order date range filters with tenant isolation
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_order_date ON orders(tenant_id, order_date);
 
--- Index for reserved quantity lookups
+-- Index for reserved quantity lookups (only if column exists)
 -- Speeds up: Stock availability checks, reservation operations
-CREATE INDEX IF NOT EXISTS idx_inventory_reserved_quantity ON inventory(tenant_id, product_id, reserved_quantity) 
-WHERE reserved_quantity > 0;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'inventory' AND column_name = 'reserved_quantity') THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_inventory_reserved_quantity ON inventory(tenant_id, product_id, reserved_quantity) WHERE reserved_quantity > 0';
+    END IF;
+END $$;
 
 -- Index for low stock alerts
 -- Speeds up: Low stock detection queries, alert generation

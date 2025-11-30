@@ -15,7 +15,7 @@ Before you begin, ensure you have the following installed:
 
 ### 1. Infrastructure Setup
 
-The easiest way to set up the required infrastructure (PostgreSQL, Redis, MinIO, MailHog) is using Docker Compose.
+The easiest way to set up the required infrastructure (PostgreSQL, Redis, MinIO, Mailpit) is using Docker Compose.
 
 ```bash
 # Start all services
@@ -26,7 +26,7 @@ This will start:
 -   **PostgreSQL**: Port 5440 (Database: `testdb`, User: `testuser`, Password: `testpass`)
 -   **Redis**: Port 6379
 -   **MinIO**: Port 9000 (Console: 9001)
--   **MailHog**: Port 1025 (Web UI: 8025)
+-   **Mailpit**: Port 1025 (Web UI: 8025)
 
 ### 2. Backend Setup
 
@@ -77,7 +77,7 @@ This will start:
 
 -   **Frontend URL**: [http://localhost:3000](http://localhost:3000)
 -   **Backend API**: [http://localhost:8080](http://localhost:8080)
--   **MailHog (Email Testing)**: [http://localhost:8025](http://localhost:8025)
+-   **Mailpit (Email Testing)**: [http://localhost:8025](http://localhost:8025)
 
 ## Features
 

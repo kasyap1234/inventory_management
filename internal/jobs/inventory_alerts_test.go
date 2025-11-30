@@ -65,6 +65,15 @@ func (m *MockInventoryRepository) GetByProduct(ctx context.Context, tenantID, pr
 	return args.Get(0).([]*models.Inventory), args.Error(1)
 }
 
+// GetByProductForUpdate retrieves inventory with SELECT FOR UPDATE lock
+func (m *MockInventoryRepository) GetByProductForUpdate(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	args := m.Called(ctx, tenantID, productID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Inventory), args.Error(1)
+}
+
 func (m *MockInventoryRepository) Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error {
 	args := m.Called(ctx, tenantID, productID, fromWarehouseID, toWarehouseID, quantity)
 	return args.Error(0)
@@ -75,8 +84,8 @@ type MockProductRepository struct {
 	mock.Mock
 }
 
-func (m *MockProductRepository) UpdateQuantity(ctx context.Context, id uuid.UUID, quantity int) error {
-	args := m.Called(ctx, id, quantity)
+func (m *MockProductRepository) UpdateQuantity(ctx context.Context, tenantID, id uuid.UUID, quantity int) error {
+	args := m.Called(ctx, tenantID, id, quantity)
 	return args.Error(0)
 }
 
@@ -134,6 +143,19 @@ func (m *MockProductRepository) CategoryAnalytics(ctx context.Context, tenantID 
 func (m *MockProductRepository) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.ProductSearchFilter) ([]*models.Product, error) {
 	args := m.Called(ctx, tenantID, filter)
 	return args.Get(0).([]*models.Product), args.Error(1)
+}
+
+func (m *MockProductRepository) ListWithCursor(ctx context.Context, tenantID uuid.UUID, limit int, cursorID *uuid.UUID, cursorCreatedAt *time.Time, backward bool) ([]*models.Product, error) {
+	args := m.Called(ctx, tenantID, limit, cursorID, cursorCreatedAt, backward)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Product), args.Error(1)
+}
+
+func (m *MockProductRepository) CountProducts(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	args := m.Called(ctx, tenantID)
+	return args.Int(0), args.Error(1)
 }
 
 // InventoryAlertServiceTestSuite is the comprehensive test suite for InventoryAlertService

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -155,6 +156,9 @@ func (h *ProductHandlers) CreateProduct(c echo.Context) error {
 }
 
 // ListProducts handles GET /products
+// Supports both offset-based (legacy) and cursor-based pagination
+// For cursor-based pagination, use 'first', 'after', 'last', 'before' query params
+// For offset-based pagination, use 'limit' and 'offset' query params
 func (h *ProductHandlers) ListProducts(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -163,6 +167,19 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
+	// Check if cursor-based pagination is requested
+	firstParam := c.QueryParam("first")
+	lastParam := c.QueryParam("last")
+	afterParam := c.QueryParam("after")
+	beforeParam := c.QueryParam("before")
+
+	useCursor := firstParam != "" || lastParam != "" || afterParam != "" || beforeParam != ""
+
+	if useCursor {
+		return h.listProductsWithCursor(c, ctx, tenantID, firstParam, lastParam, afterParam, beforeParam)
+	}
+
+	// Legacy offset-based pagination
 	limit := 10 // default
 	offset := 0 // default
 	maxLimit := 1000 // Maximum items per page
@@ -192,6 +209,49 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 		"products": products,
 		"limit":    limit,
 		"offset":   offset,
+	})
+}
+
+// listProductsWithCursor handles cursor-based pagination for products
+// This is more efficient than offset pagination for large datasets
+func (h *ProductHandlers) listProductsWithCursor(c echo.Context, ctx context.Context, tenantID uuid.UUID, firstParam, lastParam, afterParam, beforeParam string) error {
+	params := &common.CursorPaginationParams{
+		After:  afterParam,
+		Before: beforeParam,
+	}
+
+	// Parse first/last parameters
+	if firstParam != "" {
+		first, err := strconv.Atoi(firstParam)
+		if err != nil || first <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid 'first' parameter: must be a positive integer")
+		}
+		params.First = first
+	}
+
+	if lastParam != "" {
+		last, err := strconv.Atoi(lastParam)
+		if err != nil || last <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "Invalid 'last' parameter: must be a positive integer")
+		}
+		params.Last = last
+	}
+
+	result, err := h.productService.ListWithCursor(ctx, tenantID, params)
+	if err != nil {
+		log.Printf("Failed to list products with cursor for tenant %s: %v", tenantID, err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve products")
+	}
+
+	// Return in a format compatible with both REST and GraphQL-style pagination
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"products": result.Items,
+		"page_info": map[string]interface{}{
+			"has_next_page":     result.PageInfo.HasNextPage,
+			"has_previous_page": result.PageInfo.HasPreviousPage,
+			"start_cursor":      result.PageInfo.StartCursor,
+			"end_cursor":        result.PageInfo.EndCursor,
+		},
 	})
 }
 

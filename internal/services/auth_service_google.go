@@ -98,7 +98,7 @@ func (s *authService) CompleteGoogleSignup(ctx context.Context, email, googleID,
 
 	// We need a dummy password hash since it's required by DB usually, but here we can maybe set it to empty or a random string
 	// Assuming DB allows null or we set a random un-matchable hash
-	randomPass := s.generateSecureToken()
+	randomPass, _ := s.generateSecureToken()
 	hashedPassword, _ := s.HashPassword(randomPass)
 	user.PasswordHash = hashedPassword
 

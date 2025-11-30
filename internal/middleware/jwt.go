@@ -29,14 +29,22 @@ type JWTCustomClaims struct {
 
 // ParseJWTPayload parses JWT token payload into custom claims
 func ParseJWTPayload(c echo.Context, dst *JWTCustomClaims, jwtSecret string) error {
-	authHeader := c.Request().Header.Get("Authorization")
-	if authHeader == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Missing token")
-	}
+	var tokenString string
 
-	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	if tokenString == authHeader {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid token format")
+	// First try Authorization header (for API clients)
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader != "" {
+		tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenString == authHeader {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Invalid token format")
+		}
+	} else {
+		// Fall back to HttpOnly cookie (for browser clients)
+		cookie, err := c.Cookie("auth_token")
+		if err != nil || cookie.Value == "" {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Missing token")
+		}
+		tokenString = cookie.Value
 	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -103,14 +111,22 @@ type UserTenantResolver interface {
 func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			authHeader := c.Request().Header.Get("Authorization")
-			if authHeader == "" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Missing token")
-			}
+			var tokenString string
 
-			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-			if tokenString == authHeader {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid token format")
+			// First try Authorization header (for API clients)
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader != "" {
+				tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+				if tokenString == authHeader {
+					return echo.NewHTTPError(http.StatusUnauthorized, "Invalid token format")
+				}
+			} else {
+				// Fall back to HttpOnly cookie (for browser clients)
+				cookie, err := c.Cookie("auth_token")
+				if err != nil || cookie.Value == "" {
+					return echo.NewHTTPError(http.StatusUnauthorized, "Missing token")
+				}
+				tokenString = cookie.Value
 			}
 
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

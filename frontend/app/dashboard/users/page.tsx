@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { tenantService } from '@/lib/services';
 import { User, Role, Permission, Tenant } from '@/types';
 import { formatDate } from '@/lib/utils';
 
-type TabType = 'users' | 'roles' | 'permissions';
+type TabType = 'users' | 'pending' | 'roles' | 'permissions';
 
 export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -41,6 +41,16 @@ export default function UsersPage() {
           >
             <UsersIcon className="h-5 w-5" />
             Users
+          </button>
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`${activeTab === 'pending'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
+          >
+            <Clock className="h-5 w-5" />
+            Pending Approval
           </button>
           <button
             onClick={() => setActiveTab('roles')}
@@ -80,6 +90,7 @@ export default function UsersPage() {
 
       {/* Tab Content */}
       {activeTab === 'users' && <UsersTab searchQuery={searchQuery} />}
+      {activeTab === 'pending' && <PendingApprovalTab searchQuery={searchQuery} />}
       {activeTab === 'roles' && <RolesTab searchQuery={searchQuery} />}
       {activeTab === 'permissions' && <PermissionsTab searchQuery={searchQuery} />}
     </div>
@@ -114,6 +125,16 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const approveUser = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/users/${id}/approve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
     },
   });
 
@@ -159,13 +180,28 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
-                        {user.status}
+                      <Badge variant={user.status === 'active' ? 'success' : user.status === 'pending_approval' ? 'warning' : 'secondary'}>
+                        {user.status === 'pending_approval' ? 'Pending Approval' : user.status}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatDate(user.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        {user.status === 'pending_approval' && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm(`Approve ${user.first_name} ${user.last_name}?`)) {
+                                approveUser.mutate(user.id);
+                              }
+                            }}
+                            disabled={approveUser.isPending}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Approve
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -220,6 +256,124 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
         roles={roles?.roles || []}
       />
     </>
+  );
+}
+
+// Pending Approval Tab Component
+function PendingApprovalTab({ searchQuery }: { searchQuery: string }) {
+  const queryClient = useQueryClient();
+
+  const { data: pendingUsers, isLoading, error } = useQuery<{ users: User[] }>({
+    queryKey: ['pending-users'],
+    queryFn: async () => {
+      const response = await api.get('/users/pending');
+      return response.data;
+    },
+  });
+
+  const approveUser = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/users/${id}/approve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const rejectUser = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-users'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const filteredUsers = pendingUsers?.users?.filter(user =>
+    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.last_name.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold">Pending User Approvals</h3>
+          <p className="text-sm text-muted-foreground">
+            Review and approve new user registrations
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading pending users...</div>
+        ) : error ? (
+          <div className="text-center py-8 text-destructive">
+            Failed to load pending users. You may not have permission to view this.
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+            <p className="font-medium">No pending approvals</p>
+            <p className="text-sm">All user registrations have been processed.</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Registered</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">
+                    {user.first_name} {user.last_name}
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{formatDate(user.created_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm(`Approve ${user.first_name} ${user.last_name}?`)) {
+                            approveUser.mutate(user.id);
+                          }
+                        }}
+                        disabled={approveUser.isPending}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm(`Reject and delete ${user.first_name} ${user.last_name}? This action cannot be undone.`)) {
+                            rejectUser.mutate(user.id);
+                          }
+                        }}
+                        disabled={rejectUser.isPending}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Reject
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

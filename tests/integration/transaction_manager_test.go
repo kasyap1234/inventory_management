@@ -52,7 +52,7 @@ func (s *TransactionTestSuite) SetupSuite() {
 	require.NoError(s.T(), err, "Failed to start PostgreSQL container")
 
 	s.container = container
-	s.logger = common.NewStructuredLogger("test", "debug")
+	s.logger = common.NewStructuredLogger()
 	s.txManager = common.NewTransactionManager(container.Pool, s.logger)
 }
 

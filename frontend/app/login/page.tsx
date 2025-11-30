@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -20,9 +20,15 @@ function LoginContent() {
 
   const resetSuccessful = searchParams.get('reset') === 'success';
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - must be in useEffect to avoid setState during render
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  // Show nothing while redirecting
   if (!isLoading && isAuthenticated) {
-    router.push('/dashboard');
     return null;
   }
 

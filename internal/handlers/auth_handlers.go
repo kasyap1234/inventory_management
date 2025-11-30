@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
@@ -20,6 +22,81 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 )
+
+// twoFAAttemptTracker tracks 2FA verification attempts per user/IP for rate limiting
+type twoFAAttemptTracker struct {
+	mu       sync.RWMutex
+	attempts map[string]*attemptInfo
+}
+
+type attemptInfo struct {
+	count    int
+	firstAt  time.Time
+	lockedAt *time.Time
+}
+
+const (
+	// max2FAAttempts is the maximum number of 2FA attempts allowed within the window
+	max2FAAttempts = 5
+	// twoFAAttemptWindow is the time window for tracking attempts
+	twoFAAttemptWindow = 15 * time.Minute
+	// twoFALockoutDuration is how long to lock out after max attempts
+	twoFALockoutDuration = 30 * time.Minute
+)
+
+var globalTwoFATracker = &twoFAAttemptTracker{
+	attempts: make(map[string]*attemptInfo),
+}
+
+func (t *twoFAAttemptTracker) checkAndIncrement(key string) (allowed bool, remainingAttempts int, lockoutRemaining time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	now := time.Now()
+	info, exists := t.attempts[key]
+
+	// Clean up expired entries
+	if exists {
+		// Check if locked
+		if info.lockedAt != nil {
+			lockRemaining := twoFALockoutDuration - now.Sub(*info.lockedAt)
+			if lockRemaining > 0 {
+				return false, 0, lockRemaining
+			}
+			// Lock expired, reset
+			delete(t.attempts, key)
+			exists = false
+		} else if now.Sub(info.firstAt) > twoFAAttemptWindow {
+			// Window expired, reset
+			delete(t.attempts, key)
+			exists = false
+		}
+	}
+
+	if !exists {
+		t.attempts[key] = &attemptInfo{
+			count:   1,
+			firstAt: now,
+		}
+		return true, max2FAAttempts - 1, 0
+	}
+
+	info.count++
+	if info.count >= max2FAAttempts {
+		// Lock the account
+		nowCopy := now
+		info.lockedAt = &nowCopy
+		return false, 0, twoFALockoutDuration
+	}
+
+	return true, max2FAAttempts - info.count, 0
+}
+
+func (t *twoFAAttemptTracker) clearAttempts(key string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.attempts, key)
+}
 
 // AuthHandlers handles authentication-related HTTP requests
 type AuthHandlers struct {
@@ -165,11 +242,13 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	}
 
 	// Set HttpOnly cookie with JWT token
+	// Default to secure=true unless explicitly in development mode
+	isSecure := os.Getenv("ENV") != "development"
 	cookie := new(http.Cookie)
 	cookie.Name = "auth_token"
 	cookie.Value = tokenResponse.AccessToken
 	cookie.HttpOnly = true
-	cookie.Secure = os.Getenv("ENV") != "development"
+	cookie.Secure = isSecure
 	cookie.SameSite = http.SameSiteStrictMode
 	cookie.Path = "/"
 	cookie.MaxAge = tokenResponse.ExpiresIn // Match JWT token expiration
@@ -180,7 +259,7 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	refreshCookie.Name = "refresh_token"
 	refreshCookie.Value = tokenResponse.RefreshToken
 	refreshCookie.HttpOnly = true
-	refreshCookie.Secure = os.Getenv("ENV") != "development"
+	refreshCookie.Secure = isSecure
 	refreshCookie.SameSite = http.SameSiteStrictMode
 	refreshCookie.Path = "/"
 	refreshCookie.MaxAge = 604800 // 7 days
@@ -441,7 +520,7 @@ func (h *AuthHandlers) Logout(c echo.Context) error {
 
 // RefreshRequest represents the token refresh request payload
 type RefreshRequest struct {
-	RefreshToken string  `json:"refresh_token" validate:"required" sanitize:"trim"`
+	RefreshToken string  `json:"refresh_token" sanitize:"trim"`
 	GrantType    string  `json:"grant_type" validate:"required,oneof=refresh_token" sanitize:"trim"`
 	ClientID     *string `json:"client_id" sanitize:"trim"`
 	Scope        *string `json:"scope" sanitize:"trim"`
@@ -457,6 +536,20 @@ func (h *AuthHandlers) Refresh(c echo.Context) error {
 	}
 
 	validation.SanitizeStruct(&req)
+
+	// If refresh_token not in body, try to get from cookie (for browser clients)
+	if req.RefreshToken == "" {
+		cookie, err := c.Cookie("refresh_token")
+		if err == nil && cookie.Value != "" {
+			req.RefreshToken = cookie.Value
+		}
+	}
+
+	// Validate refresh token is present
+	if req.RefreshToken == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Missing refresh token")
+	}
+
 	if req.ClientID != nil && *req.ClientID == "" {
 		req.ClientID = nil
 	}
@@ -816,8 +909,10 @@ type Verify2FAResponse struct {
 }
 
 // Verify2FA verifies the 2FA code and returns JWT tokens
+// This endpoint is rate-limited to prevent brute-force attacks on 6-digit TOTP codes
 func (h *AuthHandlers) Verify2FA(c echo.Context) error {
 	ctx := c.Request().Context()
+	clientIP := c.RealIP()
 
 	var req Verify2FARequest
 	if err := c.Bind(&req); err != nil {
@@ -830,10 +925,23 @@ func (h *AuthHandlers) Verify2FA(c echo.Context) error {
 		return err
 	}
 
-	// Validate the temporary token to get user ID
+	// Validate the temporary token to get user ID first (before rate limiting)
 	userID, err := h.authService.ValidatePasswordResetToken(ctx, req.Token)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid or expired token")
+	}
+
+	// Rate limiting key combines user ID and IP to prevent both per-user and per-IP brute force
+	rateLimitKey := fmt.Sprintf("2fa:%s:%s", userID.String(), clientIP)
+
+	// Check rate limit before processing
+	allowed, remaining, lockoutRemaining := globalTwoFATracker.checkAndIncrement(rateLimitKey)
+	if !allowed {
+		log.Printf("2FA rate limit exceeded for user %s from IP %s, lockout remaining: %v", userID.String(), clientIP, lockoutRemaining)
+		return echo.NewHTTPError(http.StatusTooManyRequests, map[string]interface{}{
+			"error":            "Too many failed 2FA attempts. Please try again later.",
+			"retry_after_secs": int(lockoutRemaining.Seconds()),
+		})
 	}
 
 	// Verify the 2FA code
@@ -843,8 +951,15 @@ func (h *AuthHandlers) Verify2FA(c echo.Context) error {
 	}
 
 	if !valid {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Invalid 2FA code")
+		log.Printf("Invalid 2FA code for user %s from IP %s, %d attempts remaining", userID.String(), clientIP, remaining)
+		return echo.NewHTTPError(http.StatusUnauthorized, map[string]interface{}{
+			"error":              "Invalid 2FA code",
+			"attempts_remaining": remaining,
+		})
 	}
+
+	// Success - clear the rate limit tracker
+	globalTwoFATracker.clearAttempts(rateLimitKey)
 
 	// Get tenant ID
 	tenantID, err := h.userRepo.GetTenantIDByUserID(ctx, userID)

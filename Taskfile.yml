@@ -1,0 +1,466 @@
+# https://taskfile.dev
+version: '3'
+
+vars:
+  POSTGRES_PORT: 5440
+  REDIS_PORT: 6379
+  MINIO_PORT: 9003
+  MAILPIT_SMTP_PORT: 1025
+  BACKEND_PORT: 8080
+  FRONTEND_PORT: 3000
+  FRONTEND_DIR: ./frontend
+  BACKEND_BINARY: agromart-app
+  MIGRATIONS_DIR: ./migrations
+  DB_USER: testuser
+  DB_PASS: testpass
+  DB_NAME: testdb
+  DB_HOST: localhost
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list-all
+
+  # DATABASE & INFRASTRUCTURE
+  db:start:
+    desc: Start database and infrastructure services (PostgreSQL, Redis, MinIO, Mailpit)
+    cmds:
+      - docker compose up -d postgres redis minio mailpit
+      - echo "Waiting for services to be ready..."
+      - sleep 3
+      - echo "PostgreSQL is ready on port {{.POSTGRES_PORT}}"
+      - echo "Redis is ready on port {{.REDIS_PORT}}"
+      - echo "MinIO is ready on port {{.MINIO_PORT}}"
+      - echo "Mailpit is ready on port {{.MAILPIT_SMTP_PORT}}"
+
+  db:stop:
+    desc: Stop database and infrastructure services
+    cmds:
+      - docker compose stop postgres redis minio mailpit
+
+  db:down:
+    desc: Stop and remove database containers (preserves volumes)
+    cmds:
+      - docker compose down
+
+  db:reset:
+    desc: Stop, remove containers, and delete volumes (DESTRUCTIVE)
+    prompt: This will delete all data. Are you sure?
+    cmds:
+      - docker compose down -v
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - ./run_migrations.sh
+
+  db:psql:
+    desc: Open PostgreSQL shell
+    interactive: true
+    cmds:
+      - PGPASSWORD={{.DB_PASS}} psql -h {{.DB_HOST}} -p {{.POSTGRES_PORT}} -U {{.DB_USER}} -d {{.DB_NAME}}
+
+  db:status:
+    desc: Show status of infrastructure services
+    cmds:
+      - docker compose ps
+
+  # BACKEND
+  backend:build:
+    desc: Build the Go backend binary
+    cmds:
+      - go build -ldflags="-s -w" -o {{.BACKEND_BINARY}} cmd/main.go
+      - echo "Backend built successfully"
+
+  backend:run:
+    desc: Run the Go backend (builds first if needed)
+    deps: [backend:build]
+    cmds:
+      - ./{{.BACKEND_BINARY}}
+
+  backend:dev:
+    desc: Run backend in development mode with hot reload (requires air)
+    cmds:
+      - air || echo "Air not installed. Install with go install github.com/air-verse/air@latest"
+
+  backend:clean:
+    desc: Remove backend build artifacts
+    cmds:
+      - rm -f {{.BACKEND_BINARY}}
+      - rm -rf ./bin
+      - echo "Backend artifacts cleaned"
+
+  # FRONTEND
+  frontend:install:
+    desc: Install frontend dependencies
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun install
+      - echo "Frontend dependencies installed"
+
+  frontend:run:
+    desc: Run the Next.js frontend in development mode
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run dev
+
+  frontend:build:
+    desc: Build the frontend for production
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run build
+      - echo "Frontend built"
+
+  frontend:start:
+    desc: Start the frontend in production mode
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run start
+
+  frontend:clean:
+    desc: Remove frontend build artifacts
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - rm -rf .next out build
+      - echo "Frontend artifacts cleaned"
+
+  # FULL STACK
+  run:
+    desc: Start the full application stack (db, backend, frontend) for manual testing
+    deps: [db:start, db:migrate]
+    cmds:
+      - echo ""
+      - echo "============================================"
+      - echo "  AGROMART DEVELOPMENT SERVER"
+      - echo "============================================"
+      - echo ""
+      - echo "Starting services..."
+      - 'echo "  Backend:  http://localhost:{{.BACKEND_PORT}}"'
+      - 'echo "  Frontend: http://localhost:{{.FRONTEND_PORT}}"'
+      - 'echo "  Mailpit:  http://localhost:8025"'
+      - 'echo "  MinIO:    http://localhost:9004"'
+      - echo ""
+      - echo "Press Ctrl+C to stop all services"
+      - echo "============================================"
+      - echo ""
+      - go build -ldflags="-s -w" -o {{.BACKEND_BINARY}} cmd/main.go
+      - ./{{.BACKEND_BINARY}} & sleep 3 && cd {{.FRONTEND_DIR}} && exec bun dev
+
+  run:backend:
+    desc: Start database and backend only
+    cmds:
+      - task db:start
+      - task db:migrate
+      - task backend:run
+
+  run:frontend:
+    desc: Start frontend only
+    cmds:
+      - task frontend:run
+  
+  dev:
+    desc: Alias for run - start full development stack
+    cmds:
+      - task run
+
+  stop:
+    desc: Stop all running services
+    cmds:
+      - pkill -f {{.BACKEND_BINARY}} || true
+      - task db:stop
+      - echo "All services stopped"
+
+  # TESTING
+  test:backend:
+    desc: Run all Go backend tests
+    cmds:
+      - go test ./... -v
+
+  test:backend:short:
+    desc: Run Go backend tests (short mode)
+    cmds:
+      - go test ./... -short
+
+  test:backend:coverage:
+    desc: Run Go backend tests with coverage report
+    cmds:
+      - go test ./... -coverprofile=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test:backend:integration:
+    desc: Run Go integration tests only
+    cmds:
+      - go test ./tests/integration/... -v
+
+  test:frontend:
+    desc: Run all frontend tests (Playwright + Vitest)
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:e2e
+      - bun run test:unit
+
+  test:frontend:e2e:
+    desc: Run Playwright E2E tests
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:e2e
+
+  test:frontend:unit:
+    desc: Run Vitest unit tests
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:unit
+
+  test:frontend:watch:
+    desc: Run Vitest in watch mode
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:watch
+
+  test:frontend:coverage:
+    desc: Run frontend tests with coverage
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:coverage
+
+  test:frontend:ui:
+    desc: Open Playwright UI mode
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:ui
+
+  test:frontend:install:
+    desc: Install Playwright browsers
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run test:install
+
+  test:all:
+    desc: Run all tests (backend + frontend)
+    cmds:
+      - task test:backend
+      - task test:frontend
+
+  test:
+    desc: Alias for test:all
+    cmds:
+      - task test:all
+
+  # LINTING
+  lint:backend:
+    desc: Lint Go code with go vet
+    cmds:
+      - go vet ./...
+      - staticcheck ./... || echo "staticcheck not installed. Run go install honnef.co/go/tools/cmd/staticcheck@latest"
+
+  lint:frontend:
+    desc: Lint frontend code with ESLint
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bun run lint
+
+  lint:all:
+    desc: Lint all code (backend + frontend)
+    cmds:
+      - task lint:backend
+      - task lint:frontend
+
+  lint:
+    desc: Alias for lint:all
+    cmds:
+      - task lint:all
+
+  # FORMATTING
+  fmt:backend:
+    desc: Format Go code with gofmt
+    cmds:
+      - go fmt ./...
+      - goimports -w . || echo "goimports not installed. Run go install golang.org/x/tools/cmd/goimports@latest"
+      - echo "Go code formatted"
+
+  fmt:frontend:
+    desc: Format frontend code
+    dir: "{{.FRONTEND_DIR}}"
+    cmds:
+      - bunx prettier --write "**/*.{ts,tsx,js,jsx,json,css,md}" || bun run lint --fix
+      - echo "Frontend code formatted"
+
+  fmt:all:
+    desc: Format all code (backend + frontend)
+    cmds:
+      - task fmt:backend
+      - task fmt:frontend
+
+  fmt:
+    desc: Alias for fmt:all
+    cmds:
+      - task fmt:all
+
+  # BUILD
+  build:backend:
+    desc: Build backend for production
+    cmds:
+      - task backend:build
+
+  build:frontend:
+    desc: Build frontend for production
+    cmds:
+      - task frontend:build
+
+  build:all:
+    desc: Build all (backend + frontend)
+    cmds:
+      - task build:backend
+      - task build:frontend
+
+  build:
+    desc: Alias for build:all
+    cmds:
+      - task build:all
+
+  build:docker:
+    desc: Build Docker image
+    cmds:
+      - docker build -t agromart:latest .
+      - echo "Docker image built agromart:latest"
+
+  # CLEAN
+  clean:backend:
+    desc: Clean backend build artifacts
+    cmds:
+      - task backend:clean
+
+  clean:frontend:
+    desc: Clean frontend build artifacts
+    cmds:
+      - task frontend:clean
+
+  clean:all:
+    desc: Clean all build artifacts
+    cmds:
+      - task clean:backend
+      - task clean:frontend
+      - rm -f coverage.out coverage.html
+      - echo "All artifacts cleaned"
+
+  clean:
+    desc: Alias for clean:all
+    cmds:
+      - task clean:all
+
+  # UTILITIES
+  deps:backend:
+    desc: Download Go dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+      - echo "Go dependencies updated"
+
+  deps:frontend:
+    desc: Install frontend dependencies
+    cmds:
+      - task frontend:install
+
+  deps:all:
+    desc: Install all dependencies
+    cmds:
+      - task deps:backend
+      - task deps:frontend
+
+  deps:
+    desc: Alias for deps:all
+    cmds:
+      - task deps:all
+
+  check:
+    desc: Run all checks (lint + test)
+    cmds:
+      - task lint:all
+      - task test:all
+
+  ci:
+    desc: Run CI pipeline (lint, test, build)
+    cmds:
+      - task deps:all
+      - task lint:all
+      - task test:all
+      - task build:all
+      - echo "CI pipeline complete"
+
+  setup:
+    desc: Initial project setup (install deps, start db, run migrations)
+    cmds:
+      - task deps:all
+      - task db:start
+      - task db:migrate
+      - echo "Project setup complete. Run task run to start the application."
+
+  # DOCKER
+  docker:up:
+    desc: Start all services via Docker Compose
+    cmds:
+      - docker compose up -d
+      - echo "All Docker services started"
+
+  docker:down:
+    desc: Stop all Docker Compose services
+    cmds:
+      - docker compose down
+
+  docker:logs:
+    desc: View Docker Compose logs
+    cmds:
+      - docker compose logs -f
+
+  docker:ps:
+    desc: Show Docker Compose service status
+    cmds:
+      - docker compose ps
+
+  # HELP
+  help:
+    desc: Show categorized help for all tasks
+    cmds:
+      - |
+        echo ""
+        echo "AGROMART TASK COMMANDS"
+        echo "======================"
+        echo ""
+        echo "QUICK START:"
+        echo "  task setup          - Initial project setup"
+        echo "  task run            - Start full stack (db + backend + frontend)"
+        echo "  task dev            - Alias for task run"
+        echo "  task stop           - Stop all services"
+        echo ""
+        echo "DATABASE:"
+        echo "  task db:start       - Start PostgreSQL, Redis, MinIO, Mailpit"
+        echo "  task db:stop        - Stop infrastructure services"
+        echo "  task db:migrate     - Run SQL migrations"
+        echo "  task db:psql        - Open PostgreSQL shell"
+        echo ""
+        echo "BACKEND (Go):"
+        echo "  task backend:run    - Build and run backend"
+        echo "  task backend:dev    - Run with hot reload (requires air)"
+        echo "  task backend:build  - Build binary only"
+        echo ""
+        echo "FRONTEND (Next.js):"
+        echo "  task frontend:run   - Start dev server"
+        echo "  task frontend:build - Build for production"
+        echo ""
+        echo "TESTING:"
+        echo "  task test           - Run all tests"
+        echo "  task test:backend   - Run Go tests"
+        echo "  task test:frontend  - Run Playwright + Vitest"
+        echo ""
+        echo "LINTING & FORMATTING:"
+        echo "  task lint           - Lint all code"
+        echo "  task fmt            - Format all code"
+        echo ""
+        echo "BUILD & CI:"
+        echo "  task build          - Build all for production"
+        echo "  task ci             - Full CI pipeline"
+        echo "  task check          - Run lint + tests"
+        echo ""
+        echo "Run 'task --list-all' for complete list of tasks"

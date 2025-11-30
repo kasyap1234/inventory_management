@@ -25,6 +25,8 @@ type InventoryRepository interface {
 	GetByWarehouseAndProduct(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) (*models.Inventory, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.InventorySearchFilter) ([]*models.Inventory, error)
 	GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error)
+	// GetByProductForUpdate retrieves inventory with SELECT FOR UPDATE to prevent race conditions
+	GetByProductForUpdate(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error)
 	Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error
 }
 
@@ -134,7 +136,7 @@ func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 
 func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
 	query := `
-		SELECT id, tenant_id, warehouse_id, product_id, quantity, last_updated
+		SELECT id, tenant_id, warehouse_id, product_id, quantity, reserved_quantity, last_updated
 		FROM inventory
 		WHERE tenant_id = $1 AND product_id = $2
 	`
@@ -148,7 +150,7 @@ func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uu
 	var inventories []*models.Inventory
 	for rows.Next() {
 		inventory := &models.Inventory{}
-		if err := rows.Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated); err != nil {
+		if err := rows.Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.ReservedQuantity, &inventory.LastUpdated); err != nil {
 			return nil, err
 		}
 		inventories = append(inventories, inventory)
@@ -156,6 +158,38 @@ func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uu
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating inventories by product: %w", err)
+	}
+
+	return inventories, nil
+}
+
+// GetByProductForUpdate retrieves inventory with SELECT FOR UPDATE lock to prevent race conditions.
+// This should be used within a transaction when performing atomic stock operations.
+func (r *inventoryRepo) GetByProductForUpdate(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	query := `
+		SELECT id, tenant_id, warehouse_id, product_id, quantity, reserved_quantity, last_updated
+		FROM inventory
+		WHERE tenant_id = $1 AND product_id = $2
+		FOR UPDATE
+	`
+
+	rows, err := r.db.Query(ctx, query, tenantID, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var inventories []*models.Inventory
+	for rows.Next() {
+		inventory := &models.Inventory{}
+		if err := rows.Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.ReservedQuantity, &inventory.LastUpdated); err != nil {
+			return nil, err
+		}
+		inventories = append(inventories, inventory)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inventories by product for update: %w", err)
 	}
 
 	return inventories, nil

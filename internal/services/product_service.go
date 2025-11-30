@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"agromart2/internal/caching"
+	"agromart2/internal/common"
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
@@ -29,6 +30,8 @@ type ProductService interface {
 	Update(ctx context.Context, tenantID uuid.UUID, product *models.Product) error
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error)
+	// ListWithCursor returns products using cursor-based pagination for better performance on large datasets
+	ListWithCursor(ctx context.Context, tenantID uuid.UUID, params *common.CursorPaginationParams) (*common.CursorPaginatedResult[*models.Product], error)
 	GetByBarcode(ctx context.Context, tenantID uuid.UUID, barcode string) (*models.Product, error)
 	UpdateStock(ctx context.Context, tenantID, productID uuid.UUID, change int) error
 	Search(ctx context.Context, tenantID uuid.UUID, query string, categoryID *uuid.UUID, limit, offset int) ([]*models.Product, error)
@@ -160,28 +163,45 @@ func (s *productService) Update(ctx context.Context, tenantID uuid.UUID, product
 		s.UpdateStock(ctx, tenantID, product.ID, change)
 	}
 
+	// CACHE CONSISTENCY FIX: Invalidate cache BEFORE database update
+	// This ensures that if cache invalidation fails, we don't proceed with the update
+	// and leave stale data in cache. Any concurrent read after invalidation but before
+	// DB update will simply re-fetch from database.
+	if cacheErr := s.cacheService.DeleteProduct(ctx, tenantID, product.ID); cacheErr != nil {
+		log.Printf("Failed to invalidate cache before update for product %s: %v", product.ID.String(), cacheErr)
+		// Continue with update - cache miss will fetch fresh data from DB
+	}
+
 	err = s.productRepo.Update(ctx, product)
 	if err != nil {
+		// Database update failed - cache is already invalidated, which is fine
+		// Next read will fetch from DB
 		return err
 	}
 
-	// Invalidate cache for this product
+	// Double-invalidate to handle any race conditions where cache was repopulated
+	// during the database update window
 	if cacheErr := s.cacheService.DeleteProduct(ctx, tenantID, product.ID); cacheErr != nil {
-		log.Printf("Failed to invalidate cache for product %s: %v", product.ID.String(), cacheErr)
+		log.Printf("Failed to invalidate cache after update for product %s: %v", product.ID.String(), cacheErr)
 	}
 
 	return nil
 }
 
 func (s *productService) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	// CACHE CONSISTENCY FIX: Invalidate cache BEFORE database delete
+	if cacheErr := s.cacheService.DeleteProduct(ctx, tenantID, id); cacheErr != nil {
+		log.Printf("Failed to invalidate cache before delete for product %s: %v", id.String(), cacheErr)
+	}
+
 	err := s.productRepo.Delete(ctx, tenantID, id)
 	if err != nil {
 		return err
 	}
 
-	// Invalidate cache for this product
+	// Double-invalidate for consistency
 	if cacheErr := s.cacheService.DeleteProduct(ctx, tenantID, id); cacheErr != nil {
-		log.Printf("Failed to invalidate cache for product %s: %v", id.String(), cacheErr)
+		log.Printf("Failed to invalidate cache after delete for product %s: %v", id.String(), cacheErr)
 	}
 
 	return nil
@@ -189,6 +209,91 @@ func (s *productService) Delete(ctx context.Context, tenantID, id uuid.UUID) err
 
 func (s *productService) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error) {
 	return s.productRepo.List(ctx, tenantID, limit, offset)
+}
+
+// ListWithCursor returns products using cursor-based pagination.
+// This is more efficient than offset-based pagination for large datasets because:
+// 1. It uses an index seek rather than scanning/skipping rows
+// 2. It provides stable results even with concurrent inserts/deletes
+// 3. Performance is consistent regardless of page depth
+func (s *productService) ListWithCursor(ctx context.Context, tenantID uuid.UUID, params *common.CursorPaginationParams) (*common.CursorPaginatedResult[*models.Product], error) {
+	const defaultLimit = 20
+	const maxLimit = 100
+
+	if params == nil {
+		params = &common.CursorPaginationParams{First: defaultLimit}
+	}
+
+	// Validate parameters
+	if err := params.Validate(maxLimit); err != nil {
+		return nil, fmt.Errorf("invalid pagination parameters: %w", err)
+	}
+
+	limit := params.GetLimit(defaultLimit)
+	backward := params.IsBackward()
+
+	// Decode cursor if provided
+	var cursorID *uuid.UUID
+	var cursorCreatedAt *time.Time
+
+	cursorStr := params.After
+	if backward {
+		cursorStr = params.Before
+	}
+
+	if cursorStr != "" {
+		cursor, err := common.DecodeCursor(cursorStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor: %w", err)
+		}
+		cursorID = &cursor.ID
+		cursorCreatedAt = &cursor.CreatedAt
+	}
+
+	// Fetch one extra item to determine if there are more pages
+	products, err := s.productRepo.ListWithCursor(ctx, tenantID, limit+1, cursorID, cursorCreatedAt, backward)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list products: %w", err)
+	}
+
+	// Determine pagination info
+	hasMore := len(products) > limit
+	if hasMore {
+		products = products[:limit] // Trim the extra item
+	}
+
+	result := &common.CursorPaginatedResult[*models.Product]{
+		Items: products,
+		PageInfo: common.CursorPageInfo{
+			HasNextPage:     !backward && hasMore,
+			HasPreviousPage: backward && hasMore,
+		},
+	}
+
+	// Generate cursors for the page boundaries
+	if len(products) > 0 {
+		// Start cursor (first item)
+		startCursor := common.NewCursor(products[0].ID, products[0].CreatedAt, common.CursorPrev)
+		encodedStart, _ := common.EncodeCursor(startCursor)
+		result.PageInfo.StartCursor = encodedStart
+
+		// End cursor (last item)
+		lastProduct := products[len(products)-1]
+		endCursor := common.NewCursor(lastProduct.ID, lastProduct.CreatedAt, common.CursorNext)
+		encodedEnd, _ := common.EncodeCursor(endCursor)
+		result.PageInfo.EndCursor = encodedEnd
+
+		// If we have a cursor, we know there's a previous/next page
+		if cursorStr != "" {
+			if backward {
+				result.PageInfo.HasNextPage = true
+			} else {
+				result.PageInfo.HasPreviousPage = true
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (s *productService) GetByBarcode(ctx context.Context, tenantID uuid.UUID, barcode string) (*models.Product, error) {

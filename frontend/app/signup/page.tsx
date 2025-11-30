@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -26,9 +26,15 @@ export default function SignupPage() {
   const { signup, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - must be in useEffect to avoid setState during render
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  // Show nothing while redirecting
   if (!isLoading && isAuthenticated) {
-    router.push('/dashboard');
     return null;
   }
 

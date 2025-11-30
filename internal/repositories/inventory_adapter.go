@@ -85,6 +85,22 @@ func (a *InventoryAdapter) GetStock(ctx context.Context, tenantID uuid.UUID, pro
 	return inventories[0], nil
 }
 
+// GetStockForUpdate retrieves inventory by product with SELECT FOR UPDATE lock.
+// This prevents race conditions during concurrent stock reservations by acquiring
+// a row-level lock that blocks other transactions from modifying the same inventory.
+// MUST be called within a database transaction for the lock to be effective.
+func (a *InventoryAdapter) GetStockForUpdate(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) (*models.Inventory, error) {
+	inventories, err := a.repo.GetByProductForUpdate(ctx, tenantID, productID)
+	if err != nil {
+		return nil, err
+	}
+	if len(inventories) == 0 {
+		return nil, fmt.Errorf("no inventory found for product")
+	}
+	// Return the first inventory record with lock acquired
+	return inventories[0], nil
+}
+
 // UpdateStock updates the stock quantity
 func (a *InventoryAdapter) UpdateStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int) error {
 	inventories, err := a.repo.GetByProduct(ctx, tenantID, productID)
@@ -207,4 +223,8 @@ func (a *InventoryAdapter) Transfer(ctx context.Context, tenantID uuid.UUID, pro
 
 func (a *InventoryAdapter) GetByProduct(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*models.Inventory, error) {
 	return a.repo.GetByProduct(ctx, tenantID, productID)
+}
+
+func (a *InventoryAdapter) GetByProductForUpdate(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*models.Inventory, error) {
+	return a.repo.GetByProductForUpdate(ctx, tenantID, productID)
 }

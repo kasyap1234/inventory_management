@@ -44,15 +44,47 @@ echo -e "${YELLOW}Ensuring required extensions are available...${NC}"
 docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 echo -e "${GREEN}✓ Extensions verified${NC}\n"
 
+# Create schema_migrations table to track applied migrations
+echo -e "${YELLOW}Setting up migration tracking...${NC}"
+docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 <<EOF
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version VARCHAR(255) PRIMARY KEY,
+    applied_at TIMESTAMP DEFAULT NOW()
+);
+EOF
+echo -e "${GREEN}✓ Migration tracking ready${NC}\n"
+
+# Function to check if migration has been applied
+is_migration_applied() {
+    local version="$1"
+    local result
+    result=$(docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM schema_migrations WHERE version = '$version';" | tr -d '[:space:]')
+    [[ "$result" == "1" ]]
+}
+
+# Function to mark migration as applied
+mark_migration_applied() {
+    local version="$1"
+    docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "INSERT INTO schema_migrations (version) VALUES ('$version') ON CONFLICT DO NOTHING;" >/dev/null
+}
+
 echo -e "${YELLOW}Applying SQL migrations...${NC}\n"
 
 apply_migration() {
     local file_path="$1"
     local file_name
     file_name="$(basename "$file_path")"
+    local version="${file_name%.sql}"
+
+    # Check if already applied
+    if is_migration_applied "$version"; then
+        echo -e "${BLUE}→ Skipping ${file_name} (already applied)${NC}"
+        return 0
+    fi
 
     echo -e "${BLUE}→ Applying ${file_name}...${NC}"
     if cat "$file_path" | docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 >/dev/null; then
+        mark_migration_applied "$version"
         echo -e "${GREEN}   ✓ ${file_name} applied${NC}\n"
     else
         echo -e "${RED}   ✗ Failed to apply ${file_name}${NC}"

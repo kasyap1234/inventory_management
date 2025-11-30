@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -19,6 +20,8 @@ type RateLimiter struct {
 	mu       sync.RWMutex
 	rate     rate.Limit
 	burst    int
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
 }
 
 func NewRateLimiter(r rate.Limit, b int) *RateLimiter {
@@ -26,9 +29,27 @@ func NewRateLimiter(r rate.Limit, b int) *RateLimiter {
 		limiters: make(map[string]*limiterEntry),
 		rate:     r,
 		burst:    b,
+		stopCh:   make(chan struct{}),
 	}
+	rl.wg.Add(1)
 	go rl.cleanup()
 	return rl
+}
+
+// NewRateLimiterWithContext creates a rate limiter that stops when context is cancelled
+func NewRateLimiterWithContext(ctx context.Context, r rate.Limit, b int) *RateLimiter {
+	rl := NewRateLimiter(r, b)
+	go func() {
+		<-ctx.Done()
+		rl.Stop()
+	}()
+	return rl
+}
+
+// Stop gracefully shuts down the rate limiter's cleanup goroutine
+func (rl *RateLimiter) Stop() {
+	close(rl.stopCh)
+	rl.wg.Wait()
 }
 
 func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
@@ -49,16 +70,24 @@ func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
 }
 
 func (rl *RateLimiter) cleanup() {
+	defer rl.wg.Done()
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
 	for {
-		time.Sleep(5 * time.Minute)
-		rl.mu.Lock()
-		now := time.Now()
-		for ip, entry := range rl.limiters {
-			if now.Sub(entry.lastSeen) > 1*time.Hour {
-				delete(rl.limiters, ip)
+		select {
+		case <-rl.stopCh:
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for ip, entry := range rl.limiters {
+				if now.Sub(entry.lastSeen) > 1*time.Hour {
+					delete(rl.limiters, ip)
+				}
 			}
+			rl.mu.Unlock()
 		}
-		rl.mu.Unlock()
 	}
 }
 

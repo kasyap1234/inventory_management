@@ -70,24 +70,12 @@ func (suite *RBACServiceTestSuite) TearDownTest() {
 // Test UserHasPermission - Success scenario
 func (suite *RBACServiceTestSuite) TestUserHasPermission_Success() {
 	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
-	rolePermission := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: suite.permissionID,
-	}
 	permission := &models.Permission{
 		ID:   suite.permissionID,
 		Name: "product:read",
 	}
 
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return([]*models.RolePermission{rolePermission}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(permission, nil)
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{permission}, nil)
 
 	// Act
 	hasPermission, err := suite.service.UserHasPermission(suite.ctx, suite.userID, suite.tenantID, "product:read")
@@ -99,8 +87,8 @@ func (suite *RBACServiceTestSuite) TestUserHasPermission_Success() {
 
 // Test UserHasPermission - User has no roles
 func (suite *RBACServiceTestSuite) TestUserHasPermission_NoRoles() {
-	// Arrange
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{}, nil)
+	// Arrange - User has no permissions
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{}, nil)
 
 	// Act
 	hasPermission, err := suite.service.UserHasPermission(suite.ctx, suite.userID, suite.tenantID, "product:read")
@@ -112,25 +100,13 @@ func (suite *RBACServiceTestSuite) TestUserHasPermission_NoRoles() {
 
 // Test UserHasPermission - Permission not found
 func (suite *RBACServiceTestSuite) TestUserHasPermission_PermissionNotFound() {
-	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
-	rolePermission := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: suite.permissionID,
-	}
+	// Arrange - User has a different permission
 	permission := &models.Permission{
 		ID:   suite.permissionID,
 		Name: "product:write",
 	}
 
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return([]*models.RolePermission{rolePermission}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(permission, nil)
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{permission}, nil)
 
 	// Act
 	hasPermission, err := suite.service.UserHasPermission(suite.ctx, suite.userID, suite.tenantID, "product:delete")
@@ -140,11 +116,11 @@ func (suite *RBACServiceTestSuite) TestUserHasPermission_PermissionNotFound() {
 	assert.False(suite.T(), hasPermission)
 }
 
-// Test UserHasPermission - Error fetching user roles
+// Test UserHasPermission - Error fetching permissions
 func (suite *RBACServiceTestSuite) TestUserHasPermission_ErrorFetchingUserRoles() {
 	// Arrange
 	expectedError := errors.New("database error")
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return(nil, expectedError)
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return(nil, expectedError)
 
 	// Act
 	hasPermission, err := suite.service.UserHasPermission(suite.ctx, suite.userID, suite.tenantID, "product:read")
@@ -152,21 +128,14 @@ func (suite *RBACServiceTestSuite) TestUserHasPermission_ErrorFetchingUserRoles(
 	// Assert
 	assert.Error(suite.T(), err)
 	assert.False(suite.T(), hasPermission)
-	assert.Contains(suite.T(), err.Error(), "failed to fetch user roles")
+	assert.Contains(suite.T(), err.Error(), "failed to fetch user permissions")
 }
 
-// Test UserHasPermission - Error fetching role permissions
+// Test UserHasPermission - Error fetching role permissions (same as above with new impl)
 func (suite *RBACServiceTestSuite) TestUserHasPermission_ErrorFetchingRolePermissions() {
 	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
 	expectedError := errors.New("database error")
-
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return(nil, expectedError)
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return(nil, expectedError)
 
 	// Act
 	hasPermission, err := suite.service.UserHasPermission(suite.ctx, suite.userID, suite.tenantID, "product:read")
@@ -174,26 +143,13 @@ func (suite *RBACServiceTestSuite) TestUserHasPermission_ErrorFetchingRolePermis
 	// Assert
 	assert.Error(suite.T(), err)
 	assert.False(suite.T(), hasPermission)
-	assert.Contains(suite.T(), err.Error(), "failed to fetch role permissions")
+	assert.Contains(suite.T(), err.Error(), "failed to fetch user permissions")
 }
 
-// Test UserHasPermission - Nil permission returned
+// Test UserHasPermission - Empty permissions returned
 func (suite *RBACServiceTestSuite) TestUserHasPermission_NilPermission() {
-	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
-	rolePermission := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: suite.permissionID,
-	}
-
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return([]*models.RolePermission{rolePermission}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(nil, nil) // Nil permission
+	// Arrange - Empty permissions array
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{}, nil)
 
 	// Act
 	hasPermission, err := suite.service.UserHasPermission(suite.ctx, suite.userID, suite.tenantID, "product:read")
@@ -206,35 +162,18 @@ func (suite *RBACServiceTestSuite) TestUserHasPermission_NilPermission() {
 // Test GetUserPermissions - Success
 func (suite *RBACServiceTestSuite) TestGetUserPermissions_Success() {
 	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
-	rolePermission1 := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: suite.permissionID,
-	}
-	permissionID2 := uuid.New()
-	rolePermission2 := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: permissionID2,
-	}
 	permission1 := &models.Permission{
 		ID:   suite.permissionID,
 		Name: "product:read",
 	}
+	permissionID2 := uuid.New()
 	permission2 := &models.Permission{
 		ID:   permissionID2,
 		Name: "product:write",
 	}
 
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return([]*models.RolePermission{rolePermission1, rolePermission2}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(permission1, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, permissionID2).Return(permission2, nil)
+	// Mock the optimized GetAllUserPermissions call
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{permission1, permission2}, nil)
 
 	// Act
 	permissions, err := suite.service.GetUserPermissions(suite.ctx, suite.userID, suite.tenantID)
@@ -248,8 +187,8 @@ func (suite *RBACServiceTestSuite) TestGetUserPermissions_Success() {
 
 // Test GetUserPermissions - User has no roles
 func (suite *RBACServiceTestSuite) TestGetUserPermissions_NoRoles() {
-	// Arrange
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{}, nil)
+	// Arrange - Mock returns empty permissions for user with no roles
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{}, nil)
 
 	// Act
 	permissions, err := suite.service.GetUserPermissions(suite.ctx, suite.userID, suite.tenantID)
@@ -261,40 +200,15 @@ func (suite *RBACServiceTestSuite) TestGetUserPermissions_NoRoles() {
 
 // Test GetUserPermissions - Error handling with partial results
 func (suite *RBACServiceTestSuite) TestGetUserPermissions_PartialError() {
-	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
-	rolePermission1 := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: suite.permissionID,
-	}
-	permissionID2 := uuid.New()
-	rolePermission2 := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: permissionID2,
-	}
-	permission1 := &models.Permission{
-		ID:   suite.permissionID,
-		Name: "product:read",
-	}
-
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return([]*models.RolePermission{rolePermission1, rolePermission2}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(permission1, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, permissionID2).Return(nil, errors.New("permission not found"))
+	// Arrange - Mock error from GetAllUserPermissions
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return(nil, errors.New("database error"))
 
 	// Act
 	permissions, err := suite.service.GetUserPermissions(suite.ctx, suite.userID, suite.tenantID)
 
-	// Assert
-	assert.NoError(suite.T(), err) // Should not error out, just log and continue
-	assert.Len(suite.T(), permissions, 1)
-	assert.Contains(suite.T(), permissions, "product:read")
+	// Assert - Should return error since GetAllUserPermissions failed
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), permissions)
 }
 
 // Test UserHasPermission with cache - Cache hit
@@ -315,16 +229,6 @@ func (suite *RBACServiceTestSuite) TestUserHasPermissionWithCache_CacheHit() {
 // Test UserHasPermission with cache - Cache miss, then cache
 func (suite *RBACServiceTestSuite) TestUserHasPermissionWithCache_CacheMiss() {
 	// Arrange
-	userRole := &models.UserRole{
-		ID:     uuid.New(),
-		UserID: suite.userID,
-		RoleID: suite.roleID,
-	}
-	rolePermission := &models.RolePermission{
-		ID:           uuid.New(),
-		RoleID:       suite.roleID,
-		PermissionID: suite.permissionID,
-	}
 	permission := &models.Permission{
 		ID:   suite.permissionID,
 		Name: "product:read",
@@ -332,9 +236,7 @@ func (suite *RBACServiceTestSuite) TestUserHasPermissionWithCache_CacheMiss() {
 
 	cacheKey := "agromart:rbac:permission:" + suite.tenantID.String() + ":" + suite.userID.String() + ":product:read"
 	suite.mockCacheService.On("GetString", suite.ctx, cacheKey).Return("", errors.New("cache miss"))
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, suite.roleID).Return([]*models.RolePermission{rolePermission}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(permission, nil)
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{permission}, nil)
 	suite.mockCacheService.On("SetString", suite.ctx, cacheKey, "true", 10*time.Minute).Return(nil)
 
 	// Act
@@ -390,19 +292,11 @@ func (suite *RBACServiceTestSuite) TestInvalidateUserPermissionsCache_NoCache() 
 
 // Test deduplication of permissions
 func (suite *RBACServiceTestSuite) TestGetUserPermissions_Deduplication() {
-	// Arrange - User has two roles with the same permission
-	role1 := uuid.New()
-	role2 := uuid.New()
-	userRole1 := &models.UserRole{ID: uuid.New(), UserID: suite.userID, RoleID: role1}
-	userRole2 := &models.UserRole{ID: uuid.New(), UserID: suite.userID, RoleID: role2}
-	rolePermission1 := &models.RolePermission{ID: uuid.New(), RoleID: role1, PermissionID: suite.permissionID}
-	rolePermission2 := &models.RolePermission{ID: uuid.New(), RoleID: role2, PermissionID: suite.permissionID}
+	// Arrange - Mock returns permissions (deduplication is done by the optimized query)
 	permission := &models.Permission{ID: suite.permissionID, Name: "product:read"}
 
-	suite.mockUserRoleRepo.On("ListByUser", suite.ctx, suite.tenantID, suite.userID).Return([]*models.UserRole{userRole1, userRole2}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, role1).Return([]*models.RolePermission{rolePermission1}, nil)
-	suite.mockRolePermissionRepo.On("ListByRole", suite.ctx, suite.tenantID, role2).Return([]*models.RolePermission{rolePermission2}, nil)
-	suite.mockPermissionRepo.On("GetPermissionByID", suite.ctx, suite.permissionID).Return(permission, nil).Twice()
+	// The optimized GetAllUserPermissions should return deduplicated results from the database
+	suite.mockRolePermissionRepo.On("GetAllUserPermissions", suite.ctx, suite.userID, suite.tenantID).Return([]*models.Permission{permission}, nil)
 
 	// Act
 	permissions, err := suite.service.GetUserPermissions(suite.ctx, suite.userID, suite.tenantID)

@@ -61,23 +61,22 @@ func (s *OrderIntegrationTestSuite) SetupSuite() {
 	require.NoError(s.T(), err, "Failed to start PostgreSQL container")
 
 	s.container = container
-	s.logger = common.NewStructuredLogger("test", "debug")
+	s.logger = common.NewStructuredLogger()
 
 	// Initialize repositories
 	s.productRepo = repositories.NewProductRepo(container.Pool)
 	s.categoryRepo = repositories.NewCategoryRepo(container.Pool)
-	s.warehouseRepo = repositories.NewWarehouseRepo(container.Pool)
-	s.supplierRepo = repositories.NewSupplierRepo(container.Pool)
-	s.distributorRepo = repositories.NewDistributorRepo(container.Pool)
+	s.warehouseRepo = repositories.NewWarehouseRepository(container.Pool)
+	s.supplierRepo = repositories.NewSupplierRepository(container.Pool)
+	s.distributorRepo = repositories.NewDistributorRepository(container.Pool)
 	s.inventoryRepo = repositories.NewInventoryRepo(container.Pool)
 	s.orderRepo = repositories.NewOrderRepo(container.Pool)
 	orderStatusHistoryRepo := repositories.NewOrderStatusHistoryRepo(container.Pool)
 
-	// Initialize services
+	// Initialize services - use adapter to bridge repository and service interfaces
+	inventoryAdapter := repositories.NewInventoryAdapter(s.inventoryRepo)
 	s.inventoryService = services.NewInventoryService(
-		s.inventoryRepo,
-		s.productRepo,
-		s.warehouseRepo,
+		inventoryAdapter,
 		s.logger,
 	)
 
@@ -148,8 +147,8 @@ func (s *OrderIntegrationTestSuite) setupTestData() (categoryID, productID, ware
 		ID:       warehouseID,
 		TenantID: s.tenantID,
 		Name:     "Test Warehouse",
-		Address:  "123 Test Street",
-		Capacity: 1000,
+		Address:  stringPtr("123 Test Street"),
+		Capacity: intPtr(1000),
 	})
 	require.NoError(s.T(), err)
 
@@ -158,7 +157,7 @@ func (s *OrderIntegrationTestSuite) setupTestData() (categoryID, productID, ware
 		ID:           supplierID,
 		TenantID:     s.tenantID,
 		Name:         "Test Supplier",
-		ContactEmail: "supplier@test.com",
+		ContactEmail: stringPtr("supplier@test.com"),
 	})
 	require.NoError(s.T(), err)
 
@@ -167,7 +166,7 @@ func (s *OrderIntegrationTestSuite) setupTestData() (categoryID, productID, ware
 		ID:           distributorID,
 		TenantID:     s.tenantID,
 		Name:         "Test Distributor",
-		ContactEmail: "distributor@test.com",
+		ContactEmail: stringPtr("distributor@test.com"),
 	})
 	require.NoError(s.T(), err)
 
@@ -200,7 +199,7 @@ func (s *OrderIntegrationTestSuite) TestCreatePurchaseOrder() {
 		WarehouseID: warehouseID,
 		Quantity:    50,
 		UnitPrice:   10.00,
-		Notes:       "Test purchase order",
+		Notes:       stringPtr("Test purchase order"),
 	}
 
 	err := s.orderService.CreateOrder(s.ctx, s.tenantID, order)
@@ -272,7 +271,7 @@ func (s *OrderIntegrationTestSuite) TestCreateSalesOrderWithSufficientInventory(
 		WarehouseID:   warehouseID,
 		Quantity:      50,
 		UnitPrice:     15.00,
-		Notes:         "Test sales order",
+		Notes:         stringPtr("Test sales order"),
 	}
 
 	err := s.orderService.CreateOrder(s.ctx, s.tenantID, order)
@@ -587,7 +586,7 @@ func (s *OrderIntegrationTestSuite) TestOrderSearch() {
 
 	// Search for pending orders
 	filter := &models.OrderSearchFilter{
-		Status: "pending",
+		Status: stringPtr("pending"),
 		Limit:  10,
 	}
 	results, err := s.orderService.SearchOrders(s.ctx, s.tenantID, filter)
@@ -596,7 +595,7 @@ func (s *OrderIntegrationTestSuite) TestOrderSearch() {
 	assert.Equal(s.T(), "purchase", results[0].OrderType)
 
 	// Search for approved orders
-	filter.Status = "approved"
+	filter.Status = stringPtr("approved")
 	results, err = s.orderService.SearchOrders(s.ctx, s.tenantID, filter)
 	require.NoError(s.T(), err)
 	assert.Len(s.T(), results, 1)

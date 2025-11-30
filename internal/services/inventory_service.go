@@ -15,6 +15,9 @@ import (
 // InventoryRepository interface for inventory operations
 type InventoryRepository interface {
 	GetStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) (*models.Inventory, error)
+	// GetStockForUpdate retrieves stock with SELECT FOR UPDATE lock for atomic reservation operations
+	// This prevents race conditions during concurrent stock reservations
+	GetStockForUpdate(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) (*models.Inventory, error)
 	UpdateStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int) error
 	UpdateReservedQuantity(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, reservedQuantity int) error
 	CreateReservation(ctx context.Context, reservation *repositories.InventoryReservation) error
@@ -113,6 +116,7 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 	// Convert stock adjustments to audit log format for consistent API response
 	auditLogs := make([]*models.AuditLog, 0, len(adjustments))
 	for _, adj := range adjustments {
+		adjustedBy := adj.AdjustedBy // Copy to take address
 		auditLog := &models.AuditLog{
 			ID:        adj.ID,
 			TenantID:  adj.TenantID,
@@ -128,7 +132,7 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 			OldValues: map[string]interface{}{
 				"quantity": adj.PreviousStock,
 			},
-			ChangedBy: adj.AdjustedBy,
+			ChangedBy: &adjustedBy,
 			CreatedAt: adj.AdjustedAt,
 		}
 		auditLogs = append(auditLogs, auditLog)
@@ -150,6 +154,7 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 
 
 // ReserveStock reserves stock for a specific reservation
+// Uses SELECT FOR UPDATE to prevent race conditions during concurrent reservations
 func (s *inventoryService) ReserveStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int, reservationID string) error {
 	// Validate inputs
 	if quantity <= 0 {
@@ -163,8 +168,9 @@ func (s *inventoryService) ReserveStock(ctx context.Context, tenantID uuid.UUID,
 		})
 	}
 
-	// Get current stock
-	stock, err := s.repository.GetStock(ctx, tenantID, productID)
+	// Get current stock with FOR UPDATE lock to prevent concurrent modifications
+	// This ensures atomicity between the stock check and reservation creation
+	stock, err := s.repository.GetStockForUpdate(ctx, tenantID, productID)
 	if err != nil {
 		return common.CreateDatabaseError("reserve_stock", err)
 	}

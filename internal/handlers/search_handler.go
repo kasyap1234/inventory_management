@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"agromart2/internal/common"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
@@ -41,6 +43,35 @@ func NewSearchHandlers(db *pgxpool.Pool) *SearchHandlers {
 	return &SearchHandlers{db: db}
 }
 
+// sanitizeTsQuery escapes PostgreSQL full-text search special characters
+// and converts input into a safe tsquery format
+func sanitizeTsQuery(input string) string {
+	// Characters that need escaping in PostgreSQL tsquery
+	specialChars := []string{"&", "|", "!", "(", ")", ":", "'", "*", "<", ">"}
+	
+	sanitized := input
+	for _, char := range specialChars {
+		sanitized = strings.ReplaceAll(sanitized, char, " ")
+	}
+	
+	// Split into words and join with & for AND logic
+	words := strings.Fields(sanitized)
+	if len(words) == 0 {
+		return ""
+	}
+	
+	// Filter out empty words and create tsquery terms
+	var terms []string
+	for _, word := range words {
+		word = strings.TrimSpace(word)
+		if word != "" {
+			terms = append(terms, word)
+		}
+	}
+	
+	return strings.Join(terms, " & ")
+}
+
 // UnifiedSearch performs full-text search across multiple entities
 func (h *SearchHandlers) UnifiedSearch(c echo.Context) error {
 	var req SearchRequest
@@ -48,7 +79,8 @@ func (h *SearchHandlers) UnifiedSearch(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
-	tenantID, ok := c.Get("tenant_id").(uuid.UUID)
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant ID not found")
 	}
@@ -56,8 +88,6 @@ func (h *SearchHandlers) UnifiedSearch(c echo.Context) error {
 	if req.Limit <= 0 || req.Limit > 100 {
 		req.Limit = 20
 	}
-
-	ctx := context.Background()
 	results := []SearchResult{}
 
 	// Search query - using PostgreSQL full-text search
@@ -72,7 +102,8 @@ func (h *SearchHandlers) UnifiedSearch(c echo.Context) error {
 	}
 
 	// Prepare search term for PostgreSQL full-text search
-	tsQuery := strings.Join(strings.Fields(searchQuery), " & ")
+	// Sanitize input to escape special PostgreSQL tsquery characters
+	tsQuery := sanitizeTsQuery(searchQuery)
 
 	// Search Products
 	productResults, err := h.searchProducts(ctx, tenantID, tsQuery, req.Limit)

@@ -404,6 +404,12 @@ func (s *orderService) ApproveOrder(ctx context.Context, tenantID, orderID uuid.
 // ProcessOrder changes order status to processing and reserves inventory with transaction support
 func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	if s.transactionMgr == nil {
+		// Check if database pool is available for legacy processing with proper transactions
+		if s.db == nil {
+			// Fallback to repository-based processing (useful for testing with mocked repos)
+			// Note: This path does not provide full transactional guarantees
+			return s.processOrderWithRepos(ctx, tenantID, orderID)
+		}
 		return s.processOrderLegacy(ctx, tenantID, orderID)
 	}
 
@@ -482,8 +488,133 @@ func (s *orderService) ProcessOrder(ctx context.Context, tenantID, orderID uuid.
 	})
 }
 
-// processOrderLegacy is the fallback method without transaction support
+// processOrderLegacy is the fallback method when TransactionManager is not available.
+// Uses direct database transaction for atomicity to prevent race conditions.
+// All database operations within this function use the transaction directly via raw SQL
+// to ensure proper isolation and atomicity.
 func (s *orderService) processOrderLegacy(ctx context.Context, tenantID, orderID uuid.UUID) error {
+	// Use a database transaction to ensure atomicity
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return common.SecureErrorMessage("begin transaction", err)
+	}
+
+	// Defer rollback - will be a no-op if commit succeeds
+	committed := false
+	defer func() {
+		if !committed {
+			tx.Rollback(ctx)
+		}
+	}()
+
+	// Get order using transaction - use raw SQL to ensure we use the transaction
+	var order models.Order
+	orderQuery := `
+		SELECT id, tenant_id, product_id, warehouse_id, quantity, unit_price, status, 
+		       order_type, order_date, expected_delivery, notes, supplier_id, distributor_id,
+		       created_at, updated_at
+		FROM orders
+		WHERE tenant_id = $1 AND id = $2
+		FOR UPDATE
+	`
+	err = tx.QueryRow(ctx, orderQuery, tenantID, orderID).Scan(
+		&order.ID, &order.TenantID, &order.ProductID, &order.WarehouseID, &order.Quantity,
+		&order.UnitPrice, &order.Status, &order.OrderType, &order.OrderDate, &order.ExpectedDelivery,
+		&order.Notes, &order.SupplierID, &order.DistributorID, &order.CreatedAt, &order.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return common.SecureErrorMessage("order lookup", fmt.Errorf("order not found"))
+		}
+		return common.SecureErrorMessage("retrieve order for processing", err)
+	}
+
+	oldStatus := order.Status
+
+	if err := s.ValidateStatusTransition(order.Status, "processing"); err != nil {
+		return common.SecureErrorMessage("validate order status for processing", err)
+	}
+
+	if order.Quantity <= 0 || order.UnitPrice <= 0 {
+		return common.SecureErrorMessage("validate order data", fmt.Errorf("invalid order data"))
+	}
+
+	// Get inventory with FOR UPDATE lock using transaction
+	var inventoryID uuid.UUID
+	var inventoryQuantity int
+	inventoryQuery := `
+		SELECT id, quantity
+		FROM inventory
+		WHERE tenant_id = $1 AND warehouse_id = $2 AND product_id = $3
+		FOR UPDATE
+	`
+	err = tx.QueryRow(ctx, inventoryQuery, tenantID, order.WarehouseID, order.ProductID).Scan(
+		&inventoryID, &inventoryQuantity,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return common.SecureErrorMessage("inventory validation", fmt.Errorf("insufficient inventory"))
+		}
+		return common.SecureErrorMessage("retrieve inventory for processing", err)
+	}
+
+	if inventoryQuantity < order.Quantity {
+		return common.SecureErrorMessage("inventory validation", fmt.Errorf("insufficient inventory: available %d, required %d", inventoryQuantity, order.Quantity))
+	}
+
+	newQuantity := inventoryQuantity - order.Quantity
+	if newQuantity < 0 {
+		return common.SecureErrorMessage("inventory calculation", fmt.Errorf("negative inventory calculation"))
+	}
+
+	// Update inventory using transaction
+	updateInventoryQuery := `
+		UPDATE inventory
+		SET quantity = $1, last_updated = NOW()
+		WHERE tenant_id = $2 AND id = $3
+	`
+	_, err = tx.Exec(ctx, updateInventoryQuery, newQuantity, tenantID, inventoryID)
+	if err != nil {
+		return common.SecureErrorMessage("update inventory for order processing", err)
+	}
+
+	// Update order status using transaction
+	updateOrderQuery := `
+		UPDATE orders
+		SET status = $1, updated_at = NOW()
+		WHERE tenant_id = $2 AND id = $3
+	`
+	_, err = tx.Exec(ctx, updateOrderQuery, "processing", tenantID, orderID)
+	if err != nil {
+		return common.SecureErrorMessage("update order status", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return common.SecureErrorMessage("commit transaction", err)
+	}
+	committed = true
+
+	// Record status change (outside transaction - non-critical)
+	notes := fmt.Sprintf("Order processed, inventory reserved: %d units", order.Quantity)
+	_ = s.recordStatusChange(ctx, tenantID, orderID, oldStatus, "processing", &notes)
+
+	if s.logger != nil {
+		s.logger.InfoWithContext(ctx, "Order processed successfully (legacy)", map[string]interface{}{
+			"order_id":        orderID,
+			"quantity":        order.Quantity,
+			"inventory_after": newQuantity,
+		})
+	}
+
+	return nil
+}
+
+// processOrderWithRepos is a fallback method that uses repositories for testing.
+// WARNING: This method does NOT provide transactional guarantees and should only
+// be used in test scenarios with mocked repositories. Production code should use
+// processOrderLegacy or TransactionManager.
+func (s *orderService) processOrderWithRepos(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	order, err := s.orderRepo.GetByID(ctx, tenantID, orderID)
 	if err != nil {
 		return common.SecureErrorMessage("retrieve order for processing", err)

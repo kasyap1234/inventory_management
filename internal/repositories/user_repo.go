@@ -135,12 +135,22 @@ func (r *userRepo) GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (u
 	return id, nil
 }
 
+// GetByEmailGlobal searches for a user by email across all tenants.
+// SECURITY NOTE: This function intentionally searches across all tenants for login purposes.
+// It does not filter by tenant_id because:
+//  1. Users may not know their tenant ID when logging in
+//  2. Subdomain-based tenant resolution happens at a different layer
+//
+// IMPORTANT: Callers MUST implement timing-safe responses to prevent user enumeration attacks.
+// The caller should return the same response time and message whether or not a user is found.
+// Additionally, rate limiting should be applied to login endpoints.
 func (r *userRepo) GetByEmailGlobal(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
 	query := `
 		SELECT id, tenant_id, email, google_id, password_hash, first_name, last_name, status, created_at, updated_at
 		FROM users
 		WHERE email = $1
+		LIMIT 1
 	`
 	var tenantID string
 	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &tenantID, &user.Email, &user.GoogleID, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
@@ -243,6 +253,7 @@ func (r *userRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, status 
 // IsFirstUserInTenant atomically checks if the current signup is the first user in a tenant.
 // Uses advisory locks to prevent race conditions where multiple signups could both become admin.
 // This provides an atomic check at the database level that serializes concurrent requests.
+// Note: This is called AFTER the user is created, so we check for count <= 1 (only the current user exists)
 func (r *userRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) (bool, error) {
 	// Use a transaction with an advisory lock based on tenant ID
 	// Advisory locks are session-level and released when the transaction ends
@@ -263,7 +274,8 @@ func (r *userRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) 
 		return false, fmt.Errorf("failed to acquire advisory lock: %w", err)
 	}
 
-	// Now safely check if any users exist in this tenant
+	// Now safely check if only one user exists in this tenant (the one just created)
+	// We check count <= 1 because the current user has already been created before this check
 	var count int
 	err = tx.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE tenant_id = $1", tenantID).Scan(&count)
 	if err != nil {
@@ -275,5 +287,6 @@ func (r *userRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) 
 		return false, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return count == 0, nil
+	// If there's only 1 user (the current one), this is the first user
+	return count <= 1, nil
 }

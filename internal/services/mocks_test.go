@@ -69,6 +69,15 @@ func (m *MockInventoryRepository) GetByProduct(ctx context.Context, tenantID, pr
 	return args.Get(0).([]*models.Inventory), args.Error(1)
 }
 
+// GetByProductForUpdate retrieves inventory with SELECT FOR UPDATE lock
+func (m *MockInventoryRepository) GetByProductForUpdate(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	args := m.Called(ctx, tenantID, productID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Inventory), args.Error(1)
+}
+
 func (m *MockInventoryRepository) Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error {
 	args := m.Called(ctx, tenantID, productID, fromWarehouseID, toWarehouseID, quantity)
 	return args.Error(0)

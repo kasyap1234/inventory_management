@@ -150,15 +150,17 @@ func TestCreateOrder(t *testing.T) {
 	tenantID := uuid.New()
 	productID := uuid.New()
 	warehouseID := uuid.New()
+	distributorID := uuid.New()
 
 	t.Run("Success: Create sales order with sufficient inventory", func(t *testing.T) {
 		order := &models.Order{
-			TenantID:    tenantID,
-			OrderType:   "sales",
-			ProductID:   productID,
-			WarehouseID: warehouseID,
-			Quantity:    10,
-			UnitPrice:   100.0,
+			TenantID:      tenantID,
+			OrderType:     "sales",
+			ProductID:     productID,
+			WarehouseID:   warehouseID,
+			DistributorID: &distributorID,
+			Quantity:      10,
+			UnitPrice:     100.0,
 		}
 
 		inventory := &models.Inventory{
@@ -183,12 +185,13 @@ func TestCreateOrder(t *testing.T) {
 
 	t.Run("Failure: Insufficient inventory for sales order", func(t *testing.T) {
 		order := &models.Order{
-			TenantID:    tenantID,
-			OrderType:   "sales",
-			ProductID:   productID,
-			WarehouseID: warehouseID,
-			Quantity:    100,
-			UnitPrice:   100.0,
+			TenantID:      tenantID,
+			OrderType:     "sales",
+			ProductID:     productID,
+			WarehouseID:   warehouseID,
+			DistributorID: &distributorID,
+			Quantity:      100,
+			UnitPrice:     100.0,
 		}
 
 		inventory := &models.Inventory{
@@ -203,7 +206,8 @@ func TestCreateOrder(t *testing.T) {
 
 		err := service.CreateOrder(ctx, tenantID, order)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "insufficient inventory")
+		// Error is wrapped by SecureErrorMessage, check for the operation name instead
+		assert.Contains(t, err.Error(), "inventory validation")
 
 		mockInventoryRepo.AssertExpectations(t)
 	})
