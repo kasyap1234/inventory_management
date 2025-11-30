@@ -162,7 +162,7 @@ export function StockAdjustmentForm({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Select a reason</option>
               <option value="physical_count">Physical Count Variance</option>
@@ -183,7 +183,7 @@ export function StockAdjustmentForm({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add any additional notes"
               disabled={isLoading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               rows={3}
             />
           </div>

@@ -35,7 +35,7 @@ export function DropdownMenu({ trigger, children, align = "end", className }: Dr
       {isOpen && (
         <div
           className={cn(
-            "absolute z-50 mt-2 w-56 rounded-md border border-gray-200 bg-white shadow-lg",
+            "absolute z-50 mt-2 w-56 rounded-md border border-border bg-popover text-popover-foreground shadow-lg",
             align === "end" ? "right-0" : "left-0",
             className
           )}
@@ -63,7 +63,7 @@ export function DropdownMenuItem({
   return (
     <div
       className={cn(
-        "relative flex cursor-pointer select-none items-center px-3 py-2 text-sm outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100",
+        "relative flex cursor-pointer select-none items-center px-3 py-2 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent",
         disabled && "pointer-events-none opacity-50",
         className
       )}
@@ -80,5 +80,5 @@ export function DropdownMenuItem({
 }
 
 export function DropdownMenuSeparator() {
-  return <div className="my-1 h-px bg-gray-200" />
+  return <div className="my-1 h-px bg-border" />
 }

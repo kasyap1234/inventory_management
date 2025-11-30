@@ -99,18 +99,18 @@ export default function InventoryAnalytics({ className = '' }: InventoryAnalytic
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow ${className}`}>
+    <div className={`bg-card text-card-foreground rounded-lg shadow ${className}`}>
       <div className="p-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Inventory Analytics</h2>
-            <p className="text-gray-600 mt-1">Monitor stock levels and identify low inventory</p>
+            <h2 className="text-2xl font-bold">Inventory Analytics</h2>
+            <p className="text-muted-foreground mt-1">Monitor stock levels and identify low inventory</p>
           </div>
 
           <button
             onClick={handleExport}
-            className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 mt-4 md:mt-0"
+            className="flex items-center space-x-2 px-4 py-2 text-foreground bg-muted rounded-lg hover:bg-muted/80 mt-4 md:mt-0"
           >
             <Download className="w-4 h-4" />
             <span>Export Report</span>
@@ -165,8 +165,8 @@ export default function InventoryAnalytics({ className = '' }: InventoryAnalytic
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Category Distribution */}
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory by Category</h3>
+          <div className="p-4 border border-border rounded-lg">
+            <h3 className="text-lg font-semibold mb-4">Inventory by Category</h3>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
@@ -189,8 +189,8 @@ export default function InventoryAnalytics({ className = '' }: InventoryAnalytic
           </div>
 
           {/* Stock Levels */}
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock Levels by Category</h3>
+          <div className="p-4 border border-border rounded-lg">
+            <h3 className="text-lg font-semibold mb-4">Stock Levels by Category</h3>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={summary.categories}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -208,23 +208,23 @@ export default function InventoryAnalytics({ className = '' }: InventoryAnalytic
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 space-y-4 md:space-y-0">
           <div className="flex items-center space-x-2">
             <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search products..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-ring"
               />
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            <Filter className="w-4 h-4 text-gray-600" />
+            <Filter className="w-4 h-4 text-muted-foreground" />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-ring"
             >
               <option value="all">All Products</option>
               <option value="low">Low Stock</option>
@@ -237,61 +237,61 @@ export default function InventoryAnalytics({ className = '' }: InventoryAnalytic
         {/* Products Table */}
         <div className="overflow-x-auto">
           {isLoading ? (
-            <div className="text-center py-8 text-gray-500">Loading inventory data...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading inventory data...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-muted-foreground">
               No products found matching your criteria
             </div>
           ) : (
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Product
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Category
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Quantity
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Min Level
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Value
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-card divide-y divide-border">
                 {filteredProducts.map((product: any) => {
                   const status = getStockStatus(product.quantity, product.minimum_level)
                   return (
-                    <tr key={product.id} className="hover:bg-gray-50">
+                    <tr key={product.id} className="hover:bg-muted/50">
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded flex items-center justify-center">
-                            <Package className="w-5 h-5 text-gray-500" />
+                          <div className="flex-shrink-0 h-10 w-10 bg-muted rounded flex items-center justify-center">
+                            <Package className="w-5 h-5 text-muted-foreground" />
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                            <div className="text-sm text-gray-500">{product.sku || 'N/A'}</div>
+                            <div className="text-sm font-medium">{product.name}</div>
+                            <div className="text-sm text-muted-foreground">{product.sku || 'N/A'}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
+                        <span className="px-2 py-1 text-xs bg-muted rounded">
                           {product.category || 'Uncategorized'}
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{product.quantity}</div>
+                        <div className="text-sm">{product.quantity}</div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{product.minimum_level}</div>
+                        <div className="text-sm">{product.minimum_level}</div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs rounded ${status.bg} ${status.color}`}>
@@ -299,7 +299,7 @@ export default function InventoryAnalytics({ className = '' }: InventoryAnalytic
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
+                        <div className="text-sm">
                           ₹{(product.value || 0).toLocaleString()}
                         </div>
                       </td>

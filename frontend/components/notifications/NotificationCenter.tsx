@@ -117,7 +117,7 @@ export default function NotificationCenter({ className = '' }: NotificationCente
       {/* Notification Bell */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg"
+        className="relative p-2 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded-lg"
       >
         <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
@@ -129,14 +129,14 @@ export default function NotificationCenter({ className = '' }: NotificationCente
 
       {/* Notification Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+        <div className="absolute right-0 mt-2 w-96 bg-popover text-popover-foreground rounded-lg shadow-lg border border-border z-50">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+              <h3 className="text-lg font-semibold">Notifications</h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -150,8 +150,8 @@ export default function NotificationCenter({ className = '' }: NotificationCente
                   onClick={() => setFilter(filterOption)}
                   className={`px-3 py-1 text-sm rounded-md capitalize ${
                     filter === filterOption
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {filterOption}
@@ -164,7 +164,7 @@ export default function NotificationCenter({ className = '' }: NotificationCente
               <button
                 onClick={() => markAllAsReadMutation.mutate()}
                 disabled={markAllAsReadMutation.isPending}
-                className="mt-2 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                className="mt-2 text-sm text-primary hover:underline disabled:opacity-50"
               >
                 Mark all as read
               </button>
@@ -174,18 +174,18 @@ export default function NotificationCenter({ className = '' }: NotificationCente
           {/* Notifications List */}
           <div className="max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="p-4 text-center text-gray-500">Loading notifications...</div>
+              <div className="p-4 text-center text-muted-foreground">Loading notifications...</div>
             ) : notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-muted-foreground">
                 {filter === 'unread' ? 'No unread notifications' : 'No notifications'}
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-border">
                 {notifications.map((notification: Notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 ${
-                      notification.status === 'unread' ? 'bg-blue-50' : ''
+                    className={`p-4 hover:bg-muted/50 ${
+                      notification.status === 'unread' ? 'bg-primary/5' : ''
                     }`}
                   >
                     <div className="flex items-start space-x-3">
@@ -194,21 +194,21 @@ export default function NotificationCenter({ className = '' }: NotificationCente
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <p className={`text-sm font-medium ${
-                            notification.status === 'unread' ? 'text-gray-900' : 'text-gray-700'
+                            notification.status === 'unread' ? '' : 'text-muted-foreground'
                           }`}>
                             {notification.title}
                           </p>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-muted-foreground">
                             {formatTimeAgo(notification.created_at)}
                           </span>
                         </div>
                         
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                           {notification.message}
                         </p>
 
                         {notification.event_type && (
-                          <span className="inline-block mt-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                          <span className="inline-block mt-2 px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
                             {notification.event_type}
                           </span>
                         )}

@@ -89,7 +89,7 @@ function CategoryTreeNode({ category, onEdit, onDelete, onAddSubcategory }: Tree
         </div>
       </div>
       {isExpanded && hasSubcategories && (
-        <div className="ml-4 border-l border-gray-300 pl-2 space-y-1">
+        <div className="ml-4 border-l border-border pl-2 space-y-1">
           {category.subcategories!.map((subcat) => (
             <CategoryTreeNode
               key={subcat.id}

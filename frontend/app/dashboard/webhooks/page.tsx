@@ -420,13 +420,13 @@ function WebhookFormDialog({
               {EVENT_OPTIONS.map((option) => (
                 <label
                   key={option.value}
-                  className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"
+                  className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm hover:bg-muted"
                 >
                   <input
                     type="checkbox"
                     checked={formState.events.includes(option.value)}
                     onChange={() => toggleEvent(option.value)}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-input"
                   />
                   {option.label}
                 </label>
@@ -439,7 +439,7 @@ function WebhookFormDialog({
             <select
               value={formState.is_active ? 'active' : 'inactive'}
               onChange={(e) => setFormState((prev) => ({ ...prev, is_active: e.target.value === 'active' }))}
-              className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="flex h-10 w-full rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>

@@ -112,7 +112,7 @@ export function NotificationManager({
       </CardHeader>
       <CardContent>
         {notifications.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-muted-foreground">
             <p>No notifications yet</p>
           </div>
         ) : (
@@ -122,8 +122,8 @@ export function NotificationManager({
                 key={notification.id}
                 className={`p-4 rounded-lg border ${
                   notification.is_read
-                    ? 'bg-white border-gray-200'
-                    : 'bg-blue-50 border-blue-200'
+                    ? 'bg-card border-border'
+                    : 'bg-primary/5 border-primary/20'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -137,7 +137,7 @@ export function NotificationManager({
                         <div className="w-2 h-2 rounded-full bg-blue-600" />
                       )}
                     </div>
-                    <p className="text-sm text-gray-700 mb-2">{notification.message}</p>
+                    <p className="text-sm text-muted-foreground mb-2">{notification.message}</p>
                     <p className="text-xs text-gray-500">
                       {format(new Date(notification.created_at), 'MMM d, yyyy HH:mm')}
                     </p>

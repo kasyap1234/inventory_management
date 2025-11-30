@@ -99,11 +99,11 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-2">{payload[0].payload.name}</p>
+        <div className="bg-popover text-popover-foreground p-4 rounded-lg shadow-lg border border-border">
+          <p className="font-semibold mb-2">{payload[0].payload.name}</p>
           {payload.map((entry: any, index: number) => (
             <div key={index} className="flex items-center justify-between space-x-4">
-              <span className="text-sm text-gray-600">{entry.name}:</span>
+              <span className="text-sm text-muted-foreground">{entry.name}:</span>
               <span className="text-sm font-semibold" style={{ color: entry.color }}>
                 {formatCurrency(entry.value)}
               </span>
@@ -116,18 +116,18 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow ${className}`}>
+    <div className={`bg-card text-card-foreground rounded-lg shadow ${className}`}>
       <div className="p-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Revenue Analytics</h2>
-            <p className="text-gray-600 mt-1">Analyze revenue breakdown and trends</p>
+            <h2 className="text-2xl font-bold">Revenue Analytics</h2>
+            <p className="text-muted-foreground mt-1">Analyze revenue breakdown and trends</p>
           </div>
 
           <div className="flex items-center space-x-2 mt-4 md:mt-0">
             {/* Time Period Selector */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
               {[
                 { value: '7d', label: '7D' },
                 { value: '30d', label: '30D' },
@@ -139,8 +139,8 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
                   onClick={() => setTimePeriod(period.value as any)}
                   className={`px-3 py-1 text-sm rounded-md transition-colors ${
                     timePeriod === period.value
-                      ? 'bg-white text-blue-600 shadow'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-background text-primary shadow'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {period.label}
@@ -208,8 +208,8 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
 
         {/* View Type Selector */}
         <div className="flex items-center space-x-2 mb-6">
-          <span className="text-sm font-medium text-gray-700">Breakdown by:</span>
-          <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+          <span className="text-sm font-medium text-muted-foreground">Breakdown by:</span>
+          <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
             {[
               { value: 'category', label: 'Category' },
               { value: 'product', label: 'Product' },
@@ -221,8 +221,8 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
                 onClick={() => setViewType(view.value as ViewType)}
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${
                   viewType === view.value
-                    ? 'bg-white text-blue-600 shadow'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-background text-primary shadow'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {view.label}
@@ -234,13 +234,13 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
         {/* Charts */}
         {isLoading ? (
           <div className="flex items-center justify-center h-96">
-            <div className="text-gray-500">Loading revenue data...</div>
+            <div className="text-muted-foreground">Loading revenue data...</div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Revenue Breakdown - Pie Chart */}
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="p-4 border border-border rounded-lg">
+              <h3 className="text-lg font-semibold mb-4">
                 Revenue Distribution by {viewType.charAt(0).toUpperCase() + viewType.slice(1)}
               </h3>
               <ResponsiveContainer width="100%" height={300}>
@@ -265,8 +265,8 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
             </div>
 
             {/* Revenue Breakdown - Bar Chart */}
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="p-4 border border-border rounded-lg">
+              <h3 className="text-lg font-semibold mb-4">
                 Top 10 by Revenue
               </h3>
               <ResponsiveContainer width="100%" height={300}>
@@ -281,8 +281,8 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
             </div>
 
             {/* Revenue Trend */}
-            <div className="p-4 border border-gray-200 rounded-lg lg:col-span-2">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+            <div className="p-4 border border-border rounded-lg lg:col-span-2">
+              <h3 className="text-lg font-semibold mb-4">Revenue Trend</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={trend}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -314,62 +314,62 @@ export default function RevenueAnalytics({ className = '' }: RevenueAnalyticsPro
 
         {/* Detailed Breakdown Table */}
         <div className="mt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Detailed Breakdown</h3>
+          <h3 className="text-lg font-semibold mb-4">Detailed Breakdown</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     {viewType.charAt(0).toUpperCase() + viewType.slice(1)}
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Revenue
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Orders
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Avg Order Value
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     % of Total
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-card divide-y divide-border">
                 {breakdown.map((item: any, index: number) => {
                   const percentage = (item.revenue / summary.total_revenue) * 100
                   return (
-                    <tr key={index} className="hover:bg-gray-50">
+                    <tr key={index} className="hover:bg-muted/50">
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div 
                             className="w-3 h-3 rounded-full mr-3" 
                             style={{ backgroundColor: COLORS[index % COLORS.length] }}
                           />
-                          <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                          <span className="text-sm font-medium">{item.name}</span>
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <span className="text-sm text-gray-900">{formatCurrency(item.revenue)}</span>
+                        <span className="text-sm">{formatCurrency(item.revenue)}</span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <span className="text-sm text-gray-900">{item.orders?.toLocaleString() || 'N/A'}</span>
+                        <span className="text-sm">{item.orders?.toLocaleString() || 'N/A'}</span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <span className="text-sm text-gray-900">
+                        <span className="text-sm">
                           {item.orders ? formatCurrency(item.revenue / item.orders) : 'N/A'}
                         </span>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end">
-                          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                          <div className="w-16 bg-muted rounded-full h-2 mr-2">
                             <div 
                               className="bg-blue-600 h-2 rounded-full" 
                               style={{ width: `${percentage}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-900">{percentage.toFixed(1)}%</span>
+                          <span className="text-sm">{percentage.toFixed(1)}%</span>
                         </div>
                       </td>
                     </tr>

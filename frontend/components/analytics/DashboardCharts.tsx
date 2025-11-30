@@ -31,11 +31,11 @@ interface DashboardChartsProps {
 }
 
 const MetricCard = ({ title, value, change, icon, trend, color }: MetricCardProps) => (
-  <div className="bg-white rounded-lg shadow p-6">
+  <div className="bg-card text-card-foreground rounded-lg shadow p-6">
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm font-medium text-gray-600">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="text-2xl font-bold mt-2">{value}</p>
         {change !== undefined && (
           <div className={`flex items-center mt-2 text-sm ${
             trend === 'up' ? 'text-green-600' : 'text-red-600'
@@ -150,11 +150,11 @@ export default function DashboardCharts({
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sales Trend Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Sales Trend</h3>
+            <h3 className="text-lg font-semibold">Sales Trend</h3>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">Last 6 months</span>
+              <span className="text-sm text-muted-foreground">Last 6 months</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
@@ -183,11 +183,11 @@ export default function DashboardCharts({
         </div>
 
         {/* Orders Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Order Volume</h3>
+            <h3 className="text-lg font-semibold">Order Volume</h3>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">Monthly</span>
+              <span className="text-sm text-muted-foreground">Monthly</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
@@ -203,11 +203,11 @@ export default function DashboardCharts({
         </div>
 
         {/* Revenue Breakdown */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Revenue Breakdown</h3>
+            <h3 className="text-lg font-semibold">Revenue Breakdown</h3>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">This month</span>
+              <span className="text-sm text-muted-foreground">This month</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
@@ -225,11 +225,11 @@ export default function DashboardCharts({
         </div>
 
         {/* Inventory Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Inventory Distribution</h3>
+            <h3 className="text-lg font-semibold">Inventory Distribution</h3>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">By category</span>
+              <span className="text-sm text-muted-foreground">By category</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
@@ -256,41 +256,41 @@ export default function DashboardCharts({
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
+              <p className="text-sm font-medium text-muted-foreground">Low Stock Items</p>
               <p className="text-3xl font-bold text-orange-600 mt-2">12</p>
             </div>
             <AlertTriangle className="w-12 h-12 text-orange-500" />
           </div>
-          <button className="mt-4 text-sm text-blue-600 hover:text-blue-800">
+          <button className="mt-4 text-sm text-primary hover:underline">
             View details →
           </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Pending Orders</p>
+              <p className="text-sm font-medium text-muted-foreground">Pending Orders</p>
               <p className="text-3xl font-bold text-yellow-600 mt-2">28</p>
             </div>
             <ShoppingCart className="w-12 h-12 text-yellow-500" />
           </div>
-          <button className="mt-4 text-sm text-blue-600 hover:text-blue-800">
+          <button className="mt-4 text-sm text-primary hover:underline">
             Process orders →
           </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card text-card-foreground rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Completed Today</p>
+              <p className="text-sm font-medium text-muted-foreground">Completed Today</p>
               <p className="text-3xl font-bold text-green-600 mt-2">45</p>
             </div>
             <CheckCircle className="w-12 h-12 text-green-500" />
           </div>
-          <button className="mt-4 text-sm text-blue-600 hover:text-blue-800">
+          <button className="mt-4 text-sm text-primary hover:underline">
             View completed →
           </button>
         </div>

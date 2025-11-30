@@ -94,11 +94,11 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
           Scan QR Code
         </button>
 
-        <div className="flex gap-2 border border-gray-300 rounded-lg overflow-hidden">
+        <div className="flex gap-2 border border-border rounded-lg overflow-hidden">
           <button
             onClick={() => setScanMode('verify')}
             className={`px-4 py-2 text-sm transition-colors ${
-              scanMode === 'verify' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              scanMode === 'verify' ? 'bg-green-600 text-white' : 'bg-card text-foreground hover:bg-muted'
             }`}
           >
             Verify
@@ -106,7 +106,7 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
           <button
             onClick={() => setScanMode('receive')}
             className={`px-4 py-2 text-sm transition-colors ${
-              scanMode === 'receive' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              scanMode === 'receive' ? 'bg-green-600 text-white' : 'bg-card text-foreground hover:bg-muted'
             }`}
           >
             Receive
@@ -114,7 +114,7 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
           <button
             onClick={() => setScanMode('ship')}
             className={`px-4 py-2 text-sm transition-colors ${
-              scanMode === 'ship' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+              scanMode === 'ship' ? 'bg-green-600 text-white' : 'bg-card text-foreground hover:bg-muted'
             }`}
           >
             Ship
@@ -127,12 +127,12 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
         {batches.map((batch) => (
           <div
             key={batch.id}
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow"
+            className="bg-card text-card-foreground border border-border rounded-lg p-4 hover:shadow-lg transition-shadow"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">{batch.product_name}</h3>
-                <p className="text-sm text-gray-600">Batch: {batch.batch_number}</p>
+                <h3 className="font-semibold">{batch.product_name}</h3>
+                <p className="text-sm text-muted-foreground">Batch: {batch.batch_number}</p>
               </div>
               <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(batch.status)}`}>
                 {batch.status}
@@ -159,7 +159,7 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
                 setSelectedBatch(batch);
                 setShowQRGenerator(true);
               }}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
             >
               <QrCode className="h-4 w-4" />
               Generate QR
@@ -171,12 +171,12 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
       {/* QR Code Generator Modal */}
       {showQRGenerator && selectedBatch && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-popover text-popover-foreground rounded-lg p-6 max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Batch QR Code</h3>
               <button
                 onClick={() => setShowQRGenerator(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 ✕
               </button>
@@ -195,12 +195,12 @@ export function BatchOperations({ batches, onBatchUpdate, onBatchCreate }: Batch
       {/* QR Code Scanner Modal */}
       {showQRScanner && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-popover text-popover-foreground rounded-lg p-6 max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Scan Batch QR Code</h3>
               <button
                 onClick={() => setShowQRScanner(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 ✕
               </button>

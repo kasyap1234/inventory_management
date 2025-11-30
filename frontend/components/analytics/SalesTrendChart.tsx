@@ -105,11 +105,11 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900 mb-2">{label}</p>
+        <div className="bg-popover text-popover-foreground p-4 rounded-lg shadow-lg border border-border">
+          <p className="font-semibold mb-2">{label}</p>
           {payload.map((entry: any, index: number) => (
             <div key={index} className="flex items-center justify-between space-x-4">
-              <span className="text-sm text-gray-600">{entry.name}:</span>
+              <span className="text-sm text-muted-foreground">{entry.name}:</span>
               <span className="text-sm font-semibold" style={{ color: entry.color }}>
                 {entry.name.includes('Sales') || entry.name.includes('Value') 
                   ? formatCurrency(entry.value)
@@ -124,18 +124,18 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
   }
 
   return (
-    <div className={`bg-white rounded-lg shadow ${className}`}>
+    <div className={`bg-card text-card-foreground rounded-lg shadow ${className}`}>
       <div className="p-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Sales Trend Analysis</h2>
-            <p className="text-gray-600 mt-1">Track your sales performance over time</p>
+            <h2 className="text-2xl font-bold">Sales Trend Analysis</h2>
+            <p className="text-muted-foreground mt-1">Track your sales performance over time</p>
           </div>
 
           <div className="flex items-center space-x-2 mt-4 md:mt-0">
             {/* Time Period Selector */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
               {[
                 { value: '7d', label: '7D' },
                 { value: '30d', label: '30D' },
@@ -148,8 +148,8 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
                   onClick={() => setTimePeriod(period.value as TimePeriod)}
                   className={`px-3 py-1 text-sm rounded-md transition-colors ${
                     timePeriod === period.value
-                      ? 'bg-white text-blue-600 shadow'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-background text-primary shadow'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {period.label}
@@ -158,11 +158,11 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
             </div>
 
             {/* Chart Type Toggle */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
               <button
                 onClick={() => setChartType('area')}
                 className={`px-3 py-1 text-sm rounded-md ${
-                  chartType === 'area' ? 'bg-white shadow' : ''
+                  chartType === 'area' ? 'bg-background shadow' : ''
                 }`}
               >
                 Area
@@ -170,7 +170,7 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
               <button
                 onClick={() => setChartType('line')}
                 className={`px-3 py-1 text-sm rounded-md ${
-                  chartType === 'line' ? 'bg-white shadow' : ''
+                  chartType === 'line' ? 'bg-background shadow' : ''
                 }`}
               >
                 Line
@@ -180,7 +180,7 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
             {/* Export Button */}
             <button
               onClick={handleExport}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              className="flex items-center space-x-2 px-4 py-2 text-foreground bg-muted rounded-lg hover:bg-muted/80"
             >
               <Download className="w-4 h-4" />
               <span className="hidden md:inline">Export</span>
@@ -190,21 +190,21 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
 
         {/* Custom Date Range */}
         {timePeriod === 'custom' && (
-          <div className="flex items-center space-x-4 mb-6 p-4 bg-gray-50 rounded-lg">
-            <Calendar className="w-5 h-5 text-gray-600" />
+          <div className="flex items-center space-x-4 mb-6 p-4 bg-muted rounded-lg">
+            <Calendar className="w-5 h-5 text-muted-foreground" />
             <div className="flex items-center space-x-2">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-ring"
               />
-              <span className="text-gray-600">to</span>
+              <span className="text-muted-foreground">to</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-ring"
               />
             </div>
           </div>

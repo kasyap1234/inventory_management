@@ -846,7 +846,7 @@ function AssignRolesDialog({ open, onOpenChange, user, roles }: {
                   type="checkbox"
                   checked={selectedRoles.includes(role.id)}
                   onChange={() => handleToggleRole(role.id)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                 />
                 <div className="ml-3 flex-1">
                   <div className="font-medium text-sm">{role.name}</div>
@@ -953,7 +953,7 @@ function ManagePermissionsDialog({ open, onOpenChange, role, permissions }: {
                         type="checkbox"
                         checked={selectedPermissions.includes(permission.id)}
                         onChange={() => handleTogglePermission(permission.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                       />
                       <span className="ml-2 text-sm">{permission.name}</span>
                     </label>

@@ -98,7 +98,7 @@ export default function AdvancedFilters({
                 <label className="text-sm font-medium">{config.dateRange.label}</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500">From</label>
+                    <label className="text-xs text-muted-foreground">From</label>
                     <Input
                       type="date"
                       value={filters[config.dateRange.startKey] || ''}
@@ -108,7 +108,7 @@ export default function AdvancedFilters({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">To</label>
+                    <label className="text-xs text-muted-foreground">To</label>
                     <Input
                       type="date"
                       value={filters[config.dateRange.endKey] || ''}
@@ -129,7 +129,7 @@ export default function AdvancedFilters({
                   {config.statuses.options.map((option) => (
                     <label
                       key={option.value}
-                      className="flex items-center p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
+                      className="flex items-center p-2 border border-border rounded hover:bg-muted cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -157,7 +157,7 @@ export default function AdvancedFilters({
                 <select
                   value={filters.category_id || ''}
                   onChange={(e) => setFilters({ ...filters, category_id: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
                 >
                   <option value="">All Categories</option>
                   {config.categories.options.map((option) => (
@@ -175,7 +175,7 @@ export default function AdvancedFilters({
                 <label className="text-sm font-medium">{config.priceRange.label}</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500">Min Price</label>
+                    <label className="text-xs text-muted-foreground">Min Price</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -190,7 +190,7 @@ export default function AdvancedFilters({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Max Price</label>
+                    <label className="text-xs text-muted-foreground">Max Price</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -214,7 +214,7 @@ export default function AdvancedFilters({
                 <label className="text-sm font-medium">{config.quantityRange.label}</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500">Min Quantity</label>
+                    <label className="text-xs text-muted-foreground">Min Quantity</label>
                     <Input
                       type="number"
                       placeholder="0"
@@ -228,7 +228,7 @@ export default function AdvancedFilters({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Max Quantity</label>
+                    <label className="text-xs text-muted-foreground">Max Quantity</label>
                     <Input
                       type="number"
                       placeholder="∞"
@@ -255,7 +255,7 @@ export default function AdvancedFilters({
                     onChange={(e) =>
                       setFilters({ ...filters, [customFilter.key]: e.target.value })
                     }
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                    className="flex h-10 w-full rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
                   >
                     <option value="">All</option>
                     {customFilter.options.map((option) => (
