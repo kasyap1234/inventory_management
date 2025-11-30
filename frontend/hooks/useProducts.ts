@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import api from '@/lib/api';
 import { Product } from '@/types';
 
@@ -17,7 +18,7 @@ export interface PaginatedProductsResponse {
 
 export function useProducts(params?: PaginationParams) {
   const queryClient = useQueryClient();
-  
+
   const page = params?.page ?? 1;
   const pageSize = params?.pageSize ?? 20;
 
@@ -34,6 +35,24 @@ export function useProducts(params?: PaginationParams) {
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
+
+  // Prefetch next page for smoother pagination experience
+  useEffect(() => {
+    const totalPages = products?.totalPages ?? 0;
+    const hasNextPage = page < totalPages;
+
+    if (hasNextPage) {
+      const nextPage = page + 1;
+      queryClient.prefetchQuery({
+        queryKey: ['products', { page: nextPage, pageSize }],
+        queryFn: async () => {
+          const response = await api.get(`/products?page=${nextPage}&limit=${pageSize}`);
+          return response.data;
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [page, pageSize, products?.totalPages, queryClient]);
 
   const createProduct = useMutation({
     mutationFn: async (data: Partial<Product>) => {
@@ -92,22 +111,22 @@ export function useProducts(params?: PaginationParams) {
       if (!productId || !file) {
         throw new Error('Product ID and file are required');
       }
-      
+
       // Validate file type
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!validTypes.includes(file.type)) {
         throw new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed');
       }
-      
+
       // Validate file size (max 5MB)
       const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
         throw new Error('File size exceeds 5MB limit');
       }
-      
+
       const formData = new FormData();
       formData.append('image', file);
-      
+
       const response = await api.post(`/products/${productId}/images`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

@@ -44,6 +44,8 @@ type ProductService interface {
 	// Bulk operations
 	BulkUpdateProducts(ctx context.Context, tenantID uuid.UUID, bulkUpdate *models.ProductBulkUpdate) (*models.BulkOperationResult, error)
 	BulkCreateProducts(ctx context.Context, tenantID uuid.UUID, bulkCreate *models.ProductBulkCreate) (*models.BulkOperationResult, error)
+	// BulkUpdatePrices updates prices for multiple products in a single database operation
+	BulkUpdatePrices(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID, adjustmentType string, adjustmentValue float64) (int64, error)
 }
 
 type productService struct {
@@ -714,7 +716,33 @@ func (s *productService) BulkUpdateProducts(ctx context.Context, tenantID uuid.U
 	return result, nil
 }
 
-// BulkCreateProducts creates multiple products in bulk
+// BulkUpdatePrices updates prices for multiple products in a single database operation
+// This is much more efficient than updating products one by one (N*2 queries -> 1 query)
+func (s *productService) BulkUpdatePrices(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID, adjustmentType string, adjustmentValue float64) (int64, error) {
+	if len(productIDs) == 0 {
+		return 0, nil
+	}
+
+	if adjustmentType != "percentage" && adjustmentType != "fixed" {
+		return 0, errors.New("adjustment type must be 'percentage' or 'fixed'")
+	}
+
+	// Perform the bulk update in a single SQL query
+	updatedCount, err := s.productRepo.BulkUpdatePrices(ctx, tenantID, productIDs, adjustmentType, adjustmentValue)
+	if err != nil {
+		return 0, fmt.Errorf("failed to bulk update prices: %w", err)
+	}
+
+	// Invalidate cache for affected products
+	for _, productID := range productIDs {
+		cacheKey := fmt.Sprintf("product:%s:%s", tenantID.String(), productID.String())
+		if err := s.cacheService.Delete(ctx, cacheKey); err != nil {
+			log.Printf("Failed to invalidate cache for product %s: %v", productID.String(), err)
+		}
+	}
+
+	return updatedCount, nil
+}// BulkCreateProducts creates multiple products in bulk
 func (s *productService) BulkCreateProducts(ctx context.Context, tenantID uuid.UUID, bulkCreate *models.ProductBulkCreate) (*models.BulkOperationResult, error) {
 	// Set defaults
 	if bulkCreate.ValidationMode == "" {

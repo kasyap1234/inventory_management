@@ -738,6 +738,33 @@ func (h *AuthHandlers) VerifyEmail(c echo.Context) error {
 		}
 	}
 
+	// Fallback: If no admin role found but this is the first user in tenant,
+	// they should be admin (handles race condition or role assignment failure)
+	if !isAdmin {
+		isFirstUser, err := h.userRepo.IsFirstUserInTenant(ctx, tenantID)
+		if err != nil {
+			log.Printf("Warning: Failed to check first user status for tenant %s: %v", tenantID.String(), err)
+		} else if isFirstUser {
+			isAdmin = true
+			log.Printf("First user in tenant %s - granting admin access on email verification", tenantID.String())
+			// Also try to assign admin role if not already assigned
+			go func() {
+				adminRole, err := h.roleRepo.GetByName(context.Background(), tenantID, "admin")
+				if err != nil {
+					log.Printf("Failed to get admin role for tenant %s: %v", tenantID.String(), err)
+					return
+				}
+				newUserRole := &models.UserRole{
+					UserID: userID,
+					RoleID: adminRole.ID,
+				}
+				if err := h.userRoleRepo.Create(context.Background(), tenantID, newUserRole); err != nil {
+					log.Printf("Failed to assign admin role to first user %s: %v (may already exist)", userID.String(), err)
+				}
+			}()
+		}
+	}
+
 	newStatus := "pending_approval"
 	if isAdmin {
 		newStatus = "active"

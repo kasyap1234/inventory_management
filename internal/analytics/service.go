@@ -115,86 +115,26 @@ func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantI
 		TenantID: tenantID,
 	}
 
-	invoices, err := a.invoiceRepo.List(ctx, tenantID, 10000, 0)
+	// Use aggregate SQL query instead of fetching all records
+	invoiceAggregates, err := a.invoiceRepo.GetAnalyticsAggregates(ctx, tenantID)
 	if err != nil {
-		log.Printf("Failed to get invoices for analytics: %v", err)
+		log.Printf("Failed to get invoice analytics aggregates: %v", err)
 		return data, err
 	}
 
-	var totalSales float64
-	var gstCollected float64
-	for _, invoice := range invoices {
-		totalSales += invoice.TotalAmount
-		if invoice.CGST != nil {
-			gstCollected += *invoice.CGST
-		}
-		if invoice.IGST != nil {
-			gstCollected += *invoice.IGST
-		}
-		if invoice.SGST != nil {
-			gstCollected += *invoice.SGST
-		}
-	}
+	data.TotalSales = invoiceAggregates.TotalSales
+	data.GSTCollected = invoiceAggregates.GSTCollected
+	data.OrderCount = invoiceAggregates.InvoiceCount
 
-	data.TotalSales = totalSales
-	data.GSTCollected = gstCollected
-	data.OrderCount = len(invoices)
-
-	inventories, err := a.inventoryRepo.List(ctx, tenantID, 10000, 0)
+	// Use aggregate SQL query for inventory analytics
+	inventoryAggregates, err := a.inventoryRepo.GetAnalyticsAggregates(ctx, tenantID)
 	if err != nil {
-		log.Printf("Failed to get inventories for analytics: %v", err)
+		log.Printf("Failed to get inventory analytics aggregates: %v", err)
 		return data, err
 	}
 
-	// Batch fetch all products to avoid N+1 query pattern
-	productIDs := make([]uuid.UUID, 0, len(inventories))
-	productIDSet := make(map[uuid.UUID]bool)
-	for _, inv := range inventories {
-		if !productIDSet[inv.ProductID] {
-			productIDs = append(productIDs, inv.ProductID)
-			productIDSet[inv.ProductID] = true
-		}
-	}
-
-	// Fetch all products in a single batch query
-	productMap := make(map[uuid.UUID]float64) // productID -> unitPrice
-	if len(productIDs) > 0 {
-		// Use batch query to get all products at once
-		products, err := a.productRepo.List(ctx, tenantID, len(productIDs), 0)
-		if err != nil {
-			log.Printf("Failed to batch fetch products for analytics: %v", err)
-		} else {
-			for _, p := range products {
-				if productIDSet[p.ID] {
-					productMap[p.ID] = p.UnitPrice
-				}
-			}
-		}
-	}
-
-	var totalStockValue float64
-	lowStockCount := 0
-	for _, inv := range inventories {
-		if inv.Quantity < 10 {
-			lowStockCount++
-		}
-
-		// Use pre-fetched product price from map
-		unitPrice, found := productMap[inv.ProductID]
-		if !found {
-			log.Printf("Product %s not found in batch fetch, skipping", inv.ProductID.String())
-			continue
-		}
-		value, err := common.SafeMultiplyMonetary(float64(inv.Quantity), unitPrice)
-		if err != nil {
-			log.Printf("WARN: overflow computing stock value for product %s: %v", inv.ProductID.String(), err)
-			continue
-		}
-		totalStockValue += value
-	}
-
-	data.TotalStockValue = totalStockValue
-	data.LowStockItemsCount = lowStockCount
+	data.TotalStockValue = inventoryAggregates.TotalStockValue
+	data.LowStockItemsCount = inventoryAggregates.LowStockCount
 	data.LastUpdated = time.Now()
 
 	a.cacheTenantAnalytics(ctx, data)

@@ -294,36 +294,11 @@ func (h *ProductHandlers) BulkPriceUpdate(c echo.Context) error {
 		productUUIDs[i] = id
 	}
 
-	// Update prices for all products
-	updatedCount := 0
-	for _, productID := range productUUIDs {
-		// Get existing product
-		product, err := h.productService.GetByID(ctx, tenantID, productID)
-		if err != nil {
-			log.Printf("Failed to get product %s: %v", productID, err)
-			continue
-		}
-
-		// Calculate new price
-		newPrice := product.UnitPrice
-		if req.Adjustment.Type == "percentage" {
-			newPrice = product.UnitPrice * (1 + req.Adjustment.Value/100)
-		} else {
-			newPrice = product.UnitPrice + req.Adjustment.Value
-		}
-
-		// Ensure price doesn't go negative
-		if newPrice < 0 {
-			newPrice = 0
-		}
-
-		// Update product price
-		product.UnitPrice = newPrice
-		if err := h.productService.Update(ctx, tenantID, product); err != nil {
-			log.Printf("Failed to update product %s: %v", productID, err)
-			continue
-		}
-		updatedCount++
+	// Use batch update for better performance (single SQL query instead of N*2 queries)
+	updatedCount, err := h.productService.BulkUpdatePrices(ctx, tenantID, productUUIDs, req.Adjustment.Type, req.Adjustment.Value)
+	if err != nil {
+		log.Printf("Failed to bulk update prices: %v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update prices")
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{

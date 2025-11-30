@@ -29,11 +29,11 @@ export function Header() {
   }, []);
 
   return (
-    <header className="h-16 bg-background/80 backdrop-blur-md border-b border-border fixed top-0 right-0 left-64 z-20 transition-all duration-200">
-      <div className="h-full px-6 flex items-center justify-between">
+    <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30">
+      <div className="w-full flex items-center justify-between">
         {/* Left side - can add breadcrumbs or page title here */}
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-foreground">Dashboard</h2>
+          <h2 className="text-lg font-semibold text-foreground tracking-tight">Dashboard</h2>
         </div>
 
         {/* Right side - Profile and notifications */}
@@ -43,7 +43,7 @@ export function Header() {
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground rounded-none"
           >
             <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -52,23 +52,23 @@ export function Header() {
 
           {/* Notifications */}
           <button
-            className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
             {/* Notification badge */}
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full"></span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
           </button>
 
           {/* Profile Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-3 px-2 py-1.5 hover:bg-muted/50 rounded-full border border-transparent hover:border-border transition-all duration-200"
+              className="flex items-center gap-3 px-2 py-1.5 hover:bg-muted rounded-none border border-transparent hover:border-border transition-all duration-200"
               aria-expanded={isDropdownOpen}
               aria-haspopup="true"
             >
-              <div className="flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full font-medium text-xs shadow-sm">
+              <div className="flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground font-medium text-xs shadow-sm">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </div>
               <div className="hidden md:block text-left">
@@ -87,7 +87,7 @@ export function Header() {
 
             {/* Dropdown Menu */}
             {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-72 bg-popover border border-border rounded-xl shadow-lg py-2 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+              <div className="absolute right-0 mt-2 w-72 bg-popover border border-border shadow-lg py-2 animate-in fade-in zoom-in-95 duration-200 origin-top-right z-50">
                 {/* User Info */}
                 <div className="px-4 py-3 border-b border-border">
                   <p className="text-sm font-semibold text-foreground">
@@ -95,7 +95,7 @@ export function Header() {
                   </p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                   {user?.role && (
-                    <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded-md border border-primary/20">
+                    <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                       {user.role}
                     </span>
                   )}

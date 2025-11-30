@@ -105,12 +105,12 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-popover text-popover-foreground p-4 rounded-lg shadow-lg border border-border">
-          <p className="font-semibold mb-2">{label}</p>
+        <div className="bg-popover text-popover-foreground p-3 rounded-none border border-border shadow-none">
+          <p className="font-mono text-xs mb-2 text-muted-foreground uppercase tracking-wider">{label}</p>
           {payload.map((entry: any, index: number) => (
             <div key={index} className="flex items-center justify-between space-x-4">
-              <span className="text-sm text-muted-foreground">{entry.name}:</span>
-              <span className="text-sm font-semibold" style={{ color: entry.color }}>
+              <span className="text-sm font-mono text-muted-foreground">{entry.name}:</span>
+              <span className="text-sm font-mono font-bold" style={{ color: entry.color }}>
                 {entry.name.includes('Sales') || entry.name.includes('Value') 
                   ? formatCurrency(entry.value)
                   : entry.value.toLocaleString()}
@@ -124,31 +124,31 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
   }
 
   return (
-    <div className={`bg-card text-card-foreground rounded-lg shadow ${className}`}>
+    <div className={`bg-card text-card-foreground rounded-none border border-border ${className}`}>
       <div className="p-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold">Sales Trend Analysis</h2>
-            <p className="text-muted-foreground mt-1">Track your sales performance over time</p>
+            <h2 className="text-xl font-bold font-mono uppercase tracking-widest">Sales Trend</h2>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">FLOW ANALYSIS</p>
           </div>
 
           <div className="flex items-center space-x-2 mt-4 md:mt-0">
             {/* Time Period Selector */}
-            <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
+            <div className="flex items-center space-x-1 bg-muted/20 p-1">
               {[
                 { value: '7d', label: '7D' },
                 { value: '30d', label: '30D' },
                 { value: '90d', label: '90D' },
                 { value: '1y', label: '1Y' },
-                { value: 'custom', label: 'Custom' },
+                { value: 'custom', label: 'CUSTOM' },
               ].map((period) => (
                 <button
                   key={period.value}
                   onClick={() => setTimePeriod(period.value as TimePeriod)}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  className={`px-3 py-1 text-xs font-mono transition-colors ${
                     timePeriod === period.value
-                      ? 'bg-background text-primary shadow'
+                      ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
@@ -157,85 +157,65 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
               ))}
             </div>
 
-            {/* Chart Type Toggle */}
-            <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
-              <button
-                onClick={() => setChartType('area')}
-                className={`px-3 py-1 text-sm rounded-md ${
-                  chartType === 'area' ? 'bg-background shadow' : ''
-                }`}
-              >
-                Area
-              </button>
-              <button
-                onClick={() => setChartType('line')}
-                className={`px-3 py-1 text-sm rounded-md ${
-                  chartType === 'line' ? 'bg-background shadow' : ''
-                }`}
-              >
-                Line
-              </button>
-            </div>
-
             {/* Export Button */}
             <button
               onClick={handleExport}
-              className="flex items-center space-x-2 px-4 py-2 text-foreground bg-muted rounded-lg hover:bg-muted/80"
+              className="flex items-center space-x-2 px-4 py-2 text-foreground bg-muted/20 hover:bg-muted/40 transition-colors"
             >
               <Download className="w-4 h-4" />
-              <span className="hidden md:inline">Export</span>
+              <span className="hidden md:inline font-mono text-xs uppercase">Export</span>
             </button>
           </div>
         </div>
 
         {/* Custom Date Range */}
         {timePeriod === 'custom' && (
-          <div className="flex items-center space-x-4 mb-6 p-4 bg-muted rounded-lg">
+          <div className="flex items-center space-x-4 mb-6 p-4 bg-muted/10 border border-border">
             <Calendar className="w-5 h-5 text-muted-foreground" />
             <div className="flex items-center space-x-2">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-ring"
+                className="px-3 py-2 border border-input bg-background text-foreground focus:ring-1 focus:ring-primary focus:border-primary font-mono text-sm"
               />
-              <span className="text-muted-foreground">to</span>
+              <span className="text-muted-foreground font-mono text-xs">TO</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-ring"
+                className="px-3 py-2 border border-input bg-background text-foreground focus:ring-1 focus:ring-primary focus:border-primary font-mono text-sm"
               />
             </div>
           </div>
         )}
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-600 font-medium">Total Sales</p>
-            <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(totalSales)}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 border-b border-border pb-6">
+          <div className="p-4 border-l-2 border-primary/20">
+            <p className="text-xs text-muted-foreground font-mono uppercase">Total Sales</p>
+            <p className="text-xl font-bold font-mono mt-1 text-primary">{formatCurrency(totalSales)}</p>
           </div>
           
-          <div className="p-4 bg-green-50 rounded-lg">
-            <p className="text-sm text-green-600 font-medium">Average Sales</p>
-            <p className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(avgSales)}</p>
+          <div className="p-4 border-l-2 border-primary/20">
+            <p className="text-xs text-muted-foreground font-mono uppercase">Average Sales</p>
+            <p className="text-xl font-bold font-mono mt-1">{formatCurrency(avgSales)}</p>
           </div>
           
-          <div className="p-4 bg-purple-50 rounded-lg">
-            <p className="text-sm text-purple-600 font-medium">Peak Sales</p>
-            <p className="text-2xl font-bold text-purple-900 mt-1">{formatCurrency(maxSales)}</p>
+          <div className="p-4 border-l-2 border-primary/20">
+            <p className="text-xs text-muted-foreground font-mono uppercase">Peak Sales</p>
+            <p className="text-xl font-bold font-mono mt-1">{formatCurrency(maxSales)}</p>
           </div>
           
-          <div className="p-4 bg-orange-50 rounded-lg">
-            <p className="text-sm text-orange-600 font-medium">Trend</p>
+          <div className="p-4 border-l-2 border-primary/20">
+            <p className="text-xs text-muted-foreground font-mono uppercase">Trend</p>
             <div className="flex items-center mt-1">
               {isPositiveTrend ? (
-                <TrendingUp className="w-5 h-5 text-green-600 mr-1" />
+                <TrendingUp className="w-4 h-4 text-primary mr-2" />
               ) : (
-                <TrendingDown className="w-5 h-5 text-red-600 mr-1" />
+                <TrendingDown className="w-4 h-4 text-destructive mr-2" />
               )}
-              <p className={`text-2xl font-bold ${isPositiveTrend ? 'text-green-900' : 'text-red-900'}`}>
+              <p className={`text-xl font-bold font-mono ${isPositiveTrend ? 'text-primary' : 'text-destructive'}`}>
                 {Math.abs(trendPercentage).toFixed(1)}%
               </p>
             </div>
@@ -246,123 +226,68 @@ export default function SalesTrendChart({ className = '' }: SalesTrendChartProps
         <div className="mt-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-96">
-              <div className="text-gray-500">Loading sales data...</div>
+              <div className="text-muted-foreground font-mono animate-pulse">LOADING DATA STREAM...</div>
             </div>
           ) : salesData.length === 0 ? (
             <div className="flex items-center justify-center h-96">
               <div className="text-center">
-                <p className="text-gray-500">No sales data available for this period</p>
-                <p className="text-sm text-gray-400 mt-2">Try selecting a different time range</p>
+                <p className="text-muted-foreground font-mono">NO DATA SIGNAL</p>
+                <p className="text-xs text-muted-foreground/50 mt-2 font-mono">ADJUST TIME RANGE</p>
               </div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={400}>
-              {chartType === 'area' ? (
-                <AreaChart data={salesData}>
-                  <defs>
-                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1}/>
-                    </linearGradient>
-                    <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#6B7280"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <YAxis 
-                    stroke="#6B7280"
-                    style={{ fontSize: '12px' }}
-                    tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Area 
-                    type="monotone" 
-                    dataKey="sales" 
-                    stroke="#3B82F6" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorSales)" 
-                    name="Sales Amount"
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="orders" 
-                    stroke="#10B981" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorOrders)" 
-                    name="Order Count"
-                  />
-                </AreaChart>
-              ) : (
-                <LineChart data={salesData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#6B7280"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <YAxis 
-                    stroke="#6B7280"
-                    style={{ fontSize: '12px' }}
-                    tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="sales" 
-                    stroke="#3B82F6" 
-                    strokeWidth={3}
-                    dot={{ fill: '#3B82F6', r: 4 }}
-                    activeDot={{ r: 6 }}
-                    name="Sales Amount"
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="orders" 
-                    stroke="#10B981" 
-                    strokeWidth={3}
-                    dot={{ fill: '#10B981', r: 4 }}
-                    activeDot={{ r: 6 }}
-                    name="Order Count"
-                  />
-                </LineChart>
-              )}
+              <AreaChart data={salesData}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.2} vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="hsl(var(--muted-foreground))"
+                  style={{ fontSize: '10px', fontFamily: 'var(--font-jetbrains-mono)' }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  stroke="hsl(var(--muted-foreground))"
+                  style={{ fontSize: '10px', fontFamily: 'var(--font-jetbrains-mono)' }}
+                  tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontFamily: 'var(--font-jetbrains-mono)', fontSize: '12px' }} />
+                <Area 
+                  type="monotone" 
+                  dataKey="sales" 
+                  stroke="hsl(var(--primary))" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorSales)" 
+                  name="Sales Amount"
+                  animationDuration={2000}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="orders" 
+                  stroke="hsl(var(--secondary))" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorOrders)" 
+                  name="Order Count"
+                  animationDuration={2000}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           )}
-        </div>
-
-        {/* Insights */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Key Insights</h3>
-          <ul className="space-y-2 text-sm text-gray-600">
-            <li className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>
-                Sales are trending {isPositiveTrend ? 'upward' : 'downward'} with a {Math.abs(trendPercentage).toFixed(1)}% change
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>
-                Peak sales day reached {formatCurrency(maxSales)}
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>
-                Average daily sales: {formatCurrency(avgSales)}
-              </span>
-            </li>
-          </ul>
         </div>
       </div>
     </div>

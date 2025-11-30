@@ -347,6 +347,136 @@ export const analyticsService = {
   refreshAnalytics: async (): Promise<void> => {
     await api.post('/analytics/refresh');
   },
+
+  // Combined analytics endpoint - fetches all analytics data in a single API call
+  // This significantly reduces page load time by eliminating multiple round trips
+  getCombinedAnalytics: async (params?: {
+    start_date?: string;
+    end_date?: string;
+    top_products_limit?: number;
+    low_stock_threshold?: number;
+  }): Promise<CombinedAnalyticsData> => {
+    const { data } = await api.get('/analytics/combined', { params });
+
+    // Parse dashboard data
+    const dashboardRaw = data?.dashboard ?? {};
+    const dashboard: AnalyticsDashboard = {
+      tenantId: dashboardRaw?.tenant_id ?? null,
+      totalSales: dashboardRaw?.total_sales ?? 0,
+      totalStockValue: dashboardRaw?.total_stock_value ?? 0,
+      gstCollected: dashboardRaw?.gst_collected ?? 0,
+      orderCount: dashboardRaw?.order_count ?? 0,
+      lowStockItems: dashboardRaw?.low_stock_items ?? 0,
+      lastUpdated: dashboardRaw?.last_updated ?? null,
+    };
+
+    // Parse sales trends
+    const salesTrendsRaw = data?.sales_trends ?? {};
+    const trendsSource: RawTrend[] = Array.isArray(salesTrendsRaw?.trends) ? salesTrendsRaw.trends : [];
+    const salesTrends: AnalyticsSalesTrends = {
+      startDate: salesTrendsRaw?.start_date ?? null,
+      endDate: salesTrendsRaw?.end_date ?? null,
+      trends: trendsSource.map((trend) => ({
+        date: trend.date ?? null,
+        salesAmount: trend.sales_amount ?? 0,
+        orderCount: trend.order_count ?? 0,
+      })).sort((a, b) => {
+        const aTime = a.date ? new Date(a.date).getTime() : 0;
+        const bTime = b.date ? new Date(b.date).getTime() : 0;
+        return aTime - bTime;
+      }),
+    };
+
+    // Parse top products
+    const topProductsRaw = data?.top_products ?? {};
+    const productsSource: RawProductSales[] = Array.isArray(topProductsRaw?.products) ? topProductsRaw.products : [];
+    const topProducts: ProductSales[] = productsSource.map((product) => ({
+      productId: product.product_id ?? '',
+      productName: product.product_name ?? '',
+      totalSales: product.total_sales ?? 0,
+      unitsSold: product.units_sold ?? 0,
+      orderCount: product.order_count ?? 0,
+    }));
+
+    // Parse low stock
+    const lowStockRaw = data?.low_stock ?? {};
+    const lowStockSource: RawLowStockItem[] = Array.isArray(lowStockRaw?.low_stock_items) ? lowStockRaw.low_stock_items : [];
+    const lowStock: LowStockItem[] = lowStockSource.map((item) => ({
+      productId: item.product_id ?? '',
+      productName: item.product_name ?? '',
+      warehouseId: item.warehouse_id ?? '',
+      currentStock: item.current_stock ?? 0,
+      threshold: item.threshold ?? params?.low_stock_threshold ?? 0,
+      unitPrice: item.unit_price ?? 0,
+      stockValue: item.stock_value ?? 0,
+    }));
+
+    // Parse inventory valuation
+    const inventoryRaw = data?.inventory_valuation ?? {};
+    const inventoryValuation: InventoryValuation = {
+      tenantId: inventoryRaw.tenant_id ?? null,
+      totalValue: inventoryRaw.total_value ?? 0,
+      totalItems: inventoryRaw.total_items ?? 0,
+      totalQuantity: inventoryRaw.total_quantity ?? 0,
+      byWarehouse: inventoryRaw.by_warehouse ?? {},
+      byCategory: inventoryRaw.by_category ?? {},
+      lastCalculated: inventoryRaw.last_calculated ?? null,
+    };
+
+    // Parse revenue by category
+    const revenueRaw = data?.revenue_by_category ?? {};
+    const revenueMap = revenueRaw?.revenue_by_category ?? {};
+    const revenueByCategory: RevenueByCategory[] = Object.entries(revenueMap).map(([categoryId, total]) => ({
+      categoryId,
+      totalRevenue: typeof total === 'number' ? total : Number(total) || 0,
+    }));
+
+    // Parse order status distribution
+    const orderStatusRaw = data?.order_status ?? {};
+    const statusEntries = Object.entries(orderStatusRaw).map(([status, count]) => ({
+      status,
+      count: typeof count === 'number' ? count : Number(count) || 0,
+    }));
+    const total = statusEntries.reduce((acc, entry) => acc + entry.count, 0);
+    const orderStatus: OrderStatusEntry[] = statusEntries.map((entry) => ({
+      ...entry,
+      percent: total > 0 ? entry.count / total : 0,
+    }));
+
+    // Parse GST totals
+    const gstRaw = data?.gst_totals ?? {};
+    const gstTotals = {
+      cgst: gstRaw?.cgst ?? 0,
+      sgst: gstRaw?.sgst ?? 0,
+      igst: gstRaw?.igst ?? 0,
+      total: gstRaw?.total ?? 0,
+    };
+
+    return {
+      dashboard,
+      salesTrends,
+      topProducts,
+      lowStock,
+      inventoryValuation,
+      revenueByCategory,
+      orderStatus,
+      gstTotals,
+      fetchedAt: data?.fetched_at ?? new Date().toISOString(),
+    };
+  },
+};
+
+// Combined analytics data type
+export type CombinedAnalyticsData = {
+  dashboard: AnalyticsDashboard;
+  salesTrends: AnalyticsSalesTrends;
+  topProducts: ProductSales[];
+  lowStock: LowStockItem[];
+  inventoryValuation: InventoryValuation;
+  revenueByCategory: RevenueByCategory[];
+  orderStatus: OrderStatusEntry[];
+  gstTotals: { cgst: number; sgst: number; igst: number; total: number };
+  fetchedAt: string;
 };
 
 // Subscription Services

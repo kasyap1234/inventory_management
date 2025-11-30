@@ -113,73 +113,73 @@ export default function InventoryPage() {
   }) || [];
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex items-center justify-between border-b border-border pb-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
-          <p className="text-muted-foreground">Track stock levels across warehouses</p>
+          <h1 className="text-4xl font-bold tracking-tighter text-foreground uppercase">Inventory</h1>
+          <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">STOCK CONTROL CENTER</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
+        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-none font-mono uppercase tracking-wider">
           <Plus className="h-4 w-4 mr-2" />
           Add Stock
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
+        <Card className="rounded-none border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Total Items</CardTitle>
+            <Package className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventory?.inventories?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Unique SKUs
+            <div className="text-3xl font-bold font-mono">{inventory?.inventories?.length || 0}</div>
+            <p className="text-xs text-muted-foreground font-mono mt-1">
+              UNIQUE SKUS
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-none border-l-4 border-l-amber-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
+            <CardTitle className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Low Stock</CardTitle>
             <AlertTriangle className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold font-mono">
               {inventory?.inventories?.filter(i => i.quantity < 10).length || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Needs reordering
+            <p className="text-xs text-muted-foreground font-mono mt-1">
+              NEEDS REORDER
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-none border-l-4 border-l-destructive">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Out of Stock</CardTitle>
+            <CardTitle className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Out of Stock</CardTitle>
             <MinusCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold font-mono">
               {inventory?.inventories?.filter(i => i.quantity === 0).length || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Critical status
+            <p className="text-xs text-muted-foreground font-mono mt-1">
+              CRITICAL
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="rounded-none border border-border">
+        <CardHeader className="border-b border-border bg-muted/10">
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by product or warehouse..."
+                placeholder="SEARCH INVENTORY..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 rounded-none border-border bg-background font-mono text-sm uppercase placeholder:text-muted-foreground/50"
               />
             </div>
             <AdvancedFilters
@@ -228,23 +228,23 @@ export default function InventoryPage() {
             />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading inventory...</div>
+            <div className="text-center py-12 text-muted-foreground font-mono animate-pulse">LOADING INVENTORY DATA...</div>
           ) : filteredInventory.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No inventory records found. Add stock to get started.
+            <div className="text-center py-12 text-muted-foreground font-mono">
+              NO INVENTORY RECORDS FOUND
             </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Warehouse</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                  <TableHead>Actions</TableHead>
+                <TableRow className="hover:bg-transparent border-border">
+                  <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Product</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Warehouse</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Quantity</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Status</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Last Updated</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider h-10 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -253,46 +253,48 @@ export default function InventoryPage() {
                   const isOutOfStock = item.quantity === 0;
 
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.product_name || 'Unknown'}</TableCell>
-                      <TableCell>{item.warehouse_name || 'Unknown'}</TableCell>
+                    <TableRow key={item.id} className="border-border hover:bg-muted/20 transition-colors group">
+                      <TableCell className="font-medium font-mono text-sm">{item.product_name || 'Unknown'}</TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">{item.warehouse_name || 'Unknown'}</TableCell>
                       <TableCell>
-                        <Badge variant={isOutOfStock ? 'destructive' : isLowStock ? 'warning' : 'success'}>
+                        <span className={`font-mono font-bold ${isOutOfStock ? 'text-destructive' : isLowStock ? 'text-amber-500' : 'text-primary'}`}>
                           {item.quantity}
-                        </Badge>
+                        </span>
                       </TableCell>
                       <TableCell>
                         {isOutOfStock ? (
-                          <div className="flex items-center text-destructive">
-                            <AlertTriangle className="h-4 w-4 mr-1" />
+                          <div className="flex items-center text-destructive text-xs font-mono uppercase tracking-wider">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
                             Out of Stock
                           </div>
                         ) : isLowStock ? (
-                          <div className="flex items-center text-amber-600">
-                            <AlertTriangle className="h-4 w-4 mr-1" />
+                          <div className="flex items-center text-amber-500 text-xs font-mono uppercase tracking-wider">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
                             Low Stock
                           </div>
                         ) : (
-                          <span className="text-green-600">In Stock</span>
+                          <span className="text-primary text-xs font-mono uppercase tracking-wider">In Stock</span>
                         )}
                       </TableCell>
-                      <TableCell>{formatDateTime(item.last_updated)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
+                      <TableCell className="font-mono text-xs text-muted-foreground">{formatDateTime(item.last_updated)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setAdjustingInventory(item)}
+                            className="h-7 text-xs font-mono uppercase"
                           >
-                            <PlusCircle className="h-4 w-4 mr-1" />
+                            <PlusCircle className="h-3 w-3 mr-1" />
                             Adjust
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => setEditingInventory(item)}
+                            className="h-7 w-7 p-0"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>

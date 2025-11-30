@@ -77,8 +77,8 @@ export default function ProfilePage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading profile...</p>
         </div>
       </div>
     );
@@ -88,8 +88,8 @@ export default function ProfilePage() {
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-          <p className="text-gray-500 mt-1">Manage your account information</p>
+          <h1 className="text-3xl font-bold text-foreground">My Profile</h1>
+          <p className="text-muted-foreground mt-1">Manage your account information</p>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-blue-600" />
+            <User className="h-5 w-5 text-primary" />
             Personal Information
           </CardTitle>
           <CardDescription>
@@ -108,7 +108,7 @@ export default function ProfilePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">First Name</label>
+                <label className="text-sm font-medium text-muted-foreground">First Name</label>
                 {isEditing ? (
                   <Input
                     required
@@ -117,12 +117,12 @@ export default function ProfilePage() {
                     placeholder="Enter first name"
                   />
                 ) : (
-                  <p className="text-base text-gray-900 py-2">{userData?.first_name || '—'}</p>
+                  <p className="text-base text-foreground py-2">{userData?.first_name || '—'}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Last Name</label>
+                <label className="text-sm font-medium text-muted-foreground">Last Name</label>
                 {isEditing ? (
                   <Input
                     required
@@ -131,21 +131,21 @@ export default function ProfilePage() {
                     placeholder="Enter last name"
                   />
                 ) : (
-                  <p className="text-base text-gray-900 py-2">{userData?.last_name || '—'}</p>
+                  <p className="text-base text-foreground py-2">{userData?.last_name || '—'}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Mail className="h-4 w-4" />
                   Email Address
                 </label>
-                <p className="text-base text-gray-900 py-2">{userData?.email || '—'}</p>
-                <p className="text-xs text-gray-500">Email cannot be changed</p>
+                <p className="text-base text-foreground py-2">{userData?.email || '—'}</p>
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Shield className="h-4 w-4" />
                   Status
                 </label>
@@ -157,21 +157,21 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   Member Since
                 </label>
-                <p className="text-base text-gray-900 py-2">
+                <p className="text-base text-foreground py-2">
                   {userData?.created_at ? formatDate(userData.created_at) : '—'}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   Last Updated
                 </label>
-                <p className="text-base text-gray-900 py-2">
+                <p className="text-base text-foreground py-2">
                   {userData?.updated_at ? formatDate(userData.updated_at) : '—'}
                 </p>
               </div>
@@ -204,7 +204,7 @@ export default function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-blue-600" />
+              <Building2 className="h-5 w-5 text-primary" />
               Organization
             </CardTitle>
             <CardDescription>
@@ -214,24 +214,24 @@ export default function ProfilePage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Organization Name</label>
-                <p className="text-base text-gray-900">{tenantData.name}</p>
+                <label className="text-sm font-medium text-muted-foreground">Organization Name</label>
+                <p className="text-base text-foreground">{tenantData.name}</p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Subdomain</label>
-                <p className="text-base text-gray-900">
+                <label className="text-sm font-medium text-muted-foreground">Subdomain</label>
+                <p className="text-base text-foreground">
                   <Badge variant="secondary">{tenantData.subdomain}.agromart.example</Badge>
                 </p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">License Number</label>
-                <p className="text-base text-gray-900">{tenantData.license_number || '—'}</p>
+                <label className="text-sm font-medium text-muted-foreground">License Number</label>
+                <p className="text-base text-foreground">{tenantData.license_number || '—'}</p>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Status</label>
+                <label className="text-sm font-medium text-muted-foreground">Status</label>
                 <div>
                   <Badge variant={tenantData.status === 'active' ? 'success' : 'secondary'}>
                     {tenantData.status}

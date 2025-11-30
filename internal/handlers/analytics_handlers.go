@@ -5,6 +5,7 @@ import (
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -477,4 +478,190 @@ func (h *AnalyticsHandlers) RefreshAnalytics(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Analytics refresh initiated successfully",
 	})
+}
+
+// CombinedAnalyticsResponse holds all analytics data in a single response
+type CombinedAnalyticsResponse struct {
+	Dashboard           interface{} `json:"dashboard"`
+	SalesTrends         interface{} `json:"sales_trends"`
+	TopProducts         interface{} `json:"top_products"`
+	LowStock            interface{} `json:"low_stock"`
+	InventoryValuation  interface{} `json:"inventory_valuation"`
+	RevenueByCategory   interface{} `json:"revenue_by_category"`
+	OrderStatus         interface{} `json:"order_status"`
+	GSTTotals           interface{} `json:"gst_totals"`
+	FetchedAt           time.Time   `json:"fetched_at"`
+}
+
+// GetCombinedAnalytics handles GET /analytics/combined
+// Returns all analytics data in a single API call to reduce frontend round trips
+// This endpoint fetches dashboard, sales trends, top products, low stock, inventory valuation,
+// revenue by category, order status distribution, and GST totals in parallel
+func (h *AnalyticsHandlers) GetCombinedAnalytics(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Parse optional parameters
+	startDateStr := c.QueryParam("start_date")
+	endDateStr := c.QueryParam("end_date")
+	
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -30) // Default to last 30 days
+
+	if startDateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			startDate = parsed
+		}
+	}
+	if endDateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			endDate = parsed
+		}
+	}
+
+	topProductsLimit := common.ParseIntOrDefault(c.QueryParam("top_products_limit"), 10)
+	lowStockThreshold := common.ParseIntOrDefault(c.QueryParam("low_stock_threshold"), 10)
+
+	// Use WaitGroup to fetch all data in parallel
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	response := &CombinedAnalyticsResponse{
+		FetchedAt: time.Now(),
+	}
+
+	// Fetch dashboard analytics
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		data, err := h.analyticsSvc.CalculateTenantAnalytics(ctx, tenantID)
+		if err == nil {
+			mu.Lock()
+			response.Dashboard = map[string]interface{}{
+				"tenant_id":         data.TenantID,
+				"total_sales":       data.TotalSales,
+				"total_stock_value": data.TotalStockValue,
+				"gst_collected":     data.GSTCollected,
+				"order_count":       data.OrderCount,
+				"low_stock_items":   data.LowStockItemsCount,
+				"last_updated":      data.LastUpdated,
+			}
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch sales trends
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		trends, err := h.analyticsSvc.GetSalesTrends(ctx, tenantID, startDate, endDate)
+		if err == nil {
+			mu.Lock()
+			response.SalesTrends = map[string]interface{}{
+				"start_date": startDate.Format("2006-01-02"),
+				"end_date":   endDate.Format("2006-01-02"),
+				"trends":     trends,
+				"count":      len(trends),
+			}
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch top products
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		products, err := h.analyticsSvc.GetTopSellingProducts(ctx, tenantID, topProductsLimit)
+		if err == nil {
+			mu.Lock()
+			response.TopProducts = map[string]interface{}{
+				"products": products,
+				"limit":    topProductsLimit,
+			}
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch low stock report
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		report, err := h.analyticsSvc.GetLowStockReport(ctx, tenantID, lowStockThreshold)
+		if err == nil {
+			mu.Lock()
+			response.LowStock = map[string]interface{}{
+				"low_stock_items": report,
+				"threshold":       lowStockThreshold,
+				"count":           len(report),
+			}
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch inventory valuation
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		valuation, err := h.analyticsSvc.CalculateInventoryValuation(ctx, tenantID)
+		if err == nil {
+			mu.Lock()
+			response.InventoryValuation = valuation
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch revenue by category
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		revenue, err := h.analyticsSvc.GetRevenueByCategory(ctx, tenantID)
+		if err == nil {
+			mu.Lock()
+			response.RevenueByCategory = map[string]interface{}{
+				"revenue_by_category": revenue,
+			}
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch order status distribution
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		distribution, err := h.analyticsSvc.GetOrderStatusDistribution(ctx, tenantID)
+		if err == nil {
+			mu.Lock()
+			response.OrderStatus = distribution
+			mu.Unlock()
+		}
+	}()
+
+	// Fetch GST totals
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		totals, err := h.analyticsSvc.CalculateGSTTotals(ctx, tenantID)
+		if err == nil {
+			mu.Lock()
+			response.GSTTotals = totals
+			mu.Unlock()
+		}
+	}()
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	return c.JSON(http.StatusOK, response)
 }

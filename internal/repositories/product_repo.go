@@ -28,6 +28,9 @@ type ProductRepository interface {
 	CategoryAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]int, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.ProductSearchFilter) ([]*models.Product, error)
 	UpdateQuantity(ctx context.Context, tenantID, id uuid.UUID, quantity int) error
+	// BulkUpdatePrices updates prices for multiple products in a single SQL statement
+	// adjustmentType: "percentage" or "fixed", adjustmentValue: the amount to adjust
+	BulkUpdatePrices(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID, adjustmentType string, adjustmentValue float64) (int64, error)
 }
 
 type productRepo struct {
@@ -548,4 +551,41 @@ func (r *productRepo) Search(ctx context.Context, tenantID uuid.UUID, query stri
 		products = append(products, product)
 	}
 	return products, nil
+}
+
+// BulkUpdatePrices updates prices for multiple products in a single SQL statement
+// This is much more efficient than updating products one by one (N queries -> 1 query)
+func (r *productRepo) BulkUpdatePrices(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID, adjustmentType string, adjustmentValue float64) (int64, error) {
+	if len(productIDs) == 0 {
+		return 0, nil
+	}
+
+	// Build the query based on adjustment type
+	var query string
+	if adjustmentType == "percentage" {
+		// Percentage adjustment: new_price = old_price * (1 + adjustment/100)
+		// Use GREATEST to ensure price doesn't go below 0
+		query = `
+			UPDATE products 
+			SET unit_price = GREATEST(0, unit_price * (1 + $2::float / 100)),
+				updated_at = NOW()
+			WHERE tenant_id = $1 AND id = ANY($3)
+		`
+	} else {
+		// Fixed adjustment: new_price = old_price + adjustment
+		// Use GREATEST to ensure price doesn't go below 0
+		query = `
+			UPDATE products 
+			SET unit_price = GREATEST(0, unit_price + $2::float),
+				updated_at = NOW()
+			WHERE tenant_id = $1 AND id = ANY($3)
+		`
+	}
+
+	result, err := r.db.Exec(ctx, query, tenantID, adjustmentValue, productIDs)
+	if err != nil {
+		return 0, fmt.Errorf("failed to bulk update prices: %w", err)
+	}
+
+	return result.RowsAffected(), nil
 }

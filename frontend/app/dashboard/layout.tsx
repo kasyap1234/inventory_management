@@ -38,16 +38,12 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] bg-background font-sans">
       <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col">
+      <div className="flex flex-col">
         <Header />
-        <main className="flex-1 overflow-y-auto mt-16">
-          <div className="min-h-full">
-            <div className="container mx-auto px-6 py-8">
-              {children}
-            </div>
-          </div>
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 overflow-y-auto">
+          {children}
         </main>
       </div>
     </div>

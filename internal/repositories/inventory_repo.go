@@ -28,6 +28,15 @@ type InventoryRepository interface {
 	// GetByProductForUpdate retrieves inventory with SELECT FOR UPDATE to prevent race conditions
 	GetByProductForUpdate(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error)
 	Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error
+	// GetAnalyticsAggregates returns aggregated analytics data using SQL for performance
+	GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*InventoryAnalyticsAggregates, error)
+}
+
+// InventoryAnalyticsAggregates holds pre-computed aggregates for analytics
+type InventoryAnalyticsAggregates struct {
+	TotalStockValue   float64
+	LowStockCount     int
+	TotalItemsCount   int
 }
 
 type inventoryRepo struct {
@@ -411,4 +420,30 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 	}
 
 	return nil
+}
+
+// GetAnalyticsAggregates returns aggregated inventory analytics data using SQL
+// This joins inventory with products to calculate total stock value in a single query
+func (r *inventoryRepo) GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*InventoryAnalyticsAggregates, error) {
+	query := `
+		SELECT 
+			COALESCE(SUM(i.quantity * p.unit_price), 0) as total_stock_value,
+			COUNT(CASE WHEN i.quantity < 10 THEN 1 END) as low_stock_count,
+			COUNT(*) as total_items_count
+		FROM inventory i
+		JOIN products p ON i.product_id = p.id AND i.tenant_id = p.tenant_id
+		WHERE i.tenant_id = $1
+	`
+
+	aggregates := &InventoryAnalyticsAggregates{}
+	err := r.db.QueryRow(ctx, query, tenantID).Scan(
+		&aggregates.TotalStockValue,
+		&aggregates.LowStockCount,
+		&aggregates.TotalItemsCount,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inventory analytics aggregates: %w", err)
+	}
+
+	return aggregates, nil
 }

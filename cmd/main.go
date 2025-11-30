@@ -933,6 +933,8 @@ func main() {
 	protected.GET("/analytics/revenue-by-category", analyticsHandlers.GetRevenueByCategory)
 	protected.GET("/analytics/order-status", analyticsHandlers.GetOrderStatusDistribution)
 	protected.POST("/analytics/refresh", analyticsHandlers.RefreshAnalytics)
+	// Combined analytics endpoint - fetches all data in parallel for faster page loads
+	protected.GET("/analytics/combined", analyticsHandlers.GetCombinedAnalytics)
 
 	// Database optimization routes (admin only)
 	dbOptimization := protected.Group("/db-optimization")

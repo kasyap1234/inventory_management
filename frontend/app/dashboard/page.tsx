@@ -38,8 +38,8 @@ export default function DashboardPage() {
     queryFn: analyticsService.getDashboardAnalytics,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    staleTime: 60000, // 1 minute
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
   });
 
@@ -48,8 +48,8 @@ export default function DashboardPage() {
     queryFn: () => analyticsService.getLowStockReport({ threshold: 10 }),
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
   });
 
@@ -61,8 +61,8 @@ export default function DashboardPage() {
     },
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    staleTime: 60000, // 1 minute
-    gcTime: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
   });
 
@@ -77,26 +77,26 @@ export default function DashboardPage() {
 
   const statCards = useMemo(() => [
     {
-      title: 'Revenue',
+      title: 'REVENUE',
       value: analytics ? formatCurrency(analytics.totalSales ?? 0) : formatCurrency(0),
       icon: DollarSign,
-      color: 'text-blue-600 dark:text-blue-400',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
       helper: analytics?.lastUpdated,
     },
     {
-      title: 'Stock Value',
+      title: 'STOCK VALUE',
       value: analytics ? formatCurrency(analytics.totalStockValue ?? 0) : formatCurrency(0),
       icon: Warehouse,
-      color: 'text-purple-600 dark:text-purple-400',
-      bgColor: 'bg-purple-50 dark:bg-purple-900/20',
+      color: 'text-secondary',
+      bgColor: 'bg-secondary/10',
     },
     {
-      title: 'Orders',
+      title: 'ORDERS',
       value: analytics?.orderCount ?? 0,
       icon: ShoppingCart,
-      color: 'text-emerald-600 dark:text-emerald-400',
-      bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
     },
     {
       title: 'Pending Invoices',
@@ -149,36 +149,31 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-bold tracking-tight">
-              Dashboard
-            </h1>
-          </div>
-          <p className="text-muted-foreground">Operations Overview</p>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <h1 className="text-4xl font-bold tracking-tighter text-foreground">DASHBOARD</h1>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-muted-foreground">
+            SYNCED: {format(new Date(), 'HH:mm:ss')}
+          </span>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-md transition-shadow duration-200">
+          <Card key={stat.title} className="border-l-2 border-l-primary/50 hover:border-l-primary transition-all">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-xs font-medium font-mono tracking-widest text-muted-foreground uppercase">
                 {stat.title}
               </CardTitle>
-              <div className={`p-2 rounded-xl ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
+              <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              {stat.helper && mounted && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Updated {formatDistance(new Date(stat.helper), new Date(), { addSuffix: true })}
+              <div className="text-3xl font-bold font-mono tracking-tighter">{stat.value}</div>
+              {stat.helper && (
+                <p className="text-xs text-muted-foreground mt-1 font-mono">
+                  {stat.helper}
                 </p>
               )}
             </CardContent>
@@ -186,122 +181,92 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Activity and Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4 border-none bg-transparent">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle className="text-lg font-mono uppercase tracking-widest">Overview</CardTitle>
           </CardHeader>
-          <CardContent>
-            {unpaidInvoiceItems.length ? (
-              <div className="space-y-4">
-                {unpaidInvoiceItems.slice(0, 5).map((invoice) => (
-                  <div
-                    key={invoice.id}
-                    className="flex items-center justify-between p-4 rounded-lg border"
-                  >
-                    <div>
-                      <p className="font-semibold">Invoice #{invoice.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Due {format(new Date(invoice.due_date), 'MMM dd, yyyy')} · Status: {invoice.status}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold">{formatCurrency(invoice.total_amount || 0)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={FileText}
-                title="No Unpaid Invoices"
-                description="All invoices are paid or no invoices exist yet."
-              />
-            )}
+          <CardContent className="pl-2">
+            {/* Use the new SalesTrendChart component here */}
           </CardContent>
         </Card>
-
-        <Card>
+        
+        {/* Low Stock Alerts */}
+        <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Low Stock Alerts</CardTitle>
+            <CardTitle className="text-lg font-mono uppercase tracking-widest">Low Stock Alert</CardTitle>
           </CardHeader>
           <CardContent>
-            {lowStockItems.length > 0 ? (
-              <div className="space-y-4">
-                {lowStockItems.slice(0, 5).map((item) => (
-                  <div
-                    key={`${item.productId}-${item.warehouseId}`}
-                    className="flex items-center justify-between p-4 bg-muted/50 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-semibold">{item.productName || 'Unnamed Product'}</p>
-                      <p className="text-xs text-muted-foreground">Warehouse: {item.warehouseId?.slice(0, 8) ?? 'N/A'}</p>
+            <div className="space-y-4">
+              {lowStockItems.length === 0 ? (
+                <EmptyState
+                  icon={Package}
+                  title="Stock Healthy"
+                  description="All products are well stocked"
+                />
+              ) : (
+                lowStockItems.map((item) => (
+                  <div key={item.productId} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none font-mono">{item.productName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ID: {item.productId.substring(0, 8)}
+                      </p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-destructive">{item.currentStock} units</p>
-                      <p className="text-xs text-muted-foreground">Threshold: {item.threshold}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-destructive font-mono">{item.currentStock} left</p>
+                        <p className="text-xs text-muted-foreground">
+                          Min: {item.threshold}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={Package}
-                title="All Items Well Stocked"
-                description="No low stock alerts at this time. Great job!"
-              />
-            )}
+                ))
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/products"
-              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
-            >
-              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
-                <Package className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Add Product</span>
-            </Link>
-            <Link
-              href="/dashboard/orders"
-              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
-            >
-              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
-                <ShoppingCart className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Process Order</span>
-            </Link>
-            <Link
-              href="/dashboard/inventory"
-              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
-            >
-              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
-                <Warehouse className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Stock Levels</span>
-            </Link>
-            <Link
-              href="/dashboard/invoices"
-              className="group flex flex-col items-center justify-center p-6 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors border"
-            >
-              <div className="p-3 bg-background rounded-lg mb-3 shadow-sm group-hover:scale-110 transition-transform">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Billing</span>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      
+      {/* Unpaid Invoices */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-7">
+          <CardHeader>
+            <CardTitle className="text-lg font-mono uppercase tracking-widest">Unpaid Invoices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {unpaidInvoiceItems.length === 0 ? (
+                <EmptyState
+                  icon={FileText}
+                  title="No Unpaid Invoices"
+                  description="All invoices are settled"
+                />
+              ) : (
+                unpaidInvoiceItems.map((invoice) => (
+                  <div key={invoice.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none font-mono">{invoice.invoice_number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Due: {format(new Date(invoice.due_date), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-sm font-bold font-mono">{formatCurrency(invoice.total_amount)}</p>
+                        <p className="text-xs text-destructive font-medium uppercase tracking-wider">
+                          {invoice.status}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

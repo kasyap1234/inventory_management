@@ -40,6 +40,15 @@ type InvoiceRepository interface {
 	GetGSTReportData(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]GSTReportRow, error)
 	UpdateInvoiceStatus(ctx context.Context, tenantID, invoiceID uuid.UUID, status string) error
 	GenerateInvoiceNumber(ctx context.Context, tenantID uuid.UUID, issuedDate time.Time) (string, error)
+	// GetAnalyticsAggregates returns aggregated analytics data using SQL SUM/COUNT for performance
+	GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*InvoiceAnalyticsAggregates, error)
+}
+
+// InvoiceAnalyticsAggregates holds pre-computed aggregates for analytics
+type InvoiceAnalyticsAggregates struct {
+	TotalSales   float64
+	GSTCollected float64
+	InvoiceCount int
 }
 
 type invoiceRepo struct {
@@ -297,4 +306,29 @@ func (r *invoiceRepo) GenerateInvoiceNumber(ctx context.Context, tenantID uuid.U
 	invoiceNumber := fmt.Sprintf("INV-%s-%s-%06d", tenantSuffix, yearMonth, sequenceNum)
 
 	return invoiceNumber, nil
+}
+
+// GetAnalyticsAggregates returns aggregated analytics data using SQL SUM/COUNT
+// This is much more efficient than fetching all records and computing in Go
+func (r *invoiceRepo) GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*InvoiceAnalyticsAggregates, error) {
+	query := `
+		SELECT 
+			COALESCE(SUM(total_amount), 0) as total_sales,
+			COALESCE(SUM(COALESCE(cgst, 0) + COALESCE(sgst, 0) + COALESCE(igst, 0)), 0) as gst_collected,
+			COUNT(*) as invoice_count
+		FROM invoices
+		WHERE tenant_id = $1
+	`
+
+	aggregates := &InvoiceAnalyticsAggregates{}
+	err := r.db.QueryRow(ctx, query, tenantID).Scan(
+		&aggregates.TotalSales,
+		&aggregates.GSTCollected,
+		&aggregates.InvoiceCount,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get invoice analytics aggregates: %w", err)
+	}
+
+	return aggregates, nil
 }
