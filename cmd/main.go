@@ -176,6 +176,7 @@ func main() {
 
 	// Create repositories
 	userRepo := repositories.NewUserRepo(pool)
+	invitationRepo := repositories.NewInvitationRepo(pool)
 	tenantRepo := repositories.NewTenantRepo(pool)
 	roleRepo := repositories.NewRoleRepo(pool)
 	userRoleRepo := repositories.NewUserRoleRepo(pool)
@@ -272,6 +273,16 @@ func main() {
 		backendURL,
 	)
 
+	// Create invitation service
+	invitationService := services.NewInvitationService(
+		invitationRepo,
+		userRepo,
+		userRoleRepo,
+		notificationService,
+		authService,
+		frontendURL,
+	)
+
 	// Create role management service
 	roleManagementService := services.NewRoleManagementService(roleRepo, permissionRepo, logger)
 
@@ -287,7 +298,10 @@ func main() {
 	productHandlers := handlers.NewProductHandlers(productSvc, rbacMiddleware)
 
 	// Create tenant service
-	tenantService := services.NewTenantService(tenantRepo)
+	tenantService := services.NewTenantService(tenantRepo, invitationService, roleRepo)
+
+	// Subdomain middleware
+	subdomainMiddleware := middleware.NewSubdomainMiddleware(tenantService)
 
 	// Create order service
 	// orderSvc := services.NewOrderService(orderRepo, inventoryRepo, inventoryService) // moved after inventoryService
@@ -308,6 +322,7 @@ func main() {
 		notificationService,
 		frontendURL,
 	)
+	invitationHandlers := handlers.NewInvitationHandlers(invitationService)
 	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware, userService, roleManagementService)
 	tenantHandlers := handlers.NewTenantHandlers(tenantService, rbacMiddleware)
 	categoryHandlers := handlers.NewCategoryHandlers(categoryRepo, rbacMiddleware)
@@ -592,6 +607,9 @@ func main() {
 	versionMiddleware := middleware.NewVersionMiddleware()
 	e.Use(versionMiddleware.APIVersionResolver())
 
+	// Subdomain middleware (apply globally or to specific groups)
+	e.Use(subdomainMiddleware.ResolveTenant)
+
 	// Health endpoints (no auth required)
 	e.GET("/health", handlers.HealthCheck)
 	e.GET("/health/ready", handlers.ReadinessCheck)
@@ -641,6 +659,11 @@ func main() {
 	auth.POST("/2fa/disable", authHandlers.Disable2FA)
 	auth.POST("/2fa/verify", authHandlers.Verify2FA)
 
+	// Invitation routes (public)
+	invitations := v1.Group("/invitations")
+	invitations.GET("/:token", invitationHandlers.GetInvitation)
+	invitations.POST("/:token/accept", invitationHandlers.AcceptInvitation)
+
 	// Protected routes (require JWT and RBAC)
 	protected := v1.Group("")
 	protected.Use(middleware.JWTMiddleware(userRepo, jwtSecret))
@@ -653,11 +676,17 @@ func main() {
 	protected.GET("/users/pending", userHandlers.GetPendingUsers, rbacMiddleware.RequirePermission("user.approve"))
 	protected.POST("/users/:id/approve", userHandlers.ApproveUser, rbacMiddleware.RequirePermission("user.approve"))
 	protected.GET("/users", userHandlers.ListUsers, rbacMiddleware.RequirePermission("user.list"))
+	protected.GET("/users/directory", userHandlers.GetDirectory) // Accessible to all authenticated users in tenant
 	protected.GET("/users/:id", userHandlers.GetUser, rbacMiddleware.RequirePermission("user.read"))
 	protected.POST("/users", userHandlers.CreateUser, rbacMiddleware.RequirePermission("user.create"))
 	protected.PUT("/users/:id", userHandlers.UpdateUser, rbacMiddleware.RequirePermission("user.update"))
 	protected.PUT("/users/me", userHandlers.UpdateUserProfile)
 	protected.DELETE("/users/:id", userHandlers.DeleteUser, rbacMiddleware.RequirePermission("user.delete"))
+
+	// Invitation routes (protected)
+	protected.POST("/invitations", invitationHandlers.CreateInvitation, rbacMiddleware.RequirePermission("invitation.create"))
+	protected.GET("/invitations", invitationHandlers.ListInvitations, rbacMiddleware.RequirePermission("invitation.list"))
+	protected.DELETE("/invitations/:id", invitationHandlers.RevokeInvitation, rbacMiddleware.RequirePermission("invitation.revoke"))
 
 	// Tenant routes (restricted to system admins)
 	// SECURITY: These routes manage the multi-tenant system itself and must be restricted

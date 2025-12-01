@@ -966,3 +966,27 @@ export const webhookService = {
   update: (id: string, data: Record<string, unknown>) => api.put(`/webhooks/subscriptions/${id}`, data),
   delete: (id: string) => api.delete(`/webhooks/subscriptions/${id}`),
 };
+// Invitation Services
+export const invitationService = {
+  getDetails: async (token: string): Promise<{
+    email: string;
+    tenant_name: string;
+    role: string;
+    status: string;
+    expires_at: string;
+  }> => {
+    const { data } = await api.get(`/invitations/${token}`);
+    return data;
+  },
+  accept: async (token: string, payload: {
+    first_name: string;
+    last_name: string;
+    password: string;
+  }): Promise<{
+    token: string;
+    user: unknown;
+  }> => {
+    const { data } = await api.post(`/invitations/${token}/accept`, payload);
+    return data;
+  },
+};

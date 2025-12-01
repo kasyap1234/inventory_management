@@ -566,3 +566,36 @@ func (h *UserHandlers) ApproveUser(c echo.Context) error {
 		"message": "User approved successfully",
 	})
 }
+
+// GetDirectory returns a directory of users for the tenant (simplified view)
+func (h *UserHandlers) GetDirectory(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Pagination
+	limit := 100
+	offset := 0
+
+	users, err := h.userRepo.List(ctx, tenantID, limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch directory")
+	}
+
+	// Filter sensitive info
+	var directory []map[string]interface{}
+	for _, u := range users {
+		directory = append(directory, map[string]interface{}{
+			"id":         u.ID,
+			"first_name": u.FirstName,
+			"last_name":  u.LastName,
+			"email":      u.Email,
+			// Add role info if needed
+		})
+	}
+
+	return c.JSON(http.StatusOK, directory)
+}

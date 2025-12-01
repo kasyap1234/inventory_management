@@ -71,9 +71,10 @@ func (h *TenantHandlers) ListTenants(c echo.Context) error {
 
 // CreateTenantRequest represents the tenant creation request payload
 type CreateTenantRequest struct {
-	Name      string `json:"name" validate:"required"`
-	Subdomain string `json:"subdomain" validate:"required"`
-	License   string `json:"license" validate:"required"`
+	Name       string `json:"name" validate:"required"`
+	Subdomain  string `json:"subdomain" validate:"required"`
+	License    string `json:"license" validate:"required"`
+	AdminEmail string `json:"admin_email" validate:"required,email"`
 }
 
 // CreateTenant handles creating a new tenant (admin only)
@@ -95,9 +96,10 @@ func (h *TenantHandlers) CreateTenant(c echo.Context) error {
 
 	// Create tenant request
 	tenantReq := &services.CreateTenantRequest{
-		Name:      req.Name,
-		Subdomain: req.Subdomain,
-		License:   req.License,
+		Name:       req.Name,
+		Subdomain:  req.Subdomain,
+		License:    req.License,
+		AdminEmail: req.AdminEmail,
 	}
 
 	// Create tenant
