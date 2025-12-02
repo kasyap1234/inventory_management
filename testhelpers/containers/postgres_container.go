@@ -163,9 +163,40 @@ func (pc *PostgresContainer) RunMigrations(ctx context.Context, migrationsPath s
 			return fmt.Errorf("failed to read migration file %s: %w", fileName, err)
 		}
 
-		_, err = pc.Pool.Exec(ctx, string(content))
-		if err != nil {
-			return fmt.Errorf("failed to execute migration %s: %w", fileName, err)
+		// Special handling for files which use CONCURRENTLY
+		// and cannot run inside a transaction block (if implicit) or needs splitting
+		if strings.Contains(fileName, "021_optimize_search_indexes.sql") || strings.Contains(fileName, "035_add_cursor_pagination_indexes.sql") {
+			statements := strings.Split(string(content), ";")
+			for _, stmt := range statements {
+				stmt = strings.TrimSpace(stmt)
+				if stmt == "" {
+					continue
+				}
+				// Use Acquire to get a connection and use PgConn().Exec for simple protocol
+				conn, err := pc.Pool.Acquire(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to acquire connection: %w", err)
+				}
+				_, err = conn.Conn().PgConn().Exec(ctx, stmt).ReadAll()
+				conn.Release()
+
+				if err != nil {
+					return fmt.Errorf("failed to execute statement in migration %s: %w\nStatement: %s", fileName, err, stmt)
+				}
+			}
+		} else {
+			// Use Acquire to get a connection and use PgConn().Exec for simple protocol
+			// This supports multiple statements in one string
+			conn, err := pc.Pool.Acquire(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to acquire connection: %w", err)
+			}
+			_, err = conn.Conn().PgConn().Exec(ctx, string(content)).ReadAll()
+			conn.Release()
+
+			if err != nil {
+				return fmt.Errorf("failed to execute migration %s: %w", fileName, err)
+			}
 		}
 	}
 

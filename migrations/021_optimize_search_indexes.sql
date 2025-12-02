@@ -207,14 +207,4 @@ COMMENT ON INDEX idx_orders_notes_search IS 'Full-text search index for order no
 -- ============================================================================
 
 -- Example query to test index effectiveness:
-/*
-EXPLAIN ANALYZE
-SELECT p.* FROM products p
-WHERE p.tenant_id = '550e8400-e29b-41d4-a716-446655440000'
-  AND (to_tsvector('english', COALESCE(p.name, '')) @@ plainto_tsquery('english', 'fertilizer'))
-  AND p.unit_price BETWEEN 100 AND 1000
-  AND p.quantity > 10
-  AND p.category_id = '550e8400-e29b-41d4-a716-446655440001'
-ORDER BY p.created_at DESC
-LIMIT 50 OFFSET 0;
-*/
+-- See documentation for example queries
