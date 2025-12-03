@@ -128,7 +128,7 @@ export default function TenantsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tenants</h1>
+          <h1 className="text-3xl font-bold text-foreground">Tenants</h1>
           <p className="text-gray-500 mt-1">Manage customer accounts and licensing</p>
         </div>
         <div className="flex items-center gap-2">
@@ -149,7 +149,7 @@ export default function TenantsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-blue-600" />
             Tenant Directory
           </CardTitle>

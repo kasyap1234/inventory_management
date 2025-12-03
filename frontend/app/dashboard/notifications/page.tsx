@@ -47,7 +47,7 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Notifications
           </h1>
           <p className="text-gray-600 mt-2 text-lg">
@@ -85,7 +85,7 @@ export default function NotificationsPage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-gray-900">
+                          <h3 className="font-semibold text-foreground">
                             {notification.subject || 'Notification'}
                           </h3>
                           <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-full">
@@ -143,7 +143,7 @@ export default function NotificationsPage() {
             <CardContent className="py-16">
               <div className="text-center">
                 <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   No notifications yet
                 </h3>
                 <p className="text-gray-500">

@@ -139,7 +139,7 @@ export default function WebhooksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Webhook Subscriptions</h1>
+          <h1 className="text-3xl font-bold text-foreground">Webhook Subscriptions</h1>
           <p className="text-gray-500 mt-1">Manage outbound integrations and event delivery</p>
         </div>
         <div className="flex items-center gap-2">
@@ -160,7 +160,7 @@ export default function WebhooksPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
             <Link className="h-5 w-5 text-blue-600" />
             Active Integrations
           </CardTitle>
@@ -189,7 +189,7 @@ export default function WebhooksPage() {
                 {subscriptions.map((subscription) => (
                   <TableRow key={subscription.id}>
                     <TableCell>
-                      <div className="font-semibold text-gray-900">{subscription.name}</div>
+                      <div className="font-semibold text-foreground">{subscription.name}</div>
                       {subscription.description && (
                         <div className="text-sm text-gray-500">{subscription.description}</div>
                       )}

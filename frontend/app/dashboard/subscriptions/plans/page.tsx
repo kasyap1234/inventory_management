@@ -108,7 +108,7 @@ export default function SubscriptionPlansPage() {
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
           Choose Your Plan
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -145,7 +145,7 @@ export default function SubscriptionPlansPage() {
                 <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
                 <CardDescription className="text-base">{plan.description}</CardDescription>
                 <div className="pt-4">
-                  <div className="text-4xl font-bold text-gray-900">
+                  <div className="text-4xl font-bold text-foreground">
                     {formatCurrency(plan.amount, plan.currency)}
                   </div>
                   <div className="text-gray-600 mt-1">per {plan.interval}</div>
@@ -199,7 +199,7 @@ export default function SubscriptionPlansPage() {
 
       {/* Additional Info */}
       <div className="mt-16 text-center space-y-4">
-        <h3 className="text-2xl font-bold text-gray-900">All plans include:</h3>
+        <h3 className="text-2xl font-bold text-foreground">All plans include:</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
           <div className="text-center">
             <div className="text-3xl font-bold text-blue-600 mb-2">24/7</div>

@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { SalesTrendChart } from '@/components/charts/SalesTrendChart';
 
 type InvoiceSummary = {
   id: string;
@@ -131,8 +132,8 @@ export default function DashboardPage() {
               {errorMessage.includes('Network')
                 ? 'Network error. Please check your connection and try again.'
                 : errorMessage.includes('Missing token') || errorMessage.includes('Unauthorized')
-                ? 'Authentication error. Please try logging out and logging back in.'
-                : 'We encountered an error while loading your dashboard data. Please try refreshing the page.'}
+                  ? 'Authentication error. Please try logging out and logging back in.'
+                  : 'We encountered an error while loading your dashboard data. Please try refreshing the page.'}
             </p>
             {process.env.NODE_ENV === 'development' && (
               <details className="mt-2">
@@ -184,13 +185,13 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4 border-none bg-transparent">
           <CardHeader>
-            <CardTitle className="text-lg font-mono uppercase tracking-widest">Overview</CardTitle>
+            <CardTitle className="text-lg font-mono uppercase tracking-widest">Sales Overview - Last 30 Days</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            {/* Use the new SalesTrendChart component here */}
+            <SalesTrendChart />
           </CardContent>
         </Card>
-        
+
         {/* Low Stock Alerts */}
         <Card className="col-span-3">
           <CardHeader>
@@ -228,7 +229,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Unpaid Invoices */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-7">

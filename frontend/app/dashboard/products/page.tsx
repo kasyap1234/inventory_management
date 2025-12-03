@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash, Package, AlertTriangle, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isBulkPriceDialogOpen, setIsBulkPriceDialogOpen] = useState(false);
+  const [imagesProduct, setImagesProduct] = useState<Product | null>(null);
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery<{ products: Product[] }>({
@@ -232,6 +233,13 @@ export default function ProductsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => setImagesProduct(product)}
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setEditingProduct(product)}
                         >
                           <Edit className="h-4 w-4" />
@@ -271,6 +279,12 @@ export default function ProductsPage() {
         onOpenChange={setIsBulkPriceDialogOpen}
         selectedProductIds={selectedProducts}
         onSuccess={() => setSelectedProducts([])}
+      />
+
+      <ProductImagesDialog
+        open={!!imagesProduct}
+        onOpenChange={(open) => !open && setImagesProduct(null)}
+        product={imagesProduct}
       />
     </div>
   );
@@ -559,6 +573,178 @@ function BulkPriceUpdateDialog({ open, onOpenChange, selectedProductIds, onSucce
             </Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ProductImage {
+  id: string;
+  product_id: string;
+  image_url: string;
+  alt_text?: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
+function ProductImagesDialog({ open, onOpenChange, product }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  product: Product | null;
+}) {
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+
+  const { data: imagesData, isLoading } = useQuery<{ images: ProductImage[] }>({
+    queryKey: ['product-images', product?.id],
+    queryFn: async () => {
+      if (!product) return { images: [] };
+      const response = await api.get(`/products/${product.id}/images`);
+      return response.data;
+    },
+    enabled: !!product && open,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('alt_text', product?.name || '');
+
+      const response = await api.post(`/products/${product!.id}/images`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-images', product?.id] });
+      setUploading(false);
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      alert(err.response?.data?.message || 'Failed to upload image');
+      setUploading(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (imageId: string) => {
+      await api.delete(`/products/${product!.id}/images/${imageId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-images', product?.id] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      alert(err.response?.data?.message || 'Failed to delete image');
+    },
+  });
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Only JPEG, PNG, GIF, and WebP images are allowed');
+      return;
+    }
+
+    setUploading(true);
+    uploadMutation.mutate(file);
+  };
+
+  const images = imagesData?.images || [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Product Images - {product?.name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Upload Section */}
+          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+            <input
+              type="file"
+              id="image-upload"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={uploading}
+            />
+            <label htmlFor="image-upload" className="cursor-pointer">
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="h-10 w-10 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {uploading ? 'Uploading...' : 'Click to upload or drag and drop'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPG, GIF, WebP up to 5MB
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Images Gallery */}
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading images...</div>
+          ) : images.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <ImageIcon className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+              <p>No images uploaded yet</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {images.map((image) => (
+                <div
+                  key={image.id}
+                  className="relative group rounded-lg overflow-hidden border border-border hover:border-primary transition-colors"
+                >
+                  <img
+                    src={image.image_url}
+                    alt={image.alt_text || product?.name}
+                    className="w-full h-48 object-cover"
+                  />
+                  {image.is_primary && (
+                    <Badge className="absolute top-2 left-2" variant="default">
+                      Primary
+                    </Badge>
+                  )}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm('Delete this image?')) {
+                          deleteMutation.mutate(image.id);
+                        }
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

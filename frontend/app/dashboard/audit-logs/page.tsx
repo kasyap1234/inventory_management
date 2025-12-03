@@ -100,7 +100,7 @@ export default function AuditLogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Audit Logs
           </h1>
           <p className="text-gray-600 mt-2 text-lg">
@@ -142,7 +142,7 @@ export default function AuditLogsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
+              <div className="text-3xl font-bold text-foreground">{stat.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -151,7 +151,7 @@ export default function AuditLogsPage() {
       {/* Filters */}
       <Card className="border-0 shadow-md">
         <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold text-gray-900">Filters</CardTitle>
+          <CardTitle className="text-lg font-bold text-foreground">Filters</CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -194,7 +194,7 @@ export default function AuditLogsPage() {
       {/* Audit Logs - Dynamic View */}
       <Card className="border-0 shadow-md">
         <CardHeader className="border-b border-gray-100">
-          <CardTitle className="text-lg font-bold text-gray-900">Activity Log</CardTitle>
+          <CardTitle className="text-lg font-bold text-foreground">Activity Log</CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           {isLoading ? (
@@ -212,7 +212,7 @@ export default function AuditLogsPage() {
           ) : (
             <div className="text-center py-16">
               <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No audit logs found</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">No audit logs found</h3>
               <p className="text-gray-500">Audit logs will appear here when actions are performed</p>
             </div>
           )}
@@ -244,7 +244,7 @@ function ListViewLogs({ logs, getActionColor }: { logs: AuditLogEntry[]; getActi
                 >
                   {log.action}
                 </span>
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-foreground">
                   {log.table_name}
                 </span>
                 {log.record_id && (
@@ -305,7 +305,7 @@ function TimelineViewLogs({
                   <Badge className={getActionColor(log.action)}>
                     {log.action}
                   </Badge>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm font-semibold text-foreground">
                     {log.table_name}
                   </span>
                 </div>

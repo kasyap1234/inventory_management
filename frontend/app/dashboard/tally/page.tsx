@@ -16,7 +16,7 @@ export default function TallyPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Tally Integration</h1>
+                <h1 className="text-3xl font-bold text-foreground">Tally Integration</h1>
                 <p className="text-gray-500 mt-1">Export data to Tally or import data from Tally</p>
             </div>
 
@@ -25,7 +25,7 @@ export default function TallyPage() {
                     onClick={() => setActiveTab('export')}
                     className={`px-4 py-2 font-medium transition-colors ${activeTab === 'export'
                             ? 'border-b-2 border-blue-600 text-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
+                            : 'text-gray-600 hover:text-foreground'
                         }`}
                 >
                     <Download className="inline h-4 w-4 mr-2" />
@@ -35,7 +35,7 @@ export default function TallyPage() {
                     onClick={() => setActiveTab('import')}
                     className={`px-4 py-2 font-medium transition-colors ${activeTab === 'import'
                             ? 'border-b-2 border-blue-600 text-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
+                            : 'text-gray-600 hover:text-foreground'
                         }`}
                 >
                     <Upload className="inline h-4 w-4 mr-2" />

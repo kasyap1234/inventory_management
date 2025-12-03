@@ -18,7 +18,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
         <p className="text-gray-500 mt-1">Manage your account and preferences</p>
       </div>
 
@@ -28,7 +28,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'profile'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-gray-600 hover:text-foreground'
           }`}
         >
           <User className="inline h-4 w-4 mr-2" />
@@ -39,7 +39,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'password'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-gray-600 hover:text-foreground'
           }`}
         >
           <Lock className="inline h-4 w-4 mr-2" />
@@ -50,7 +50,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'security'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-gray-600 hover:text-foreground'
           }`}
         >
           <Shield className="inline h-4 w-4 mr-2" />
@@ -61,7 +61,7 @@ export default function SettingsPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'tenant'
               ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              : 'text-gray-600 hover:text-foreground'
           }`}
         >
           <Building className="inline h-4 w-4 mr-2" />

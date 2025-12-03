@@ -300,6 +300,14 @@ func main() {
 	batchSvc := services.NewBatchService(batchRepo, productRepo)
 	batchHandler := handlers.NewBatchHandler(batchSvc)
 
+	// Create stock adjustment repository and handlers
+	stockAdjustmentRepo := repositories.NewStockAdjustmentRepo(pool)
+	stockAdjustmentHandlers := handlers.NewStockAdjustmentHandlers(stockAdjustmentRepo, productRepo, inventoryRepo)
+
+	// Create inventory reservation repository and handlers
+	reservationRepo := repositories.NewInventoryReservationRepo(pool)
+	reservationHandlers := handlers.NewInventoryReservationHandlers(reservationRepo)
+
 	// Create product handlers
 	productHandlers := handlers.NewProductHandlers(productSvc, rbacMiddleware)
 
@@ -872,6 +880,19 @@ func main() {
 	protected.GET("/invoices/unpaid", invoiceHandlers.GetUnpaidInvoices, rbacMiddleware.RequirePermission("invoice.list"))
 	protected.POST("/invoices/:id/generate-pdf", invoiceHandlers.GenerateInvoicePDF, rbacMiddleware.RequirePermission("invoice.generate_pdf"))
 	protected.DELETE("/invoices/:id", invoiceHandlers.DeleteInvoice, rbacMiddleware.RequirePermission("invoice.delete"))
+
+	// Stock Adjustment routes
+	protected.GET("/stock-adjustments", stockAdjustmentHandlers.ListStockAdjustments, rbacMiddleware.RequirePermission("inventory.read"))
+	protected.POST("/stock-adjustments", stockAdjustmentHandlers.CreateStockAdjustment, rbacMiddleware.RequirePermission("inventory.adjust"))
+	protected.GET("/stock-adjustments/:id", stockAdjustmentHandlers.GetStockAdjustment, rbacMiddleware.RequirePermission("inventory.read"))
+	protected.GET("/products/:productId/stock-adjustments", stockAdjustmentHandlers.GetProductStockHistory, rbacMiddleware.RequirePermission("product.read"))
+
+	// Inventory Reservation routes
+	protected.GET("/inventory-reservations", reservationHandlers.ListReservations, rbacMiddleware.RequirePermission("inventory.read"))
+	protected.POST("/inventory-reservations", reservationHandlers.CreateReservation, rbacMiddleware.RequirePermission("inventory.reserve"))
+	protected.GET("/inventory-reservations/:id", reservationHandlers.GetReservation, rbacMiddleware.RequirePermission("inventory.read"))
+	protected.PUT("/inventory-reservations/:id/status", reservationHandlers.UpdateReservationStatus, rbacMiddleware.RequirePermission("inventory.reserve"))
+	protected.DELETE("/inventory-reservations/:id", reservationHandlers.DeleteReservation, rbacMiddleware.RequirePermission("inventory.reserve"))
 
 	// Tally routes
 	protected.POST("/api/tally/export", tallyHandlers.ExportTallyData)

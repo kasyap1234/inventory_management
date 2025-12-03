@@ -34,7 +34,7 @@ export default function RBACManagementPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">RBAC Management</h1>
+        <h1 className="text-3xl font-bold text-foreground">RBAC Management</h1>
         <p className="text-gray-500 mt-1">Manage roles, permissions, and user access</p>
       </div>
 
@@ -343,7 +343,7 @@ function PermissionsView({ searchQuery }: { searchQuery: string }) {
           <div className="space-y-6">
             {Object.entries(groupedPermissions).map(([resource, perms]) => (
               <div key={resource}>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 capitalize">
+                <h3 className="text-lg font-semibold text-foreground mb-3 capitalize">
                   {resource}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -356,7 +356,7 @@ function PermissionsView({ searchQuery }: { searchQuery: string }) {
                         <Badge variant="default">{permission.action}</Badge>
                         <Key className="h-4 w-4 text-gray-400" />
                       </div>
-                      <p className="text-sm font-medium text-gray-900">{permission.name}</p>
+                      <p className="text-sm font-medium text-foreground">{permission.name}</p>
                       {permission.description && (
                         <p className="text-xs text-gray-500 mt-1">{permission.description}</p>
                       )}
@@ -517,7 +517,7 @@ function ManagePermissionsDialog({ open, onOpenChange, role }: {
           <div className="space-y-4">
             {Object.entries(groupedPermissions).map(([resource, perms]) => (
               <div key={resource} className="border border-gray-200 rounded-lg p-4">
-                <h4 className="font-semibold text-sm text-gray-900 mb-3 capitalize">
+                <h4 className="font-semibold text-sm text-foreground mb-3 capitalize">
                   {resource}
                 </h4>
                 <div className="grid grid-cols-2 gap-2">

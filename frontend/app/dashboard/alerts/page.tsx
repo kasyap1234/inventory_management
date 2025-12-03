@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Edit, Play, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Trash2, Edit, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,8 +18,8 @@ interface AlertRule {
     name: string;
     description?: string;
     event_type: string;
-    conditions: any;
-    actions: any[];
+    conditions: Record<string, unknown>;
+    actions: Array<Record<string, unknown>>;
     is_active: boolean;
     created_at: string;
 }
@@ -45,8 +45,9 @@ export default function AlertRulesPage() {
             toast.success('Alert rule deleted');
             queryClient.invalidateQueries({ queryKey: ['alert-rules'] });
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to delete rule');
+        onError: (error: unknown) => {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Failed to delete rule');
         },
     });
 
@@ -54,7 +55,7 @@ export default function AlertRulesPage() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Alert Rules</h1>
+                    <h1 className="text-3xl font-bold text-foreground">Alert Rules</h1>
                     <p className="text-gray-500 mt-1">Configure automated alerts and notifications</p>
                 </div>
                 <Button onClick={() => setIsCreateDialogOpen(true)}>
@@ -124,7 +125,7 @@ export default function AlertRulesPage() {
             ) : (
                 <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                     <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-semibold text-gray-900">No alert rules</h3>
+                    <h3 className="mt-2 text-sm font-semibold text-foreground">No alert rules</h3>
                     <p className="mt-1 text-sm text-gray-500">Get started by creating a new alert rule.</p>
                     <div className="mt-6">
                         <Button onClick={() => setIsCreateDialogOpen(true)}>
@@ -167,7 +168,7 @@ function RuleDialog({
     });
 
     const saveMutation = useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: typeof formData) => {
             const payload = {
                 ...data,
                 conditions: JSON.parse(data.conditions),
@@ -185,8 +186,9 @@ function RuleDialog({
             queryClient.invalidateQueries({ queryKey: ['alert-rules'] });
             onOpenChange(false);
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to save rule');
+        onError: (error: unknown) => {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Failed to save rule');
         },
     });
 
@@ -196,7 +198,7 @@ function RuleDialog({
             JSON.parse(formData.conditions);
             JSON.parse(formData.actions);
             saveMutation.mutate(formData);
-        } catch (e) {
+        } catch {
             toast.error('Invalid JSON in conditions or actions');
         }
     };

@@ -101,7 +101,7 @@ export default function SubscriptionsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Subscriptions
           </h1>
           <p className="text-gray-600 mt-2 text-lg">
@@ -143,7 +143,7 @@ export default function SubscriptionsPage() {
             <Card key={subscription.id} className="border-0 shadow-md hover:shadow-lg transition-all">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-bold text-gray-900">
+                  <CardTitle className="text-xl font-bold text-foreground">
                     {subscription.plan_name || 'Subscription'}
                   </CardTitle>
                   <span
@@ -159,7 +159,7 @@ export default function SubscriptionsPage() {
                 <div className="space-y-4">
                   {/* Price */}
                   <div>
-                    <div className="text-3xl font-bold text-gray-900">
+                    <div className="text-3xl font-bold text-foreground">
                       {amountDisplay}
                       <span className="text-lg font-normal text-gray-500">
                         /{intervalLabel}
@@ -171,14 +171,14 @@ export default function SubscriptionsPage() {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Start Date:</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-foreground">
                         {format(new Date(subscription.start_date), 'MMM dd, yyyy')}
                       </span>
                     </div>
                     {subscription.end_date && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">End Date:</span>
-                        <span className="font-medium text-gray-900">
+                        <span className="font-medium text-foreground">
                           {format(new Date(subscription.end_date), 'MMM dd, yyyy')}
                         </span>
                       </div>
@@ -186,13 +186,13 @@ export default function SubscriptionsPage() {
                     {subscription.currency && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Currency:</span>
-                        <span className="font-medium text-gray-900">{subscription.currency}</span>
+                        <span className="font-medium text-foreground">{subscription.currency}</span>
                       </div>
                     )}
                     {subscription.razorpay_subscription_id && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Gateway ID:</span>
-                        <span className="font-medium text-gray-900">
+                        <span className="font-medium text-foreground">
                           {subscription.razorpay_subscription_id}
                         </span>
                       </div>
@@ -267,7 +267,7 @@ export default function SubscriptionsPage() {
             <CardContent className="py-16">
               <div className="text-center">
                 <CreditCard className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   No active subscriptions
                 </h3>
                 <p className="text-gray-500 mb-6">

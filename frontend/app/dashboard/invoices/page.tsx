@@ -184,7 +184,7 @@ export default function InvoicesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
+          <h1 className="text-3xl font-bold text-foreground">Invoices</h1>
           <p className="text-gray-500 mt-1">Manage billing and invoices</p>
           {selectedInvoices.length > 0 && (
             <p className="text-blue-600 text-sm mt-1">
@@ -765,7 +765,7 @@ function BulkInvoiceGenerateDialog({
                         />
                         <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
                           <div>
-                            <div className="font-medium text-gray-900">
+                            <div className="font-medium text-foreground">
                               Order #{order.id.substring(0, 8)}...
                             </div>
                             <div className="text-xs text-gray-500">
@@ -781,7 +781,7 @@ function BulkInvoiceGenerateDialog({
                             <div className="text-xs text-gray-500">GST: {formatCurrency(gstAmount)}</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-semibold text-gray-900">
+                            <div className="font-semibold text-foreground">
                               {formatCurrency(total)}
                             </div>
                             <Badge variant={order.status === 'delivered' ? 'success' : 'warning'}>

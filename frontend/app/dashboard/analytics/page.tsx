@@ -23,13 +23,9 @@ import toast from 'react-hot-toast';
 import {
   analyticsService,
   categoryService,
-  type AnalyticsDashboard,
-  type AnalyticsSalesTrends,
   type ProductSales,
   type LowStockItem,
   type OrderStatusEntry,
-  type RevenueByCategory,
-  type InventoryValuation,
   type CombinedAnalyticsData,
 } from '@/lib/services';
 import { formatCurrency } from '@/lib/utils';
@@ -49,7 +45,6 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import {
-  ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
@@ -62,30 +57,7 @@ type CategoryOption = {
   name: string;
 };
 
-const SALES_TREND_CHART_CONFIG: ChartConfig = {
-  revenue: {
-    label: 'Revenue',
-    color: 'hsl(217 91% 60%)',
-  },
-  orders: {
-    label: 'Orders',
-    color: 'hsl(24 95% 53%)',
-  },
-};
 
-const TOP_PRODUCTS_CHART_CONFIG: ChartConfig = {
-  unitsSold: {
-    label: 'Units Sold',
-    color: 'hsl(217 83% 53%)',
-  },
-};
-
-const REVENUE_BY_CATEGORY_CHART_CONFIG: ChartConfig = {
-  totalRevenue: {
-    label: 'Revenue',
-    color: 'hsl(142 71% 45%)',
-  },
-};
 
 export default function AnalyticsPage() {
   const [refreshing, setRefreshing] = useState(false);
@@ -115,10 +87,7 @@ export default function AnalyticsPage() {
   // Single loading state for all analytics data
   const dashboardLoading = isLoadingCombined;
   const salesTrendLoading = isLoadingCombined;
-  const topProductsLoading = isLoadingCombined;
   const lowStockLoading = isLoadingCombined;
-  const orderStatusLoading = isLoadingCombined;
-  const revenueByCategoryLoading = isLoadingCombined;
   const inventoryValuationLoading = isLoadingCombined;
 
   const { data: categoriesData } = useQuery<CategoryOption[]>({
@@ -127,9 +96,10 @@ export default function AnalyticsPage() {
       const response = await categoryService.list();
       const raw = Array.isArray(response.data?.categories) ? response.data.categories : [];
       return raw
-        .filter((category: any): category is { id: string; name: string } =>
-          typeof category?.id === 'string' && typeof category?.name === 'string'
-        )
+        .filter((category: unknown): category is { id: string; name: string } => {
+          const cat = category as { id?: unknown; name?: unknown };
+          return typeof cat?.id === 'string' && typeof cat?.name === 'string';
+        })
         .map((category: { id: string; name: string }) => ({ id: category.id, name: category.name }));
     },
     staleTime: 5 * 60 * 1000,
@@ -153,29 +123,7 @@ export default function AnalyticsPage() {
     }));
   }, [salesTrendsData]);
 
-  const revenueByCategoryChartData = useMemo((): Array<{
-    categoryId: string;
-    label: string;
-    totalRevenue: number;
-  }> => {
-    if (!revenueByCategoryData?.length) {
-      return [];
-    }
 
-    const categoryMap = new Map<string, string>(
-      (categoriesData ?? []).map((category) => [category.id, category.name])
-    );
-
-    return revenueByCategoryData.map((item) => ({
-      categoryId: item.categoryId,
-      label:
-        categoryMap.get(item.categoryId) ??
-        (item.categoryId === 'uncategorized'
-          ? 'Uncategorized'
-          : `Category ${item.categoryId.slice(0, 8)}`),
-      totalRevenue: item.totalRevenue,
-    }));
-  }, [revenueByCategoryData, categoriesData]);
 
   const revenueChange = useMemo(() => computePercentageChange(salesTrendChartData.map((trend) => trend.revenue)), [
     salesTrendChartData,
@@ -258,21 +206,6 @@ export default function AnalyticsPage() {
   const topProducts: ProductSales[] = useMemo(() => topProductsData ?? [], [topProductsData]);
   const lowStockItems: LowStockItem[] = useMemo(() => lowStockData ?? [], [lowStockData]);
   const orderStatus: OrderStatusEntry[] = useMemo(() => orderStatusData ?? [], [orderStatusData]);
-  const orderStatusChartConfig = useMemo<ChartConfig>(() => {
-    if (!orderStatus.length) {
-      return {};
-    }
-
-    return orderStatus.reduce<ChartConfig>((acc, item, index) => {
-      const statusKey = item.status ?? `status-${index}`;
-      const readable = statusKey.replace(/_/g, ' ');
-      acc[statusKey] = {
-        label: readable.charAt(0).toUpperCase() + readable.slice(1),
-        color: STATUS_COLORS[item.status ?? 'default'] ?? STATUS_COLORS.default,
-      };
-      return acc;
-    }, {});
-  }, [orderStatus]);
 
   const handleExport = async (type: 'csv' | 'pdf', report: 'sales' | 'inventory' | 'low-stock') => {
     try {
