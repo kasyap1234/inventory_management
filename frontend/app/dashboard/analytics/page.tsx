@@ -3,16 +3,23 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  TrendingUp, 
-  DollarSign, 
-  Package, 
+import {
+  TrendingUp,
+  DollarSign,
+  Package,
   AlertTriangle,
   BarChart3,
   PieChart as PieChartIcon,
   RefreshCw,
-  LineChart as LineChartIcon
+  LineChart as LineChartIcon,
+  Download
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import toast from 'react-hot-toast';
 import {
   analyticsService,
   categoryService,
@@ -267,6 +274,23 @@ export default function AnalyticsPage() {
     }, {});
   }, [orderStatus]);
 
+  const handleExport = async (type: 'csv' | 'pdf', report: 'sales' | 'inventory' | 'low-stock') => {
+    try {
+      const blob = await analyticsService.exportAnalytics({ type, report });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${report}_report_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      toast.success(`${report} report exported successfully`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export report');
+    }
+  };
+
   return (
     <div className="space-y-8 p-6">
       <div className="flex items-center justify-between border-b border-border pb-4">
@@ -274,35 +298,64 @@ export default function AnalyticsPage() {
           <h1 className="text-4xl font-bold tracking-tighter text-foreground uppercase">Analytics & Reports</h1>
           <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">BUSINESS INTELLIGENCE</p>
         </div>
-        <Button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="rounded-none font-mono uppercase tracking-wider"
-          variant="outline"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          REFRESH DATA
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu
+            trigger={
+              <Button variant="outline" className="rounded-none font-mono uppercase tracking-wider">
+                <Download className="h-4 w-4 mr-2" />
+                EXPORT
+              </Button>
+            }
+          >
+            <DropdownMenuItem onSelect={() => handleExport('csv', 'sales')}>
+              Sales Report (CSV)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleExport('pdf', 'sales')}>
+              Sales Report (PDF)
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => handleExport('csv', 'inventory')}>
+              Inventory Valuation (CSV)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleExport('pdf', 'inventory')}>
+              Inventory Valuation (PDF)
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => handleExport('csv', 'low-stock')}>
+              Low Stock Report (CSV)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleExport('pdf', 'low-stock')}>
+              Low Stock Report (PDF)
+            </DropdownMenuItem>
+          </DropdownMenu>
+          <Button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="rounded-none font-mono uppercase tracking-wider"
+            variant="outline"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            REFRESH DATA
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card, index) => (
-          <Card key={index} className={`rounded-none border-l-4 ${
-            index === 0 ? 'border-l-primary' :
+          <Card key={index} className={`rounded-none border-l-4 ${index === 0 ? 'border-l-primary' :
             index === 1 ? 'border-l-purple-500' :
-            index === 2 ? 'border-l-emerald-500' :
-            'border-l-amber-500'
-          }`}>
+              index === 2 ? 'border-l-emerald-500' :
+                'border-l-amber-500'
+            }`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                 {card.title}
               </CardTitle>
-              <card.icon className={`h-4 w-4 ${
-                index === 0 ? 'text-primary' :
+              <card.icon className={`h-4 w-4 ${index === 0 ? 'text-primary' :
                 index === 1 ? 'text-purple-500' :
-                index === 2 ? 'text-emerald-500' :
-                'text-amber-500'
-              }`} />
+                  index === 2 ? 'text-emerald-500' :
+                    'text-amber-500'
+                }`} />
             </CardHeader>
             <CardContent>
               {card.isLoading ? (
@@ -340,24 +393,24 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={salesTrendChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis 
-                      dataKey="label" 
-                      stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12} 
-                      tickLine={false} 
+                    <XAxis
+                      dataKey="label"
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                      tickLine={false}
                       axisLine={false}
                       fontFamily="var(--font-mono)"
                     />
-                    <YAxis 
-                      stroke="hsl(var(--muted-foreground))" 
-                      fontSize={12} 
-                      tickLine={false} 
+                    <YAxis
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                      tickLine={false}
                       axisLine={false}
                       tickFormatter={(value) => `$${value}`}
                       fontFamily="var(--font-mono)"
                     />
-                    <ChartTooltip 
-                      content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />} 
+                    <ChartTooltip
+                      content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />}
                     />
                     <Line
                       type="monotone"
@@ -404,27 +457,27 @@ export default function AnalyticsPage() {
                     paddingAngle={2}
                   >
                     {orderStatus.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
+                      <Cell
+                        key={`cell-${index}`}
                         fill={
                           index === 0 ? 'hsl(var(--primary))' :
-                          index === 1 ? '#a855f7' :
-                          index === 2 ? '#10b981' :
-                          index === 3 ? '#f59e0b' :
-                          '#ef4444'
-                        } 
+                            index === 1 ? '#a855f7' :
+                              index === 2 ? '#10b981' :
+                                index === 3 ? '#f59e0b' :
+                                  '#ef4444'
+                        }
                         stroke="hsl(var(--background))"
                         strokeWidth={2}
                       />
                     ))}
                   </Pie>
-                  <ChartTooltip 
-                    content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />} 
+                  <ChartTooltip
+                    content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />}
                   />
-                  <ChartLegend 
-                    content={<ChartLegendContent className="font-mono text-xs uppercase" />} 
-                    verticalAlign="bottom" 
-                    height={36} 
+                  <ChartLegend
+                    content={<ChartLegendContent className="font-mono text-xs uppercase" />}
+                    verticalAlign="bottom"
+                    height={36}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -447,19 +500,19 @@ export default function AnalyticsPage() {
                 <BarChart data={topProducts} layout="vertical" margin={{ left: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                   <XAxis type="number" hide />
-                  <YAxis 
-                    dataKey="productName" 
-                    type="category" 
+                  <YAxis
+                    dataKey="productName"
+                    type="category"
                     width={100}
                     tick={{ fontSize: 10, fontFamily: 'var(--font-mono)', fill: 'hsl(var(--muted-foreground))' }}
                     interval={0}
                   />
-                  <ChartTooltip 
-                    content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />} 
+                  <ChartTooltip
+                    content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />}
                   />
-                  <Bar 
-                    dataKey="unitsSold" 
-                    fill="hsl(var(--primary))" 
+                  <Bar
+                    dataKey="unitsSold"
+                    fill="hsl(var(--primary))"
                     radius={[0, 4, 4, 0]}
                     barSize={20}
                   />

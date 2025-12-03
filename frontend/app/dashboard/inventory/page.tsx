@@ -2,13 +2,21 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, AlertTriangle, PlusCircle, MinusCircle, Package } from 'lucide-react';
+import { Plus, Search, Edit, AlertTriangle, PlusCircle, MinusCircle, Package, Scan } from 'lucide-react';
+import { BarcodeScanner } from '@/components/inventory/BarcodeScanner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { BulkAdjustmentDialog } from '@/components/inventory/BulkAdjustmentDialog';
+import { toast } from 'react-hot-toast';
 import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
 import api from '@/lib/api';
 import { Inventory, Product, Warehouse } from '@/types';
@@ -21,22 +29,57 @@ type InventoryHistoryEntry = {
   id: string;
   action: string;
   created_at: string;
-  new_values?: Record<string, any>;
-  old_values?: Record<string, any>;
+  new_values?: Record<string, unknown>;
+  old_values?: Record<string, unknown>;
   changed_by?: string | null;
 };
 
 export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingInventory, setEditingInventory] = useState<Inventory | null>(null);
   const [adjustingInventory, setAdjustingInventory] = useState<Inventory | null>(null);
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, string | number | string[] | undefined>>({});
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isBulkAdjustmentOpen, setIsBulkAdjustmentOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && inventory?.inventories) {
+      setSelectedItems(new Set(inventory.inventories.map((item) => item.id)));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleSelectItem = (id: string, checked: boolean) => {
+    const newSelected = new Set(selectedItems);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await api.post('/inventory/bulk-delete', { inventory_ids: ids });
+    },
+    onSuccess: () => {
+      toast.success('Selected items deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      setSelectedItems(new Set());
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete items');
+    },
+  });
 
   // Build query params for server-side filtering
   const buildQueryParams = () => {
-    const params: Record<string, any> = {
+    const params: Record<string, string | number> = {
       limit: 100,
     };
 
@@ -45,19 +88,19 @@ export default function InventoryPage() {
     }
 
     if (advancedFilters.warehouse_id) {
-      params.warehouse_id = advancedFilters.warehouse_id;
+      params.warehouse_id = String(advancedFilters.warehouse_id);
     }
 
     if (advancedFilters.product_id) {
-      params.product_id = advancedFilters.product_id;
+      params.product_id = String(advancedFilters.product_id);
     }
 
     if (advancedFilters.min_quantity) {
-      params.min_quantity = parseInt(advancedFilters.min_quantity, 10);
+      params.min_quantity = Number(advancedFilters.min_quantity);
     }
 
     if (advancedFilters.max_quantity) {
-      params.max_quantity = parseInt(advancedFilters.max_quantity, 10);
+      params.max_quantity = Number(advancedFilters.max_quantity);
     }
 
     return params;
@@ -99,13 +142,14 @@ export default function InventoryPage() {
 
   // Apply client-side status filtering only (since backend doesn't support it yet)
   const filteredInventory = inventory?.inventories?.filter(item => {
-    if (advancedFilters.statuses && advancedFilters.statuses.length > 0) {
+    const statuses = advancedFilters.statuses as string[] | undefined;
+    if (statuses && statuses.length > 0) {
       const status = item.quantity === 0
         ? 'out_of_stock'
         : item.quantity < 10
           ? 'low_stock'
           : 'in_stock';
-      if (!advancedFilters.statuses.includes(status)) {
+      if (!statuses.includes(status)) {
         return false;
       }
     }
@@ -119,10 +163,37 @@ export default function InventoryPage() {
           <h1 className="text-4xl font-bold tracking-tighter text-foreground uppercase">Inventory</h1>
           <p className="text-xs font-mono text-muted-foreground mt-1 uppercase tracking-widest">STOCK CONTROL CENTER</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)} className="rounded-none font-mono uppercase tracking-wider">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Stock
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsScannerOpen(true)} variant="outline">
+            <Scan className="mr-2 h-4 w-4" />
+            Scan Barcode
+          </Button>
+          {selectedItems.size > 0 && (
+            <DropdownMenu trigger={
+              <Button variant="outline">
+                Bulk Actions ({selectedItems.size})
+              </Button>
+            }>
+              <DropdownMenuItem onSelect={() => setIsBulkAdjustmentOpen(true)}>
+                Adjust Stock
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onSelect={() => {
+                  if (confirm('Are you sure you want to delete selected items?')) {
+                    bulkDeleteMutation.mutate(Array.from(selectedItems));
+                  }
+                }}
+              >
+                Delete Selected
+              </DropdownMenuItem>
+            </DropdownMenu>
+          )}
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Stock
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -239,6 +310,12 @@ export default function InventoryPage() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border">
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={inventory?.inventories?.length ? selectedItems.size === inventory.inventories.length : false}
+                      onCheckedChange={(checked: boolean) => handleSelectAll(checked)}
+                    />
+                  </TableHead>
                   <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Product</TableHead>
                   <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Warehouse</TableHead>
                   <TableHead className="font-mono text-xs uppercase tracking-wider h-10">Quantity</TableHead>
@@ -254,6 +331,12 @@ export default function InventoryPage() {
 
                   return (
                     <TableRow key={item.id} className="border-border hover:bg-muted/20 transition-colors group">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.has(item.id)}
+                          onCheckedChange={(checked: boolean) => handleSelectItem(item.id, checked)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium font-mono text-sm">{item.product_name || 'Unknown'}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">{item.warehouse_name || 'Unknown'}</TableCell>
                       <TableCell>
@@ -324,6 +407,22 @@ export default function InventoryPage() {
           if (!open) setAdjustingInventory(null);
         }}
         inventory={adjustingInventory}
+      />
+
+      <BarcodeScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScan={(code) => {
+          setSearchQuery(code);
+          setIsScannerOpen(false);
+        }}
+      />
+
+      <BulkAdjustmentDialog
+        open={isBulkAdjustmentOpen}
+        onOpenChange={setIsBulkAdjustmentOpen}
+        selectedItems={inventory?.inventories?.filter(item => selectedItems.has(item.id)) || []}
+        onSuccess={() => setSelectedItems(new Set())}
       />
     </div>
   );
@@ -474,7 +573,8 @@ function StockAdjustmentDialog({
       setAdjustment(0);
       setReason('');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
+      // @ts-ignore - axios error structure
       alert(error.response?.data?.error?.message || 'Failed to adjust stock');
     },
   });
@@ -614,10 +714,10 @@ function StockAdjustmentDialog({
                 {history.map((entry) => {
                   const newValues = entry.new_values || {};
                   const oldValues = entry.old_values || {};
-                  const change = newValues.quantity_change ?? 0;
-                  const oldQty = oldValues.quantity;
-                  const newQty = newValues.quantity;
-                  const reasonText = newValues.reason;
+                  const change = (newValues.quantity_change as number) ?? 0;
+                  const oldQty = oldValues.quantity as number | undefined;
+                  const newQty = newValues.quantity as number | undefined;
+                  const reasonText = newValues.reason as string | undefined;
 
                   return (
                     <div key={entry.id} className="p-3 text-sm">

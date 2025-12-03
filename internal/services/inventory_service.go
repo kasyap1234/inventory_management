@@ -35,6 +35,8 @@ type InventoryRepository interface {
 	GetByWarehouseAndProduct(ctx context.Context, tenantID uuid.UUID, warehouseID uuid.UUID, productID uuid.UUID) (*models.Inventory, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.InventorySearchFilter) ([]*models.Inventory, error)
 	Transfer(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, fromWarehouseID uuid.UUID, toWarehouseID uuid.UUID, quantity int) error
+	BulkAdjust(ctx context.Context, tenantID uuid.UUID, adjustments []repositories.BulkAdjustmentItem) error
+	BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error
 }
 
 // InventoryRecord represents current inventory levels (alias for models.Inventory)
@@ -55,6 +57,8 @@ type InventoryService interface {
 	Transfer(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, fromWarehouseID uuid.UUID, toWarehouseID uuid.UUID, quantity int) error
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.InventorySearchFilter) ([]*InventoryRecord, error)
 	GetInventoryHistory(ctx context.Context, tenantID uuid.UUID, inventoryID uuid.UUID, limit, offset int) ([]*models.AuditLog, error)
+	BulkAdjustStock(ctx context.Context, tenantID uuid.UUID, adjustments []repositories.BulkAdjustmentItem) error
+	BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error
 	// Legacy methods for handlers
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*InventoryRecord, error)
 	Create(ctx context.Context, inventory *InventoryRecord) error
@@ -151,8 +155,6 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 	return auditLogs[start:end], nil
 }
 
-
-
 // ReserveStock reserves stock for a specific reservation
 // Uses SELECT FOR UPDATE to prevent race conditions during concurrent reservations
 func (s *inventoryService) ReserveStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int, reservationID string) error {
@@ -246,9 +248,9 @@ func (s *inventoryService) ReserveStock(ctx context.Context, tenantID uuid.UUID,
 	}
 
 	s.logger.InfoWithContext(ctx, "Stock reserved successfully", map[string]interface{}{
-		"product_id":     productID,
-		"quantity":       quantity,
-		"reservation_id": reservationID,
+		"product_id":      productID,
+		"quantity":        quantity,
+		"reservation_id":  reservationID,
 		"available_after": availableStock - quantity,
 	})
 
@@ -556,7 +558,7 @@ func (s *inventoryService) checkLowStockAlert(ctx context.Context, tenantID uuid
 			"alert_type":      "reorder",
 		})
 	}
-}// Legacy methods implementation for InventoryService
+} // Legacy methods implementation for InventoryService
 
 // List retrieves all inventory records with pagination
 func (s *inventoryService) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*InventoryRecord, error) {
@@ -596,6 +598,28 @@ func (s *inventoryService) Update(ctx context.Context, inventory *InventoryRecor
 func (s *inventoryService) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	if err := s.repository.Delete(ctx, tenantID, id); err != nil {
 		return fmt.Errorf("failed to delete inventory: %w", err)
+	}
+	return nil
+}
+
+// BulkAdjustStock performs multiple stock adjustments
+func (s *inventoryService) BulkAdjustStock(ctx context.Context, tenantID uuid.UUID, adjustments []repositories.BulkAdjustmentItem) error {
+	if err := s.repository.BulkAdjust(ctx, tenantID, adjustments); err != nil {
+		s.logger.ErrorWithContext(ctx, "Failed to bulk adjust stock", err, map[string]interface{}{
+			"count": len(adjustments),
+		})
+		return fmt.Errorf("failed to bulk adjust stock: %w", err)
+	}
+	return nil
+}
+
+// BulkDelete deletes multiple inventory records
+func (s *inventoryService) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	if err := s.repository.BulkDelete(ctx, tenantID, ids); err != nil {
+		s.logger.ErrorWithContext(ctx, "Failed to bulk delete inventory", err, map[string]interface{}{
+			"count": len(ids),
+		})
+		return fmt.Errorf("failed to bulk delete inventory: %w", err)
 	}
 	return nil
 }

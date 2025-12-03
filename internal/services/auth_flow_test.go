@@ -422,6 +422,19 @@ func (m *MockPermissionRepo) GetPermissionByName(ctx context.Context, name strin
 	return args.Get(0).(*models.RBACPermission), args.Error(1)
 }
 
+func (m *MockPermissionRepo) Create(ctx context.Context, permission *models.Permission) error {
+	args := m.Called(ctx, permission)
+	return args.Error(0)
+}
+
+func (m *MockPermissionRepo) GetFullPermissionByName(ctx context.Context, name string) (*models.Permission, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Permission), args.Error(1)
+}
+
 // TestAuthService_Signup_AdminRole verifies that the first user in a tenant gets the admin role
 func TestAuthService_Signup_AdminRole(t *testing.T) {
 	// Setup mocks

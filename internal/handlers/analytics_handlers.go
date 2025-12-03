@@ -4,10 +4,14 @@ import (
 	"agromart2/internal/analytics"
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
+	"encoding/csv"
+	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/jung-kurt/gofpdf"
 	"github.com/labstack/echo/v4"
 )
 
@@ -482,15 +486,15 @@ func (h *AnalyticsHandlers) RefreshAnalytics(c echo.Context) error {
 
 // CombinedAnalyticsResponse holds all analytics data in a single response
 type CombinedAnalyticsResponse struct {
-	Dashboard           interface{} `json:"dashboard"`
-	SalesTrends         interface{} `json:"sales_trends"`
-	TopProducts         interface{} `json:"top_products"`
-	LowStock            interface{} `json:"low_stock"`
-	InventoryValuation  interface{} `json:"inventory_valuation"`
-	RevenueByCategory   interface{} `json:"revenue_by_category"`
-	OrderStatus         interface{} `json:"order_status"`
-	GSTTotals           interface{} `json:"gst_totals"`
-	FetchedAt           time.Time   `json:"fetched_at"`
+	Dashboard          interface{} `json:"dashboard"`
+	SalesTrends        interface{} `json:"sales_trends"`
+	TopProducts        interface{} `json:"top_products"`
+	LowStock           interface{} `json:"low_stock"`
+	InventoryValuation interface{} `json:"inventory_valuation"`
+	RevenueByCategory  interface{} `json:"revenue_by_category"`
+	OrderStatus        interface{} `json:"order_status"`
+	GSTTotals          interface{} `json:"gst_totals"`
+	FetchedAt          time.Time   `json:"fetched_at"`
 }
 
 // GetCombinedAnalytics handles GET /analytics/combined
@@ -516,7 +520,7 @@ func (h *AnalyticsHandlers) GetCombinedAnalytics(c echo.Context) error {
 	// Parse optional parameters
 	startDateStr := c.QueryParam("start_date")
 	endDateStr := c.QueryParam("end_date")
-	
+
 	endDate := time.Now()
 	startDate := endDate.AddDate(0, 0, -30) // Default to last 30 days
 
@@ -664,4 +668,146 @@ func (h *AnalyticsHandlers) GetCombinedAnalytics(c echo.Context) error {
 	wg.Wait()
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// ExportAnalytics handles GET /analytics/export
+// Exports analytics data in CSV or PDF format
+func (h *AnalyticsHandlers) ExportAnalytics(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// Check RBAC permission
+	err := h.rbacMiddleware.RequirePermission("analytics.read")(func(c echo.Context) error {
+		return nil
+	})(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to export analytics")
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	exportType := c.QueryParam("type")   // csv, pdf
+	reportName := c.QueryParam("report") // sales, inventory, low-stock
+
+	if exportType != "csv" && exportType != "pdf" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid export type (supported: csv, pdf)")
+	}
+
+	var data [][]string
+	var title string
+
+	switch reportName {
+	case "sales":
+		title = "Sales Trends Report"
+		// Fetch sales trends
+		startDate := time.Now().AddDate(0, 0, -30)
+		endDate := time.Now()
+		if s := c.QueryParam("start_date"); s != "" {
+			if t, err := time.Parse("2006-01-02", s); err == nil {
+				startDate = t
+			}
+		}
+		if e := c.QueryParam("end_date"); e != "" {
+			if t, err := time.Parse("2006-01-02", e); err == nil {
+				endDate = t
+			}
+		}
+
+		trends, err := h.analyticsSvc.GetSalesTrends(ctx, tenantID, startDate, endDate)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch sales data: "+err.Error())
+		}
+
+		data = append(data, []string{"Date", "Orders", "Sales Amount"})
+		for _, t := range trends {
+			data = append(data, []string{
+				t.Date.Format("2006-01-02"),
+				strconv.Itoa(t.OrderCount),
+				fmt.Sprintf("%.2f", t.SalesAmount),
+			})
+		}
+
+	case "inventory":
+		title = "Inventory Valuation Report"
+		valuation, err := h.analyticsSvc.CalculateInventoryValuation(ctx, tenantID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch inventory data: "+err.Error())
+		}
+
+		data = append(data, []string{"Category", "Value"})
+		data = append(data, []string{"Total Inventory Value", fmt.Sprintf("%.2f", valuation.TotalValue)})
+		data = append(data, []string{"Total Items", strconv.Itoa(valuation.TotalItems)})
+		data = append(data, []string{"Total Quantity", strconv.Itoa(valuation.TotalQuantity)})
+		data = append(data, []string{""})
+		data = append(data, []string{"Warehouse Breakdown"})
+		for w, v := range valuation.ByWarehouse {
+			data = append(data, []string{w, fmt.Sprintf("%.2f", v)})
+		}
+
+	case "low-stock":
+		title = "Low Stock Report"
+		threshold := 10
+		if t := c.QueryParam("threshold"); t != "" {
+			if val, err := strconv.Atoi(t); err == nil {
+				threshold = val
+			}
+		}
+
+		report, err := h.analyticsSvc.GetLowStockReport(ctx, tenantID, threshold)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch low stock data: "+err.Error())
+		}
+
+		data = append(data, []string{"Product", "Warehouse", "Current Stock", "Threshold", "Stock Value"})
+		for _, item := range report {
+			data = append(data, []string{
+				item.ProductName,
+				item.WarehouseID.String(), // Ideally fetch name, but ID is what we have in struct for now (wait, struct has WarehouseID, but maybe service fetches name?)
+				strconv.Itoa(item.CurrentStock),
+				strconv.Itoa(item.Threshold),
+				fmt.Sprintf("%.2f", item.StockValue),
+			})
+		}
+
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid report name (supported: sales, inventory, low-stock)")
+	}
+
+	if exportType == "csv" {
+		c.Response().Header().Set("Content-Type", "text/csv")
+		c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s_%s.csv", reportName, time.Now().Format("20060102")))
+
+		w := csv.NewWriter(c.Response().Writer)
+		if err := w.WriteAll(data); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to write CSV")
+		}
+		return nil
+	} else {
+		// PDF
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.AddPage()
+		pdf.SetFont("Arial", "B", 16)
+		pdf.Cell(40, 10, title)
+		pdf.Ln(12)
+
+		pdf.SetFont("Arial", "", 12)
+		pdf.Cell(0, 10, fmt.Sprintf("Generated on: %s", time.Now().Format("2006-01-02 15:04:05")))
+		pdf.Ln(12)
+
+		// Simple table
+		pdf.SetFont("Arial", "", 10)
+		for _, row := range data {
+			for _, col := range row {
+				pdf.CellFormat(40, 7, col, "1", 0, "", false, 0, "")
+			}
+			pdf.Ln(-1)
+		}
+
+		c.Response().Header().Set("Content-Type", "application/pdf")
+		c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s_%s.pdf", reportName, time.Now().Format("20060102")))
+
+		return pdf.Output(c.Response().Writer)
+	}
 }

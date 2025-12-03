@@ -110,7 +110,7 @@ func (a *InventoryAdapter) UpdateStock(ctx context.Context, tenantID uuid.UUID, 
 	if len(inventories) == 0 {
 		return fmt.Errorf("no inventory found for product")
 	}
-	
+
 	// Update the first inventory record
 	inventory := inventories[0]
 	inventory.Quantity = quantity
@@ -127,7 +127,7 @@ func (a *InventoryAdapter) UpdateReservedQuantity(ctx context.Context, tenantID 
 	if len(inventories) == 0 {
 		return fmt.Errorf("no inventory found for product")
 	}
-	
+
 	// Update the first inventory record's reserved quantity
 	inventory := inventories[0]
 	inventory.ReservedQuantity = reservedQuantity
@@ -227,4 +227,12 @@ func (a *InventoryAdapter) GetByProduct(ctx context.Context, tenantID uuid.UUID,
 
 func (a *InventoryAdapter) GetByProductForUpdate(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*models.Inventory, error) {
 	return a.repo.GetByProductForUpdate(ctx, tenantID, productID)
+}
+
+func (a *InventoryAdapter) BulkAdjust(ctx context.Context, tenantID uuid.UUID, adjustments []BulkAdjustmentItem) error {
+	return a.repo.BulkAdjust(ctx, tenantID, adjustments)
+}
+
+func (a *InventoryAdapter) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	return a.repo.BulkDelete(ctx, tenantID, ids)
 }

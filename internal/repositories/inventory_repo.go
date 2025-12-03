@@ -30,13 +30,23 @@ type InventoryRepository interface {
 	Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error
 	// GetAnalyticsAggregates returns aggregated analytics data using SQL for performance
 	GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*InventoryAnalyticsAggregates, error)
+	BulkAdjust(ctx context.Context, tenantID uuid.UUID, adjustments []BulkAdjustmentItem) error
+	BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error
+}
+
+// BulkAdjustmentItem represents a single item in a bulk adjustment operation
+type BulkAdjustmentItem struct {
+	ProductID  uuid.UUID
+	Quantity   int
+	Reason     string
+	AdjustedBy uuid.UUID
 }
 
 // InventoryAnalyticsAggregates holds pre-computed aggregates for analytics
 type InventoryAnalyticsAggregates struct {
-	TotalStockValue   float64
-	LowStockCount     int
-	TotalItemsCount   int
+	TotalStockValue float64
+	LowStockCount   int
+	TotalItemsCount int
 }
 
 type inventoryRepo struct {
@@ -446,4 +456,86 @@ func (r *inventoryRepo) GetAnalyticsAggregates(ctx context.Context, tenantID uui
 	}
 
 	return aggregates, nil
+}
+
+// BulkAdjust performs multiple stock adjustments in a single transaction
+func (r *inventoryRepo) BulkAdjust(ctx context.Context, tenantID uuid.UUID, adjustments []BulkAdjustmentItem) error {
+	if len(adjustments) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, adj := range adjustments {
+		// Get current stock with lock
+		var currentQuantity, reservedQuantity int
+		err := tx.QueryRow(ctx, `
+			SELECT quantity, reserved_quantity 
+			FROM inventory 
+			WHERE tenant_id = $1 AND product_id = $2 
+			FOR UPDATE
+		`, tenantID, adj.ProductID).Scan(&currentQuantity, &reservedQuantity)
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("product %s not found in inventory", adj.ProductID)
+			}
+			return fmt.Errorf("failed to get stock for product %s: %w", adj.ProductID, err)
+		}
+
+		newQuantity := currentQuantity + adj.Quantity
+		if newQuantity < 0 {
+			return fmt.Errorf("adjustment for product %s results in negative stock", adj.ProductID)
+		}
+
+		// Update inventory
+		_, err = tx.Exec(ctx, `
+			UPDATE inventory 
+			SET quantity = $1, last_updated = NOW() 
+			WHERE tenant_id = $2 AND product_id = $3
+		`, newQuantity, tenantID, adj.ProductID)
+
+		if err != nil {
+			return fmt.Errorf("failed to update stock for product %s: %w", adj.ProductID, err)
+		}
+
+		// Create stock adjustment record
+		adjustmentType := "increase"
+		if adj.Quantity < 0 {
+			adjustmentType = "decrease"
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO stock_adjustments (
+				id, tenant_id, product_id, adjustment_type, quantity, 
+				previous_stock, new_stock, reason, adjusted_by, adjusted_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+		`, uuid.New(), tenantID, adj.ProductID, adjustmentType, adj.Quantity,
+			currentQuantity, newQuantity, adj.Reason, adj.AdjustedBy)
+
+		if err != nil {
+			return fmt.Errorf("failed to create adjustment record for product %s: %w", adj.ProductID, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// BulkDelete deletes multiple inventory records in a single transaction
+func (r *inventoryRepo) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	query := `DELETE FROM inventory WHERE tenant_id = $1 AND id = ANY($2)`
+	_, err := r.db.Exec(ctx, query, tenantID, ids)
+	return err
 }

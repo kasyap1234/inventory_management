@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -31,6 +32,7 @@ type NotificationService interface {
 	// Core notification methods
 	SendNotification(ctx context.Context, tenantID uuid.UUID, notification *models.Notification) error
 	SendEmail(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string) error
+	SendEmailWithAttachment(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string, attachmentName string, attachmentData []byte) error
 	SendSMS(ctx context.Context, tenantID uuid.UUID, recipient, message string) error
 	SendWebhook(ctx context.Context, tenantID uuid.UUID, webhook *models.WebhookSubscription, payload map[string]interface{}) error
 	SendLowStockAlerts(ctx context.Context, tenantID uuid.UUID, products []models.Product, userRepo repositories.UserRepository) error
@@ -201,8 +203,47 @@ func (s *notificationService) SendEmail(ctx context.Context, tenantID uuid.UUID,
 		return resendErr
 	}
 
-	log.Printf("[EMAIL] No email provider configured; unable to send email to %s", recipient)
 	log.Printf("[EMAIL] Tenant=%s, Subject=%s, Body=%s", tenantID.String(), subject, body)
+	return fmt.Errorf("email provider is not configured")
+}
+
+// SendEmailWithAttachment sends an email with an attachment
+func (s *notificationService) SendEmailWithAttachment(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string, attachmentName string, attachmentData []byte) error {
+	log.Printf("[EMAIL] SendEmailWithAttachment invoked: tenant=%s recipient=%s subject=%q attachment=%s", tenantID.String(), recipient, subject, attachmentName)
+
+	var smtpErr error
+	if s.smtpHost != "" {
+		smtpErr = s.sendEmailViaSMTPWithAttachment(tenantID, recipient, subject, body, attachmentName, attachmentData)
+		if smtpErr == nil {
+			return nil
+		}
+		log.Printf("[EMAIL] SMTP send attempt failed for %s: %v", recipient, smtpErr)
+	}
+
+	var resendErr error
+	if s.resendClient != nil {
+		resendErr = s.sendEmailViaResendWithAttachment(ctx, tenantID, recipient, subject, body, attachmentName, attachmentData)
+		if resendErr == nil {
+			if smtpErr != nil {
+				log.Printf("[EMAIL] Resend fallback succeeded for %s after SMTP failure", recipient)
+			}
+			return nil
+		}
+		log.Printf("[EMAIL] Resend send attempt failed for %s: %v", recipient, resendErr)
+	}
+
+	if smtpErr != nil && resendErr != nil {
+		return fmt.Errorf("smtp error: %v; resend error: %w", smtpErr, resendErr)
+	}
+
+	if smtpErr != nil {
+		return smtpErr
+	}
+
+	if resendErr != nil {
+		return resendErr
+	}
+
 	return fmt.Errorf("email provider is not configured")
 }
 
@@ -298,6 +339,95 @@ func (s *notificationService) sendEmailViaSMTP(tenantID uuid.UUID, recipient, su
 	}
 
 	log.Printf("[EMAIL] Successfully sent email via SMTP to %s for tenant %s", recipient, tenantID.String())
+	return nil
+}
+
+func (s *notificationService) sendEmailViaResendWithAttachment(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string, attachmentName string, attachmentData []byte) error {
+	if s.resendClient == nil {
+		return fmt.Errorf("resend client not configured")
+	}
+
+	from := s.resendFromEmail
+	if from == "" {
+		from = defaultResendFromEmail
+	}
+	if s.resendFromName != "" {
+		from = fmt.Sprintf("%s <%s>", s.resendFromName, from)
+	}
+
+	params := &resend.SendEmailRequest{
+		From:    from,
+		To:      []string{recipient},
+		Subject: subject,
+		Html:    body,
+		Attachments: []*resend.Attachment{
+			{
+				Filename: attachmentName,
+				Content:  attachmentData,
+			},
+		},
+	}
+
+	if _, err := s.resendClient.Emails.SendWithContext(ctx, params); err != nil {
+		return fmt.Errorf("failed to send email via Resend: %w", err)
+	}
+
+	return nil
+}
+
+func (s *notificationService) sendEmailViaSMTPWithAttachment(tenantID uuid.UUID, recipient, subject, body string, attachmentName string, attachmentData []byte) error {
+	fromEmail := s.smtpFromEmail
+	if fromEmail == "" {
+		fromEmail = s.smtpUsername
+	}
+	if fromEmail == "" {
+		return fmt.Errorf("smtp sender email not configured")
+	}
+
+	// Create multipart message
+	boundary := "boundary-string"
+	var msg bytes.Buffer
+
+	// Headers
+	msg.WriteString(fmt.Sprintf("From: %s\r\n", fromEmail))
+	msg.WriteString(fmt.Sprintf("To: %s\r\n", recipient))
+	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	msg.WriteString("MIME-Version: 1.0\r\n")
+	msg.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n", boundary))
+	msg.WriteString("\r\n")
+
+	// Body
+	msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	msg.WriteString("Content-Type: text/html; charset=\"UTF-8\"\r\n")
+	msg.WriteString("\r\n")
+	msg.WriteString(body)
+	msg.WriteString("\r\n")
+
+	// Attachment
+	msg.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	msg.WriteString(fmt.Sprintf("Content-Type: application/pdf; name=\"%s\"\r\n", attachmentName))
+	msg.WriteString("Content-Transfer-Encoding: base64\r\n")
+	msg.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", attachmentName))
+	msg.WriteString("\r\n")
+
+	// Base64 encode attachment
+	encoded := make([]byte, base64.StdEncoding.EncodedLen(len(attachmentData)))
+	base64.StdEncoding.Encode(encoded, attachmentData)
+	msg.Write(encoded)
+	msg.WriteString("\r\n")
+
+	msg.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+
+	addr := fmt.Sprintf("%s:%d", s.smtpHost, s.smtpPort)
+	var auth smtp.Auth
+	if s.smtpUsername != "" {
+		auth = smtp.PlainAuth("", s.smtpUsername, s.smtpPassword, s.smtpHost)
+	}
+
+	if err := smtp.SendMail(addr, auth, fromEmail, []string{recipient}, msg.Bytes()); err != nil {
+		return fmt.Errorf("failed to send email via SMTP: %w", err)
+	}
+
 	return nil
 }
 

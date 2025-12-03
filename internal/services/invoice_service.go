@@ -34,7 +34,10 @@ type InvoiceServiceInterface interface {
 	AutoGenerateInvoiceOnDelivery(ctx context.Context, tenantID, orderID uuid.UUID) error
 	MarkOverdueInvoices(ctx context.Context, tenantID uuid.UUID) error
 	CalculateInvoiceAnalytics(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) (*InvoiceAnalytics, error)
+
 	GenerateInvoicePDF(ctx context.Context, invoice *models.Invoice, order *models.Order, tenantID uuid.UUID) ([]byte, error)
+	GenerateSubscriptionInvoicePDF(ctx context.Context, subscription *models.Subscription, paymentDetails map[string]interface{}) ([]byte, error)
+	EmailSubscriptionInvoice(ctx context.Context, subscription *models.Subscription, paymentDetails map[string]interface{}) error
 }
 
 // InvoiceAnalytics holds invoice analytics data
@@ -50,27 +53,29 @@ type InvoiceAnalytics struct {
 }
 
 type invoiceService struct {
-	invoiceRepo     repositories.InvoiceRepository
-	orderRepo       repositories.OrderRepository
-	analyticsSvc    *analytics.AnalyticsService
-	db              *pgxpool.Pool
-	tenantService   TenantService
-	productService  ProductService
-	supplierService SupplierService
-	distributorService DistributorService
+	invoiceRepo         repositories.InvoiceRepository
+	orderRepo           repositories.OrderRepository
+	analyticsSvc        *analytics.AnalyticsService
+	db                  *pgxpool.Pool
+	tenantService       TenantService
+	productService      ProductService
+	supplierService     SupplierService
+	distributorService  DistributorService
+	notificationService NotificationService
 }
 
 // NewInvoiceService creates a new invoice service
-func NewInvoiceService(invoiceRepo repositories.InvoiceRepository, orderRepo repositories.OrderRepository, analyticsSvc *analytics.AnalyticsService, db *pgxpool.Pool, tenantService TenantService, productService ProductService, supplierService SupplierService, distributorService DistributorService) InvoiceServiceInterface {
+func NewInvoiceService(invoiceRepo repositories.InvoiceRepository, orderRepo repositories.OrderRepository, analyticsSvc *analytics.AnalyticsService, db *pgxpool.Pool, tenantService TenantService, productService ProductService, supplierService SupplierService, distributorService DistributorService, notificationService NotificationService) InvoiceServiceInterface {
 	return &invoiceService{
-		invoiceRepo:        invoiceRepo,
-		orderRepo:          orderRepo,
-		analyticsSvc:       analyticsSvc,
-		db:                 db,
-		tenantService:      tenantService,
-		productService:     productService,
-		supplierService:    supplierService,
-		distributorService: distributorService,
+		invoiceRepo:         invoiceRepo,
+		orderRepo:           orderRepo,
+		analyticsSvc:        analyticsSvc,
+		db:                  db,
+		tenantService:       tenantService,
+		productService:      productService,
+		supplierService:     supplierService,
+		distributorService:  distributorService,
+		notificationService: notificationService,
 	}
 }
 
@@ -339,7 +344,7 @@ func (s *invoiceService) DetermineGSTType(ctx context.Context, tenantID, orderID
 	// 1. Get tenant's business location state from tenant model
 	// 2. Get buyer location state from distributor/supplier address
 	// 3. Compare states: same state = intra-state (CGST+SGST), different state = inter-state (IGST)
-	
+
 	// NOTE: Full implementation requires State field in Tenant, Supplier, and Distributor models
 	// When models are enhanced with State fields, implement the following logic:
 	//
@@ -363,7 +368,7 @@ func (s *invoiceService) DetermineGSTType(ctx context.Context, tenantID, orderID
 	//    }
 	//
 	// For now, default to intra-state CGST+SGST for backward compatibility
-	
+
 	return GSTIntraState, nil
 }
 
@@ -780,4 +785,165 @@ func (s *invoiceService) updateAnalytics(ctx context.Context, tenantID uuid.UUID
 			log.Printf("Failed to update invoice analytics: %v", common.SecureErrorMessage("analytics update", err))
 		}
 	}()
+}
+
+// GenerateSubscriptionInvoicePDF creates a PDF invoice for a subscription payment
+func (s *invoiceService) GenerateSubscriptionInvoicePDF(ctx context.Context, subscription *models.Subscription, paymentDetails map[string]interface{}) ([]byte, error) {
+	// Get tenant information
+	tenant, err := s.tenantService.GetByID(ctx, subscription.TenantID)
+	if err != nil || tenant == nil {
+		tenant = &models.Tenant{
+			ID:   subscription.TenantID,
+			Name: "Valued Customer",
+		}
+	}
+
+	// Create new PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+
+	// Set margins
+	marginX := 20.0
+	marginY := 20.0
+	pdf.SetMargins(marginX, marginY, marginX)
+	pdf.SetAutoPageBreak(true, marginY)
+
+	// Set fonts
+	pdf.SetFont("Arial", "B", 16)
+	pdf.SetTextColor(33, 37, 41) // Dark gray
+
+	// Company header
+	pdf.SetXY(marginX, marginY)
+	pdf.Cell(0, 10, "AGROMART SUBSCRIPTION INVOICE")
+	pdf.Ln(15)
+
+	// Invoice details
+	pdf.SetFont("Arial", "B", 12)
+
+	// Extract payment ID if available
+	paymentID := "N/A"
+	if pid, ok := paymentDetails["payment_id"].(string); ok {
+		paymentID = pid
+	} else if pid, ok := paymentDetails["id"].(string); ok {
+		paymentID = pid
+	}
+
+	pdf.Cell(0, 8, fmt.Sprintf("Invoice Number: %s", paymentID))
+	pdf.Ln(8)
+	pdf.Cell(0, 8, fmt.Sprintf("Date: %s", time.Now().Format("02-Jan-2006")))
+	pdf.Ln(8)
+	pdf.Cell(0, 8, fmt.Sprintf("Subscription ID: %s", subscription.ID.String()))
+	pdf.Ln(8)
+
+	pdf.Ln(5)
+
+	// Billing Information section
+	pdf.SetFont("Arial", "B", 11)
+	pdf.Cell(0, 8, "BILL TO:")
+	pdf.Ln(6)
+
+	pdf.SetFont("Arial", "", 10)
+	pdf.Cell(0, 6, tenant.Name)
+	pdf.Ln(6)
+	if tenant.ContactEmail != nil {
+		pdf.Cell(0, 6, *tenant.ContactEmail)
+		pdf.Ln(6)
+	}
+	pdf.Ln(10)
+
+	// Items table header
+	pdf.SetFont("Arial", "B", 10)
+	pdf.SetFillColor(240, 240, 240) // Light gray background
+
+	// Table headers
+	headers := []string{"Description", "Period", "Amount"}
+	colWidths := []float64{90, 50, 50}
+
+	for i, header := range headers {
+		pdf.CellFormat(colWidths[i], 8, header, "1", 0, "C", true, 0, "")
+	}
+	pdf.Ln(8)
+
+	// Item row
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetFillColor(255, 255, 255) // White background
+
+	description := fmt.Sprintf("Subscription Plan: %s", subscription.PlanName)
+	period := "Monthly" // Default, could be derived from plan details
+
+	amount := subscription.Amount
+	// If payment details has amount, use that (might be different due to pro-ration or currency)
+	if amt, ok := paymentDetails["amount"].(float64); ok {
+		amount = amt / 100 // Razorpay amount is in paise
+	}
+
+	pdf.CellFormat(colWidths[0], 8, description, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(colWidths[1], 8, period, "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colWidths[2], 8, fmt.Sprintf("%.2f %s", amount, subscription.Currency), "1", 0, "R", false, 0, "")
+	pdf.Ln(8)
+
+	pdf.Ln(5)
+
+	// Total
+	pdf.SetFont("Arial", "B", 11)
+	pdf.SetTextColor(220, 20, 60) // Red color for total
+	pdf.CellFormat(140, 8, "TOTAL PAID:", "", 0, "R", false, 0, "")
+	pdf.CellFormat(50, 8, fmt.Sprintf("%.2f %s", amount, subscription.Currency), "", 0, "R", false, 0, "")
+	pdf.Ln(10)
+
+	// Footer
+	pdf.SetTextColor(33, 37, 41) // Reset to dark
+	pdf.Ln(10)
+	pdf.SetFont("Arial", "I", 8)
+	pdf.SetTextColor(128, 128, 128) // Gray
+	pdf.Cell(0, 5, "Thank you for your subscription!")
+	pdf.Ln(5)
+	pdf.Cell(0, 5, "This is a computer generated invoice.")
+
+	// Get PDF bytes
+	var buf bytes.Buffer
+	err = pdf.Output(&buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate PDF: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+// EmailSubscriptionInvoice generates and emails a subscription invoice
+func (s *invoiceService) EmailSubscriptionInvoice(ctx context.Context, subscription *models.Subscription, paymentDetails map[string]interface{}) error {
+	// Generate PDF
+	pdfBytes, err := s.GenerateSubscriptionInvoicePDF(ctx, subscription, paymentDetails)
+	if err != nil {
+		return fmt.Errorf("failed to generate invoice PDF: %w", err)
+	}
+
+	// Get tenant details for email
+	tenant, err := s.tenantService.GetByID(ctx, subscription.TenantID)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant details: %w", err)
+	}
+	if tenant == nil || tenant.ContactEmail == nil || *tenant.ContactEmail == "" {
+		return fmt.Errorf("tenant contact email not found")
+	}
+
+	// Prepare email
+	subject := fmt.Sprintf("Invoice for %s Subscription", subscription.PlanName)
+	body := fmt.Sprintf(`
+		<h1>Subscription Invoice</h1>
+		<p>Dear %s,</p>
+		<p>Thank you for your subscription payment. Please find the invoice attached.</p>
+		<p>Plan: %s</p>
+		<p>Amount: %.2f %s</p>
+		<p>Best regards,<br>Agromart Team</p>
+	`, tenant.Name, subscription.PlanName, subscription.Amount, subscription.Currency)
+
+	attachmentName := fmt.Sprintf("invoice_%s.pdf", time.Now().Format("20060102"))
+
+	// Send email
+	if err := s.notificationService.SendEmailWithAttachment(ctx, subscription.TenantID, *tenant.ContactEmail, subject, body, attachmentName, pdfBytes); err != nil {
+		return fmt.Errorf("failed to send invoice email: %w", err)
+	}
+
+	return nil
 }

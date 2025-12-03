@@ -27,6 +27,8 @@ import (
 type WebhookHandlers struct {
 	subscriptionService services.SubscriptionService
 	razorpayService     services.RazorpayService
+	invoiceService      services.InvoiceServiceInterface
+	notificationService services.NotificationService
 	webhookSecret       string
 	rbacMiddleware      *middleware.RBACMiddleware
 }
@@ -35,12 +37,16 @@ type WebhookHandlers struct {
 func NewWebhookHandlers(
 	subscriptionService services.SubscriptionService,
 	razorpayService services.RazorpayService,
+	invoiceService services.InvoiceServiceInterface,
+	notificationService services.NotificationService,
 	webhookSecret string,
 	rbacMiddleware *middleware.RBACMiddleware,
 ) *WebhookHandlers {
 	return &WebhookHandlers{
 		subscriptionService: subscriptionService,
 		razorpayService:     razorpayService,
+		invoiceService:      invoiceService,
+		notificationService: notificationService,
 		webhookSecret:       webhookSecret,
 		rbacMiddleware:      rbacMiddleware,
 	}
@@ -131,8 +137,60 @@ func (h *WebhookHandlers) handleSubscriptionActivated(event *services.WebhookEve
 }
 
 // handleSubscriptionCharged handles successful payment events
+// handleSubscriptionCharged handles successful payment events
 func (h *WebhookHandlers) handleSubscriptionCharged(event *services.WebhookEvent) error {
-	return h.handleEvent(event, "charged")
+	// First update status
+	if err := h.handleEvent(event, "charged"); err != nil {
+		return err
+	}
+
+	// Extract Razorpay subscription ID from event data
+	var razorpayID string
+	if subID, ok := event.Data["subscription_id"].(string); ok {
+		razorpayID = subID
+	} else if payload, ok := event.Data["payload"].(map[string]interface{}); ok {
+		if subscription, ok := payload["subscription"].(map[string]interface{}); ok {
+			if id, ok := subscription["entity"].(map[string]interface{})["id"].(string); ok {
+				razorpayID = id
+			}
+		}
+	}
+
+	if razorpayID == "" {
+		return nil // Should have been handled by handleEvent, but just in case
+	}
+
+	// Find subscription
+	ctx := context.Background()
+	subscription, _, err := h.findSubscriptionByRazorpayID(ctx, razorpayID)
+	if err != nil {
+		// Log but don't fail - webhook might be for a non-existent subscription
+		log.Printf("Failed to find subscription for Razorpay ID %s: %v", razorpayID, err)
+		return nil
+	}
+
+	// Extract payment details
+	var paymentDetails map[string]interface{}
+	if payload, ok := event.Data["payload"].(map[string]interface{}); ok {
+		if payment, ok := payload["payment"].(map[string]interface{}); ok {
+			if entity, ok := payment["entity"].(map[string]interface{}); ok {
+				paymentDetails = entity
+			}
+		}
+	}
+
+	if paymentDetails == nil {
+		log.Printf("Payment details not found in webhook event for subscription %s", razorpayID)
+		return nil
+	}
+
+	// Generate and email invoice
+	if err := h.invoiceService.EmailSubscriptionInvoice(ctx, subscription, paymentDetails); err != nil {
+		log.Printf("Failed to email subscription invoice: %v", err)
+		// Don't fail the webhook, as the main action (status update) succeeded
+	}
+
+	return nil
 }
 
 // handleSubscriptionCancelled handles subscription cancellation events
@@ -229,11 +287,11 @@ type WebhookTestRequest struct {
 
 // WebhookTestHandlers encapsulates dependencies for the test webhook endpoint
 type WebhookTestHandlers struct {
-	cacheSvc       caching.CacheService
-	webhookSubSvc  services.WebhookSubscriptionService
-	testSvc        services.WebhookTestService
-	cfg            *config.WebhookTestConfig
-	logger         *common.StructuredLogger
+	cacheSvc      caching.CacheService
+	webhookSubSvc services.WebhookSubscriptionService
+	testSvc       services.WebhookTestService
+	cfg           *config.WebhookTestConfig
+	logger        *common.StructuredLogger
 }
 
 // NewWebhookTestHandlers constructs handlers for POST /v1/webhooks/test
@@ -346,11 +404,11 @@ func (h *WebhookTestHandlers) TestWebhook(c echo.Context) error {
 
 	// Structured logging (no secrets)
 	h.logger.InfoWithContext(ctx, "Webhook test executed", map[string]interface{}{
-		"target_url":     req.TargetURL,
-		"method":         method,
-		"event_type":     common.SafeString(req.EventType),
-		"duration_ms":    result.DurationMs,
-		"target_status":  result.TargetStatus,
+		"target_url":    req.TargetURL,
+		"method":        method,
+		"event_type":    common.SafeString(req.EventType),
+		"duration_ms":   result.DurationMs,
+		"target_status": result.TargetStatus,
 	})
 
 	// Audit event (webhook.test)

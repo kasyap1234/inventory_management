@@ -97,7 +97,16 @@ func (m *MockInventoryRepository) GetByProductID(ctx context.Context, tenantID, 
 	return args.Get(0).(*models.Inventory), args.Error(1)
 }
 
-// GetAnalyticsAggregates returns aggregated inventory analytics data
+func (m *MockInventoryRepository) BulkAdjust(ctx context.Context, tenantID uuid.UUID, adjustments []repositories.BulkAdjustmentItem) error {
+	args := m.Called(ctx, tenantID, adjustments)
+	return args.Error(0)
+}
+
+func (m *MockInventoryRepository) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	args := m.Called(ctx, tenantID, ids)
+	return args.Error(0)
+}
+
 func (m *MockInventoryRepository) GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*repositories.InventoryAnalyticsAggregates, error) {
 	args := m.Called(ctx, tenantID)
 	if args.Get(0) == nil {

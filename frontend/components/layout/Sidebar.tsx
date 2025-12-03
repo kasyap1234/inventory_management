@@ -37,6 +37,9 @@ const navigation = [
   { name: 'Subscriptions', href: '/dashboard/subscriptions', icon: CreditCard },
   { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   { name: 'Audit Logs', href: '/dashboard/audit-logs', icon: Shield },
+  { name: 'Tally Integration', href: '/dashboard/tally', icon: FileText },
+  { name: 'Batches', href: '/dashboard/batches', icon: Package },
+  { name: 'Alert Rules', href: '/dashboard/alerts', icon: Bell },
 ];
 
 export function Sidebar() {

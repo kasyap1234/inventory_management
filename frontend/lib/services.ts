@@ -464,6 +464,19 @@ export const analyticsService = {
       fetchedAt: data?.fetched_at ?? new Date().toISOString(),
     };
   },
+  exportAnalytics: async (params: {
+    type: 'csv' | 'pdf';
+    report: 'sales' | 'inventory' | 'low-stock';
+    start_date?: string;
+    end_date?: string;
+    threshold?: number;
+  }): Promise<Blob> => {
+    const response = await api.get('/analytics/export', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 };
 
 // Combined analytics data type

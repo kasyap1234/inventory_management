@@ -9,8 +9,10 @@ import (
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
+	"agromart2/internal/repositories"
 	"agromart2/internal/services"
 	"agromart2/internal/validation"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
@@ -255,9 +257,9 @@ func (h *InventoryHandlers) DeleteInventory(c echo.Context) error {
 
 // AdjustStockRequest represents stock adjustment request
 type AdjustStockRequest struct {
-	ProductID      uuid.UUID `json:"product_id" validate:"required"`
-	Adjustment     int       `json:"adjustment" validate:"required"`
-	Reason         string    `json:"reason" validate:"required"`
+	ProductID  uuid.UUID `json:"product_id" validate:"required"`
+	Adjustment int       `json:"adjustment" validate:"required"`
+	Reason     string    `json:"reason" validate:"required"`
 }
 
 // AdjustStock handles stock adjustments
@@ -428,7 +430,7 @@ func (h *InventoryHandlers) TransferStock(c echo.Context) error {
 // Note: Permission check is handled by route middleware - no duplicate check needed here
 func (h *InventoryHandlers) SearchInventories(c echo.Context) error {
 	ctx := c.Request().Context()
-    start := time.Now()
+	start := time.Now()
 
 	// Get tenant ID from context
 	tenantID, ok := common.GetTenantIDFromContext(ctx)
@@ -446,21 +448,119 @@ func (h *InventoryHandlers) SearchInventories(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to search inventories")
 	}
 
-    // Record search usage (non-blocking)
-    filterCount := 0
-    if strings.TrimSpace(filter.Query) != "" { /* not a filter count */ }
-    if filter.WarehouseID != nil { filterCount++ }
-    if filter.ProductID != nil { filterCount++ }
-    duration := time.Since(start)
-    common.PublishEvent(ctx, "search_performed", map[string]interface{}{
-        "entity_type":      "inventory",
-        "search_term":      strings.TrimSpace(filter.Query),
-        "filter_count":     filterCount,
-        "result_count":     len(inventories),
-        "response_time_ms": duration.Milliseconds(),
-    })
+	// Record search usage (non-blocking)
+	filterCount := 0
+	if strings.TrimSpace(filter.Query) != "" { /* not a filter count */
+	}
+	if filter.WarehouseID != nil {
+		filterCount++
+	}
+	if filter.ProductID != nil {
+		filterCount++
+	}
+	duration := time.Since(start)
+	common.PublishEvent(ctx, "search_performed", map[string]interface{}{
+		"entity_type":      "inventory",
+		"search_term":      strings.TrimSpace(filter.Query),
+		"filter_count":     filterCount,
+		"result_count":     len(inventories),
+		"response_time_ms": duration.Milliseconds(),
+	})
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"inventories": inventories,
+	})
+}
+
+// BulkAdjustStockRequest represents bulk stock adjustment request
+type BulkAdjustStockRequest struct {
+	Adjustments []struct {
+		ProductID  uuid.UUID `json:"product_id" validate:"required"`
+		Adjustment int       `json:"adjustment" validate:"required"`
+		Reason     string    `json:"reason" validate:"required"`
+	} `json:"adjustments" validate:"required,min=1"`
+}
+
+// BulkAdjustStock handles multiple stock adjustments
+func (h *InventoryHandlers) BulkAdjustStock(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req BulkAdjustStockRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	userID, _ := common.GetUserIDFromContext(ctx)
+
+	// Convert request to service model
+	// We need to import repositories package to use BulkAdjustmentItem
+	// But handlers package usually depends on service interface, not repositories implementation details
+	// However, BulkAdjustmentItem is defined in repositories package and used in service interface
+	// So we need to import agromart2/internal/repositories
+
+	// Since I cannot easily add imports with replace_file_content if they are far away,
+	// I will assume the import is added or I will add it in a separate step.
+	// For now, I will use repositories.BulkAdjustmentItem assuming import exists.
+
+	// Wait, I should check imports first.
+	// I'll add the import in a separate step.
+
+	adjustments := make([]repositories.BulkAdjustmentItem, len(req.Adjustments))
+	for i, adj := range req.Adjustments {
+		adjustments[i] = repositories.BulkAdjustmentItem{
+			ProductID:  adj.ProductID,
+			Quantity:   adj.Adjustment,
+			Reason:     adj.Reason,
+			AdjustedBy: userID,
+		}
+	}
+
+	if err := h.inventoryService.BulkAdjustStock(ctx, tenantID, adjustments); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Bulk stock adjustment completed successfully",
+	})
+}
+
+// BulkDeleteInventoryRequest represents bulk inventory deletion request
+type BulkDeleteInventoryRequest struct {
+	InventoryIDs []uuid.UUID `json:"inventory_ids" validate:"required,min=1"`
+}
+
+// BulkDeleteInventory handles deleting multiple inventory records
+func (h *InventoryHandlers) BulkDeleteInventory(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req BulkDeleteInventoryRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	if err := h.inventoryService.BulkDelete(ctx, tenantID, req.InventoryIDs); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to bulk delete inventory")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Bulk inventory deletion completed successfully",
 	})
 }

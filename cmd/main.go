@@ -353,7 +353,7 @@ func main() {
 
 	orderSvc := services.NewOrderService(pool, orderRepo, inventoryRepo, inventoryService, orderStatusHistoryRepo, logger)
 
-	invoiceSvc := services.NewInvoiceService(invoiceRepo, orderRepo, analyticsSvc, pool, tenantService, productSvc, supplierService, distributorService)
+	invoiceSvc := services.NewInvoiceService(invoiceRepo, orderRepo, analyticsSvc, pool, tenantService, productSvc, supplierService, distributorService, notificationService)
 	inventoryHandlers := handlers.NewInventoryHandlers(
 		inventoryService,
 		auditLogsService,
@@ -385,7 +385,7 @@ func main() {
 	razorpayService := services.NewRazorpayService(razorpayKeyID, razorpayKeySecret, razorpayWebhookSecret)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
 	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, subscriptionMiddleware, rbacMiddleware)
-	webhookHandlers := handlers.NewWebhookHandlers(subscriptionService, razorpayService, razorpayWebhookSecret, rbacMiddleware)
+	webhookHandlers := handlers.NewWebhookHandlers(subscriptionService, razorpayService, invoiceSvc, notificationService, razorpayWebhookSecret, rbacMiddleware)
 
 	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
 
@@ -764,6 +764,8 @@ func main() {
 	protected.GET("/inventory", inventoryHandlers.ListInventories, rbacMiddleware.RequirePermission("inventory.list"))
 	protected.POST("/inventory", inventoryHandlers.CreateInventory, rbacMiddleware.RequirePermission("inventory.create"))
 	protected.POST("/inventory/adjust", inventoryHandlers.AdjustStock, rbacMiddleware.RequirePermission("inventory.adjust"))
+	protected.POST("/inventory/bulk-adjust", inventoryHandlers.BulkAdjustStock, rbacMiddleware.RequirePermission("inventory.adjust"))
+	protected.POST("/inventory/bulk-delete", inventoryHandlers.BulkDeleteInventory, rbacMiddleware.RequirePermission("inventory.delete"))
 	protected.GET("/inventory/:id", inventoryHandlers.GetInventory, rbacMiddleware.RequirePermission("inventory.read"))
 	protected.GET("/inventory/:id/history", inventoryHandlers.GetInventoryHistory, rbacMiddleware.RequirePermission("inventory.read"))
 	protected.PUT("/inventory/:id", inventoryHandlers.UpdateInventory, rbacMiddleware.RequirePermission("inventory.update"))
@@ -972,6 +974,7 @@ func main() {
 	protected.GET("/analytics/revenue-by-category", analyticsHandlers.GetRevenueByCategory)
 	protected.GET("/analytics/order-status", analyticsHandlers.GetOrderStatusDistribution)
 	protected.POST("/analytics/refresh", analyticsHandlers.RefreshAnalytics)
+	protected.GET("/analytics/export", analyticsHandlers.ExportAnalytics)
 	// Combined analytics endpoint - fetches all data in parallel for faster page loads
 	protected.GET("/analytics/combined", analyticsHandlers.GetCombinedAnalytics)
 
