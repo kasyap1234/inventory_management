@@ -56,7 +56,12 @@ func (h *InvitationHandlers) CreateInvitation(c echo.Context) error {
 		Permissions: req.Permissions,
 	}
 
-	invitation, err := h.invitationService.CreateInvitation(ctx, serviceReq)
+	userID, ok := common.GetUserIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User context missing")
+	}
+
+	invitation, err := h.invitationService.CreateInvitation(ctx, serviceReq, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

@@ -15,17 +15,19 @@ import (
 )
 
 type InvitationService interface {
-	CreateInvitation(ctx context.Context, req *CreateInvitationRequest) (*models.Invitation, error)
+	CreateInvitation(ctx context.Context, req *CreateInvitationRequest, invitedBy uuid.UUID) (*models.Invitation, error)
 	GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error)
 	AcceptInvitation(ctx context.Context, token string, req *AcceptInvitationRequest) (*models.User, error)
 	RevokeInvitation(ctx context.Context, id uuid.UUID) error
 	ListInvitations(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Invitation, error)
+	InviteTenantAdmin(ctx context.Context, email, tenantName string, invitedBy uuid.UUID) (*models.Invitation, error)
 }
 
 type invitationService struct {
 	invitationRepo      repositories.InvitationRepository
 	userRepo            repositories.UserRepository
 	userRoleRepo        repositories.UserRoleRepository
+	tenantRepo          repositories.TenantRepository
 	notificationService NotificationService
 	authService         AuthService
 	frontendBaseURL     string
@@ -35,6 +37,7 @@ func NewInvitationService(
 	invitationRepo repositories.InvitationRepository,
 	userRepo repositories.UserRepository,
 	userRoleRepo repositories.UserRoleRepository,
+	tenantRepo repositories.TenantRepository,
 	notificationService NotificationService,
 	authService AuthService,
 	frontendBaseURL string,
@@ -43,6 +46,7 @@ func NewInvitationService(
 		invitationRepo:      invitationRepo,
 		userRepo:            userRepo,
 		userRoleRepo:        userRoleRepo,
+		tenantRepo:          tenantRepo,
 		notificationService: notificationService,
 		authService:         authService,
 		frontendBaseURL:     frontendBaseURL,
@@ -62,7 +66,7 @@ type AcceptInvitationRequest struct {
 	Password  string `json:"password"`
 }
 
-func (s *invitationService) CreateInvitation(ctx context.Context, req *CreateInvitationRequest) (*models.Invitation, error) {
+func (s *invitationService) CreateInvitation(ctx context.Context, req *CreateInvitationRequest, invitedBy uuid.UUID) (*models.Invitation, error) {
 	// Check if user already exists in the tenant
 	existingUser, err := s.userRepo.GetByEmail(ctx, req.TenantID, req.Email)
 	if err == nil && existingUser != nil {
@@ -84,6 +88,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *CreateInv
 		Token:       token,
 		Status:      models.InvitationStatusPending,
 		Permissions: req.Permissions,
+		InvitedBy:   &invitedBy,
 		ExpiresAt:   time.Now().Add(48 * time.Hour), // 48 hours expiration
 	}
 
@@ -174,4 +179,30 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, id uuid.UUID) 
 
 func (s *invitationService) ListInvitations(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Invitation, error) {
 	return s.invitationRepo.ListByTenant(ctx, tenantID, limit, offset)
+}
+
+func (s *invitationService) InviteTenantAdmin(ctx context.Context, email, tenantName string, invitedBy uuid.UUID) (*models.Invitation, error) {
+	// 1. Create the new Tenant
+	subdomain := "tenant-" + uuid.New().String()[:8]
+
+	tenant, err := s.authService.CreateTenant(ctx, tenantName, subdomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tenant: %v", err)
+	}
+
+	// 2. Get the 'admin' role for the new tenant
+	adminRole, err := s.authService.GetRoleByName(ctx, tenant.ID, "admin")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get admin role: %v", err)
+	}
+
+	// 3. Create Invitation
+	req := &CreateInvitationRequest{
+		TenantID:    tenant.ID,
+		Email:       email,
+		RoleID:      adminRole.ID,
+		Permissions: nil, // Admin role has all permissions
+	}
+
+	return s.CreateInvitation(ctx, req, invitedBy)
 }

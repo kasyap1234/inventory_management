@@ -273,11 +273,17 @@ func main() {
 		backendURL,
 	)
 
+	// Seed Super Admin if configured
+	if err := authService.SeedSuperAdmin(context.Background(), os.Getenv("SUPER_ADMIN_EMAIL"), os.Getenv("SUPER_ADMIN_PASSWORD")); err != nil {
+		log.Printf("WARNING: Failed to seed super admin: %v", err)
+	}
+
 	// Create invitation service
 	invitationService := services.NewInvitationService(
 		invitationRepo,
 		userRepo,
 		userRoleRepo,
+		tenantRepo,
 		notificationService,
 		authService,
 		frontendURL,
@@ -462,6 +468,7 @@ func main() {
 	analyticsHandlers := handlers.NewAnalyticsHandlers(analyticsSvc, rbacMiddleware)
 	securityHandlers := handlers.NewSecurityHandlers(csrfManager)
 	dbOptimizationHandlers := handlers.NewDBOptimizationHandlers(dbOptimizer, rbacMiddleware)
+	superAdminHandlers := handlers.NewSuperAdminHandlers(invitationService)
 
 	// Create Asynq client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -698,6 +705,9 @@ func main() {
 	// Tenant settings routes (accessible by tenant admins)
 	protected.GET("/tenant/settings", tenantHandlers.GetTenantSettings)
 	protected.PUT("/tenant/settings", tenantHandlers.UpdateTenantSettings, rbacMiddleware.RequirePermission("tenant.manage_settings"))
+
+	// Super Admin routes
+	protected.POST("/admin/tenants/invite", superAdminHandlers.InviteTenantAdmin, rbacMiddleware.RequirePermission("system.admin"))
 
 	// Category routes
 	protected.GET("/categories", categoryHandlers.ListCategories, rbacMiddleware.RequirePermission("category.list"))

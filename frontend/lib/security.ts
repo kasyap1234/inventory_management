@@ -7,7 +7,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 class TokenStorage {
   // Keep these methods for backward compatibility but they no longer interact with localStorage
   // The backend sets HttpOnly cookies that are automatically sent with requests
-  
+
   getAccessToken() {
     // Tokens are in HttpOnly cookies - not accessible from JavaScript
     return null;
@@ -18,7 +18,7 @@ class TokenStorage {
     return null;
   }
 
-  setTokens(_accessToken?: string, _refreshToken?: string) {
+  setTokens() {
     // No-op: Tokens are set by backend as HttpOnly cookies
     // This method is kept for backward compatibility
   }

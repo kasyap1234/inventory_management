@@ -67,18 +67,142 @@ func (m *MockTenantRepository) UpdateSettings(ctx context.Context, tenant *model
 	return args.Error(0)
 }
 
+type MockInvitationService struct {
+	mock.Mock
+}
+
+func (m *MockInvitationService) CreateInvitation(ctx context.Context, req *CreateInvitationRequest, invitedBy uuid.UUID) (*models.Invitation, error) {
+	args := m.Called(ctx, req, invitedBy)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Invitation), args.Error(1)
+}
+
+func (m *MockInvitationService) GetInvitationByToken(ctx context.Context, token string) (*models.Invitation, error) {
+	args := m.Called(ctx, token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Invitation), args.Error(1)
+}
+
+func (m *MockInvitationService) AcceptInvitation(ctx context.Context, token string, req *AcceptInvitationRequest) (*models.User, error) {
+	args := m.Called(ctx, token, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.User), args.Error(1)
+}
+
+func (m *MockInvitationService) RevokeInvitation(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockInvitationService) ListInvitations(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Invitation, error) {
+	args := m.Called(ctx, tenantID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Invitation), args.Error(1)
+}
+
+func (m *MockInvitationService) InviteTenantAdmin(ctx context.Context, email, tenantName string, invitedBy uuid.UUID) (*models.Invitation, error) {
+	args := m.Called(ctx, email, tenantName, invitedBy)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Invitation), args.Error(1)
+}
+
+type MockRoleRepository struct {
+	mock.Mock
+}
+
+func (m *MockRoleRepository) Create(ctx context.Context, role *models.Role) error {
+	args := m.Called(ctx, role)
+	return args.Error(0)
+}
+
+func (m *MockRoleRepository) Update(ctx context.Context, role *models.Role) error {
+	args := m.Called(ctx, role)
+	return args.Error(0)
+}
+
+func (m *MockRoleRepository) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Role, error) {
+	args := m.Called(ctx, tenantID, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Role), args.Error(1)
+}
+
+func (m *MockRoleRepository) GetByName(ctx context.Context, tenantID uuid.UUID, name string) (*models.Role, error) {
+	args := m.Called(ctx, tenantID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Role), args.Error(1)
+}
+
+func (m *MockRoleRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*models.Role, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Role), args.Error(1)
+}
+
+func (m *MockRoleRepository) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	args := m.Called(ctx, tenantID, id)
+	return args.Error(0)
+}
+
+func (m *MockRoleRepository) AssignUserToRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, userID, roleID)
+	return args.Error(0)
+}
+
+func (m *MockRoleRepository) RemoveUserFromRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, userID, roleID)
+	return args.Error(0)
+}
+
+func (m *MockRoleRepository) GetUserRoles(ctx context.Context, tenantID, userID uuid.UUID) ([]*models.Role, error) {
+	args := m.Called(ctx, tenantID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Role), args.Error(1)
+}
+
+func (m *MockRoleRepository) GetRoleUsers(ctx context.Context, tenantID, roleID uuid.UUID) ([]*models.User, error) {
+	args := m.Called(ctx, tenantID, roleID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.User), args.Error(1)
+}
+
 type TenantServiceTestSuite struct {
 	suite.Suite
-	mockRepo *MockTenantRepository
-	service  TenantService
+	mockRepo      *MockTenantRepository
+	mockInviteSvc *MockInvitationService
+	mockRoleRepo  *MockRoleRepository
+	service       TenantService
 }
 
 func (suite *TenantServiceTestSuite) SetupTest() {
 	suite.mockRepo = &MockTenantRepository{}
-	suite.service = NewTenantService(suite.mockRepo)
+	suite.mockInviteSvc = &MockInvitationService{}
+	suite.mockRoleRepo = &MockRoleRepository{}
+	suite.service = NewTenantService(suite.mockRepo, suite.mockInviteSvc, suite.mockRoleRepo)
 
 	// Ensure mocks are called
 	suite.mockRepo.Test(suite.T())
+	suite.mockInviteSvc.Test(suite.T())
+	suite.mockRoleRepo.Test(suite.T())
 }
 
 func (suite *TenantServiceTestSuite) TearDownTest() {

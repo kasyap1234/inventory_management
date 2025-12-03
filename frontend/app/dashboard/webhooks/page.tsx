@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { webhookService } from '@/lib/services';
 import { formatDateTime } from '@/lib/utils';
+import { getErrorMessage } from '@/lib/toast';
 
 type WebhookSubscription = {
   id: string;
@@ -72,8 +73,8 @@ export default function WebhooksPage() {
       queryClient.invalidateQueries({ queryKey: ['webhooks', 'subscriptions'] });
       setIsDialogOpen(false);
     },
-    onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to create webhook');
+    onError: (error: unknown) => {
+      alert(getErrorMessage(error));
     },
   });
 
@@ -84,8 +85,8 @@ export default function WebhooksPage() {
       queryClient.invalidateQueries({ queryKey: ['webhooks', 'subscriptions'] });
       setEditingWebhook(null);
     },
-    onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to update webhook');
+    onError: (error: unknown) => {
+      alert(getErrorMessage(error));
     },
   });
 
@@ -94,8 +95,8 @@ export default function WebhooksPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhooks', 'subscriptions'] });
     },
-    onError: (error: any) => {
-      alert(error.response?.data?.message || 'Failed to delete webhook');
+    onError: (error: unknown) => {
+      alert(getErrorMessage(error));
     },
   });
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"agromart2/internal/models"
+	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -94,4 +95,13 @@ func (m *MockInventoryRepository) GetByProductID(ctx context.Context, tenantID, 
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.Inventory), args.Error(1)
+}
+
+// GetAnalyticsAggregates returns aggregated inventory analytics data
+func (m *MockInventoryRepository) GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*repositories.InventoryAnalyticsAggregates, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*repositories.InventoryAnalyticsAggregates), args.Error(1)
 }

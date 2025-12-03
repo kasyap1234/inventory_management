@@ -22,7 +22,8 @@ type Invitation struct {
 	RoleID      uuid.UUID        `json:"role_id" db:"role_id"`
 	Token       string           `json:"token" db:"token"`
 	Status      InvitationStatus `json:"status" db:"status"`
-	Permissions []string         `json:"permissions,omitempty" db:"permissions"` // Stored as JSONB
+	Permissions []string         `json:"permissions" db:"permissions"`
+	InvitedBy   *uuid.UUID       `json:"invited_by" db:"invited_by"`
 	ExpiresAt   time.Time        `json:"expires_at" db:"expires_at"`
 	CreatedAt   time.Time        `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time        `json:"updated_at" db:"updated_at"`

@@ -265,6 +265,15 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	refreshCookie.MaxAge = 604800 // 7 days
 	c.SetCookie(refreshCookie)
 
+	// Get user role
+	userRoles, err := h.userRoleRepo.ListByUser(ctx, tenantID, user.ID)
+	if err == nil && len(userRoles) > 0 {
+		role, err := h.roleRepo.GetByID(ctx, tenantID, userRoles[0].RoleID)
+		if err == nil {
+			user.Role = role.Name
+		}
+	}
+
 	response := LoginResponse{
 		TokenResponse: *tokenResponse,
 		User:          user,
@@ -806,6 +815,15 @@ func (h *AuthHandlers) Me(c echo.Context) error {
 	user, err := h.userRepo.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "User not found")
+	}
+
+	// Get user roles
+	userRoles, err := h.userRoleRepo.ListByUser(ctx, tenantID, userID)
+	if err == nil && len(userRoles) > 0 {
+		role, err := h.roleRepo.GetByID(ctx, tenantID, userRoles[0].RoleID)
+		if err == nil {
+			user.Role = role.Name
+		}
 	}
 
 	return c.JSON(http.StatusOK, user)

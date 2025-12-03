@@ -2,7 +2,7 @@ import { tokenStorage } from './security';
 
 export type WebSocketMessage = {
   type: 'inventory_update' | 'order_update' | 'notification' | 'low_stock_alert' | 'ping' | 'pong';
-  data: any;
+  data: unknown;
   timestamp: string;
 };
 
@@ -31,7 +31,7 @@ class WebSocketClient {
 
     this.isIntentionallyClosed = false;
     const token = tokenStorage.getAccessToken();
-    
+
     if (!token) {
       console.warn('No access token available for WebSocket connection');
       return;
@@ -49,7 +49,7 @@ class WebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          
+
           if (message.type === 'ping') {
             this.send({ type: 'pong', data: {}, timestamp: new Date().toISOString() });
             return;
@@ -77,7 +77,7 @@ class WebSocketClient {
       this.ws.onclose = () => {
         console.log('WebSocket disconnected');
         this.stopPing();
-        
+
         if (!this.isIntentionallyClosed) {
           this.reconnect();
         }
@@ -96,9 +96,9 @@ class WebSocketClient {
 
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
+
     console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
+
     setTimeout(() => {
       this.connect();
     }, delay);

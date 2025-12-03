@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"agromart2/internal/common"
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
 
@@ -103,7 +104,13 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 			RoleID:   adminRole.ID,
 		}
 
-		if _, err := s.invitationService.CreateInvitation(ctx, inviteReq); err != nil {
+		// Get userID from context if available (e.g. super admin creating tenant)
+		var invitedBy uuid.UUID
+		if uid, ok := ctx.Value(common.UserIDKey).(uuid.UUID); ok {
+			invitedBy = uid
+		}
+
+		if _, err := s.invitationService.CreateInvitation(ctx, inviteReq, invitedBy); err != nil {
 			// Log error but don't fail tenant creation?
 			// Or fail? Let's fail so the user knows something went wrong.
 			// But tenant is already created.

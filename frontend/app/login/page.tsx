@@ -16,16 +16,20 @@ function LoginContent() {
   const [password, setPassword] = useState('');
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
 
   const resetSuccessful = searchParams.get('reset') === 'success';
 
   // Redirect if already authenticated - must be in useEffect to avoid setState during render
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push('/dashboard');
+    if (!isLoading && isAuthenticated && user) {
+      if (user.role === 'super_admin') {
+        router.push('/dashboard/tenants');
+      } else {
+        router.push('/dashboard');
+      }
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, router, user]);
 
   // Show nothing while redirecting
   if (!isLoading && isAuthenticated) {

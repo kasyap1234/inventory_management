@@ -43,19 +43,33 @@ export const dismissAllToasts = () => {
 };
 
 // Update an existing toast
-export const updateToast = (toastId: string, options: any) => {
+export const updateToast = (toastId: string, options: { render: string }) => {
   return toast.success(options.render, { id: toastId });
 };
 
+interface APIError {
+  response?: {
+    data?: {
+      message?: string;
+      error?: {
+        message?: string;
+      };
+    };
+  };
+  message?: string;
+}
+
 // Helper to extract error message from API response
-export const getErrorMessage = (error: any): string => {
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
+export const getErrorMessage = (error: unknown): string => {
+  const apiError = error as APIError;
+
+  if (apiError?.response?.data?.message) {
+    return apiError.response.data.message;
   }
-  if (error?.response?.data?.error?.message) {
-    return error.response.data.error.message;
+  if (apiError?.response?.data?.error?.message) {
+    return apiError.response.data.error.message;
   }
-  if (error?.message) {
+  if (error instanceof Error) {
     return error.message;
   }
   return 'An unexpected error occurred';

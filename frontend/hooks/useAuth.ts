@@ -45,7 +45,12 @@ export function useAuth() {
       // No need to store them in localStorage
       csrfTokenManager.clearToken();
       queryClient.setQueryData(['user'], data.user);
-      router.push('/dashboard');
+
+      if (data.user.role === 'super_admin') {
+        router.push('/dashboard/tenants');
+      } else {
+        router.push('/dashboard');
+      }
     },
   });
 

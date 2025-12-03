@@ -94,6 +94,12 @@ func (m *MockProductRepository) CountProducts(ctx context.Context, tenantID uuid
 	return args.Int(0), args.Error(1)
 }
 
+// BulkUpdatePrices updates prices for multiple products
+func (m *MockProductRepository) BulkUpdatePrices(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID, adjustmentType string, adjustmentValue float64) (int64, error) {
+	args := m.Called(ctx, tenantID, productIDs, adjustmentType, adjustmentValue)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // MockCategoryRepoForProduct is a mock implementation of CategoryRepository for product tests
 type MockCategoryRepoForProduct struct {
 	mock.Mock

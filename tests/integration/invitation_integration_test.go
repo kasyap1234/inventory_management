@@ -80,6 +80,7 @@ func (s *InvitationIntegrationTestSuite) SetupSuite() {
 		s.invitationRepo,
 		s.userRepo,
 		s.userRoleRepo,
+		s.tenantRepo,
 		mockNotificationService,
 		mockAuthService,
 		"http://localhost:3000",
@@ -140,7 +141,7 @@ func (s *InvitationIntegrationTestSuite) TestInvitationFlow() {
 		RoleID:   roleID,
 	}
 
-	invitation, err := s.invitationService.CreateInvitation(s.ctx, inviteReq)
+	invitation, err := s.invitationService.CreateInvitation(s.ctx, inviteReq, uuid.New())
 	require.NoError(s.T(), err)
 	assert.NotEmpty(s.T(), invitation.Token)
 	assert.Equal(s.T(), models.InvitationStatusPending, invitation.Status)
@@ -341,4 +342,19 @@ func (m *MockAuthService) HandleGoogleCallback(ctx context.Context, code string)
 }
 func (m *MockAuthService) CompleteGoogleSignup(ctx context.Context, email, googleID, firstName, lastName, tenantName, subdomain string) (*models.User, error) {
 	return nil, nil
+}
+func (m *MockAuthService) CreateTenant(ctx context.Context, name, subdomain string) (*models.Tenant, error) {
+	return &models.Tenant{
+		ID:        uuid.New(),
+		Name:      name,
+		Subdomain: subdomain,
+		Status:    "active",
+	}, nil
+}
+func (m *MockAuthService) GetRoleByName(ctx context.Context, tenantID uuid.UUID, roleName string) (*models.Role, error) {
+	return &models.Role{
+		ID:       uuid.New(),
+		TenantID: tenantID,
+		Name:     roleName,
+	}, nil
 }

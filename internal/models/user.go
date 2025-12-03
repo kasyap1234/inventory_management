@@ -19,4 +19,5 @@ type User struct {
 	TwoFactorEnabled bool      `json:"two_factor_enabled" db:"two_factor_enabled"`
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
+	Role             string    `json:"role,omitempty" db:"-"` // Populated manually, not from DB
 }

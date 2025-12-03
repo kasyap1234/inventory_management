@@ -544,7 +544,14 @@ export const subscriptionService = {
     const plansSource = data?.plans ?? {};
 
     // Backend returns object with plan IDs as keys
-    return Object.entries(plansSource as Record<string, any>).map(([id, plan]) => ({
+    return Object.entries(plansSource as Record<string, {
+      name: string;
+      amount: number;
+      currency: string;
+      interval: string;
+      description: string;
+      features: string[];
+    }>).map(([id, plan]) => ({
       id: id,
       name: plan.name,
       amount: plan.amount,
@@ -797,6 +804,14 @@ export const tallyService = {
   }) => api.post('/api/tally/import', data),
 };
 
+// Super Admin Services
+export const superAdminService = {
+  inviteTenantAdmin: async (email: string, tenantName: string): Promise<void> => {
+    await api.post('/admin/tenants/invite', { email, tenant_name: tenantName });
+  },
+  // Add listTenants if needed later
+};
+
 // User Services
 export const userService = {
   list: () => api.get('/users'),
@@ -809,8 +824,8 @@ export const userService = {
 
 // Tenant Services
 export const tenantService = {
-  list: () => api.get('/tenants'),
-  create: (data: { name: string; subdomain: string; license: string }) => api.post('/tenants', data),
+  list: (params?: { limit?: number; offset?: number }) => api.get('/tenants', { params }),
+  create: (data: { name: string; subdomain: string; license: string; admin_email: string }) => api.post('/tenants', data),
   getById: (id: string) => api.get(`/tenants/${id}`),
   update: (id: string, data: Record<string, unknown>) => api.put(`/tenants/${id}`, data),
   delete: (id: string) => api.delete(`/tenants/${id}`),
@@ -989,4 +1004,8 @@ export const invitationService = {
     const { data } = await api.post(`/invitations/${token}/accept`, payload);
     return data;
   },
+  list: () => api.get('/invitations'),
+  create: (data: { email: string; role_id: string; permissions?: string[] }) =>
+    api.post('/invitations', data),
+  revoke: (id: string) => api.delete(`/invitations/${id}`),
 };

@@ -71,6 +71,9 @@ type AuthService interface {
 	GetGoogleAuthURL(state string) string
 	HandleGoogleCallback(ctx context.Context, code string) (*models.User, string, error)
 	CompleteGoogleSignup(ctx context.Context, email, googleID, firstName, lastName, tenantName, subdomain string) (*models.User, error)
+	CreateTenant(ctx context.Context, name, subdomain string) (*models.Tenant, error)
+	GetRoleByName(ctx context.Context, tenantID uuid.UUID, roleName string) (*models.Role, error)
+	SeedSuperAdmin(ctx context.Context, email, password string) error
 }
 
 type authService struct {
@@ -711,14 +714,37 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 	var (
 		tenant uuid.UUID
 		err    error
+		role   *models.Role
 	)
 
-	if tenantID != nil && *tenantID != uuid.Nil {
-		tenant = *tenantID
-	} else {
-		tenant, err = s.getOrCreateTenantForSignup(ctx, email)
+	// 1. Check if this is the Super Admin
+	superAdminEmail := os.Getenv("SUPER_ADMIN_EMAIL")
+	if superAdminEmail != "" && strings.EqualFold(email, superAdminEmail) {
+		// Create or get "System" tenant
+		tenant, err = s.getOrCreateSystemTenant(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get/create tenant: %v", err)
+			return nil, fmt.Errorf("failed to get/create system tenant: %v", err)
+		}
+
+		// Ensure super_admin role exists
+		role, err = s.ensureSuperAdminRole(ctx, tenant)
+		if err != nil {
+			return nil, fmt.Errorf("failed to ensure super admin role: %v", err)
+		}
+	} else {
+		// 2. Regular user - MUST have an invitation
+		// For now, we'll assume the handler has already validated the invitation token if provided.
+		// However, the Signup signature doesn't take a token. We might need to adjust the flow.
+		// The current Signup function is called by the handler.
+		// If we want to strictly enforce invite-only at the service level, we need to know about the invitation here.
+		// But `Signup` is also used for "self-service" which we want to disable.
+
+		// If tenantID is provided, it means the user is being added to a specific tenant (likely via invite acceptance).
+		if tenantID != nil && *tenantID != uuid.Nil {
+			tenant = *tenantID
+		} else {
+			// Self-service signup attempt without an invite -> REJECT
+			return nil, fmt.Errorf("public signup is disabled. please contact support or wait for an invitation")
 		}
 	}
 
@@ -775,7 +801,11 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 	}
 
 	roleID := userRole.ID
-	if isFirstUser {
+	if role != nil {
+		roleID = role.ID
+	} else if isFirstUser {
+		// If it's the first user of a normal tenant, make them admin
+		// (This case happens when a Tenant Admin accepts their invite)
 		roleID = adminRole.ID
 		log.Printf("First user in tenant %s - assigning admin role", tenant)
 	}
@@ -1212,4 +1242,186 @@ func (s *authService) Verify2FACode(ctx context.Context, userID uuid.UUID, code 
 
 	valid := totp.Validate(code, user.TwoFactorSecret)
 	return valid, nil
+}
+
+// getOrCreateSystemTenant ensures the "System" tenant exists
+func (s *authService) getOrCreateSystemTenant(ctx context.Context) (uuid.UUID, error) {
+	const systemSubdomain = "system"
+	tenant, err := s.tenantRepo.GetBySubdomain(ctx, systemSubdomain)
+	if err == nil {
+		return tenant.ID, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, err
+	}
+
+	// Create System Tenant
+	newTenant := &models.Tenant{
+		ID:        uuid.New(),
+		Name:      "System Administration",
+		Subdomain: systemSubdomain,
+		Status:    "active",
+	}
+	if err := s.tenantRepo.Create(ctx, newTenant); err != nil {
+		return uuid.Nil, err
+	}
+	return newTenant.ID, nil
+}
+
+// ensureSuperAdminRole ensures the super_admin role exists in the tenant
+func (s *authService) ensureSuperAdminRole(ctx context.Context, tenantID uuid.UUID) (*models.Role, error) {
+	roleName := "super_admin"
+	role, err := s.roleRepo.GetByName(ctx, tenantID, roleName)
+	if err == nil {
+		return role, nil
+	}
+
+	// Create role
+	desc := "Super Administrator with full system access"
+	newRole := &models.Role{
+		ID:          uuid.New(),
+		TenantID:    tenantID,
+		Name:        roleName,
+		Description: &desc,
+		IsActive:    true,
+		Priority:    1000, // High priority
+	}
+	if err := s.roleRepo.Create(ctx, newRole); err != nil {
+		return nil, err
+	}
+
+	// Assign ALL permissions
+	if s.permissionRepo != nil && s.rolePermissionRepo != nil {
+		allPermissions, err := s.permissionRepo.ListPermissions(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range allPermissions {
+			s.rolePermissionRepo.Create(ctx, tenantID, &models.RolePermission{
+				RoleID:       newRole.ID,
+				PermissionID: p.ID,
+			})
+		}
+	}
+
+	return newRole, nil
+}
+
+// CreateTenant creates a new tenant and ensures default roles
+func (s *authService) CreateTenant(ctx context.Context, name, subdomain string) (*models.Tenant, error) {
+	tenant := &models.Tenant{
+		ID:        uuid.New(),
+		Name:      name,
+		Subdomain: subdomain,
+		Status:    "active",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.tenantRepo.Create(ctx, tenant); err != nil {
+		return nil, fmt.Errorf("failed to create tenant: %v", err)
+	}
+
+	// Ensure default roles exist
+	if _, _, err := s.ensureTenantDefaults(ctx, tenant.ID); err != nil {
+		// Log error but don't fail tenant creation? Or maybe we should fail.
+		// Better to fail so we don't have broken tenants.
+		// But we can't easily rollback unless we use transactions.
+		// For now, let's return error.
+		return nil, fmt.Errorf("failed to ensure tenant defaults: %v", err)
+	}
+
+	return tenant, nil
+}
+
+// GetRoleByName retrieves a role by name for a specific tenant
+func (s *authService) GetRoleByName(ctx context.Context, tenantID uuid.UUID, roleName string) (*models.Role, error) {
+	return s.roleRepo.GetByName(ctx, tenantID, roleName)
+}
+
+// SeedSuperAdmin ensures the super admin user exists and has the correct role
+func (s *authService) SeedSuperAdmin(ctx context.Context, email, password string) error {
+	if email == "" || password == "" {
+		return nil // Nothing to seed
+	}
+
+	// 1. Get or create System Tenant
+	tenantID, err := s.getOrCreateSystemTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get/create system tenant: %v", err)
+	}
+
+	// 2. Ensure super_admin role exists
+	role, err := s.ensureSuperAdminRole(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to ensure super admin role: %v", err)
+	}
+
+	// 3. Check if user exists
+	user, err := s.userRepo.GetByEmail(ctx, tenantID, email)
+	if err != nil && !strings.Contains(err.Error(), "not found") && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("failed to check existing user: %v", err)
+	}
+
+	if user == nil {
+		// Create new user
+		hashedPassword, err := s.HashPassword(password)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %v", err)
+		}
+
+		user = &models.User{
+			ID:           uuid.New(),
+			TenantID:     tenantID,
+			Email:        email,
+			PasswordHash: hashedPassword,
+			FirstName:    "Super",
+			LastName:     "Admin",
+			Status:       "active",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return fmt.Errorf("failed to create super admin user: %v", err)
+		}
+		log.Printf("Created super admin user: %s", email)
+	} else {
+		// Update password if needed (optional, but good for seeding)
+		hashedPassword, err := s.HashPassword(password)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %v", err)
+		}
+		if err := s.userRepo.UpdatePassword(ctx, tenantID, user.ID, hashedPassword); err != nil {
+			return fmt.Errorf("failed to update super admin password: %v", err)
+		}
+		log.Printf("Updated super admin password for: %s", email)
+	}
+
+	// 4. Assign super_admin role
+	// Check if already assigned
+	userRoles, err := s.userRoleRepo.ListByUser(ctx, tenantID, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to list user roles: %v", err)
+	}
+
+	hasRole := false
+	for _, ur := range userRoles {
+		if ur.RoleID == role.ID {
+			hasRole = true
+			break
+		}
+	}
+
+	if !hasRole {
+		if err := s.userRoleRepo.Create(ctx, tenantID, &models.UserRole{
+			UserID: user.ID,
+			RoleID: role.ID,
+		}); err != nil {
+			return fmt.Errorf("failed to assign super admin role: %v", err)
+		}
+		log.Printf("Assigned super_admin role to user: %s", email)
+	}
+
+	return nil
 }

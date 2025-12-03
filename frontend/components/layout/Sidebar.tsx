@@ -41,7 +41,7 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   return (
     <div className="hidden border-r bg-background md:block h-full">
@@ -58,6 +58,18 @@ export function Sidebar() {
         <div className="flex-1 overflow-y-auto py-2">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
             {navigation.map((item) => {
+              // Permission checks
+              if (user?.role === 'super_admin') {
+                if (item.name !== 'Tenants') return null;
+              } else {
+                // Hide Tenants from non-super-admins
+                if (item.name === 'Tenants') return null;
+
+                // Hide RBAC/Users from non-admins
+                if ((item.name === 'Users & Roles' || item.name === 'RBAC Management') &&
+                  user?.role !== 'admin') return null;
+              }
+
               const isActive = pathname === item.href;
               return (
                 <Link
