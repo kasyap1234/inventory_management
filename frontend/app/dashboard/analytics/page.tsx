@@ -49,7 +49,6 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from '@/components/ui/chart';
 
 type CategoryOption = {
@@ -81,7 +80,6 @@ export default function AnalyticsPage() {
   const topProductsData = combinedData?.topProducts;
   const lowStockData = combinedData?.lowStock;
   const orderStatusData = combinedData?.orderStatus;
-  const revenueByCategoryData = combinedData?.revenueByCategory;
   const inventoryValuationData = combinedData?.inventoryValuation;
 
   // Single loading state for all analytics data
@@ -89,21 +87,6 @@ export default function AnalyticsPage() {
   const salesTrendLoading = isLoadingCombined;
   const lowStockLoading = isLoadingCombined;
   const inventoryValuationLoading = isLoadingCombined;
-
-  const { data: categoriesData } = useQuery<CategoryOption[]>({
-    queryKey: ['categories-all'],
-    queryFn: async () => {
-      const response = await categoryService.list();
-      const raw = Array.isArray(response.data?.categories) ? response.data.categories : [];
-      return raw
-        .filter((category: unknown): category is { id: string; name: string } => {
-          const cat = category as { id?: unknown; name?: unknown };
-          return typeof cat?.id === 'string' && typeof cat?.name === 'string';
-        })
-        .map((category: { id: string; name: string }) => ({ id: category.id, name: category.name }));
-    },
-    staleTime: 5 * 60 * 1000,
-  });
 
   const salesTrendChartData = useMemo((): Array<{
     dateISO: string | null;
@@ -496,17 +479,7 @@ export default function AnalyticsPage() {
   );
 }
 
-// Helper constants and functions
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#f59e0b',
-  approved: '#3b82f6',
-  processing: '#8b5cf6',
-  shipped: '#06b6d4',
-  delivered: '#10b981',
-  cancelled: '#ef4444',
-  default: '#6b7280',
-};
-
+// Helper functions
 function computePercentageChange(values: number[]): string {
   if (!values || values.length < 2) {
     return 'N/A';

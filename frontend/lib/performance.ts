@@ -8,7 +8,7 @@ interface PerformanceMetric {
   name: string;
   duration: number;
   timestamp: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 class PerformanceMonitor {
@@ -18,10 +18,10 @@ class PerformanceMonitor {
   /**
    * Start timing an operation
    */
-  startTimer(name: string, metadata?: Record<string, any>) {
+  startTimer(name: string, metadata?: Record<string, unknown>) {
     this.timers.set(name, performance.now());
     if (metadata) {
-      this.timers.set(`${name}_metadata`, metadata as any);
+      this.timers.set(`${name}_metadata`, metadata as unknown);
     }
   }
 
@@ -36,7 +36,7 @@ class PerformanceMonitor {
     }
 
     const duration = performance.now() - startTime;
-    const metadata = this.timers.get(`${name}_metadata`) as Record<string, any> | undefined;
+    const metadata = this.timers.get(`${name}_metadata`) as Record<string, unknown> | undefined;
 
     const metric: PerformanceMetric = {
       name,
@@ -136,11 +136,11 @@ export const performanceMonitor = new PerformanceMonitor();
  * Decorator to measure function execution time
  */
 export function measurePerformance(name?: string) {
-  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  return function (target: object, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     const metricName = name || `${target.constructor.name}.${propertyKey}`;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]) {
       performanceMonitor.startTimer(metricName);
       try {
         const result = await originalMethod.apply(this, args);
@@ -203,7 +203,7 @@ export function usePerformanceTracking(componentName: string) {
 export async function measureApiCall<T>(
   name: string,
   apiCall: () => Promise<T>,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<T> {
   performanceMonitor.startTimer(name, metadata);
   try {
@@ -211,7 +211,7 @@ export async function measureApiCall<T>(
     return result;
   } finally {
     const duration = performanceMonitor.endTimer(name);
-    
+
     // Log slow API calls
     if (duration && duration > 3000) {
       console.warn(`Slow API call: ${name} took ${duration.toFixed(2)}ms`, metadata);
@@ -233,19 +233,19 @@ export function getWebVitals() {
   return {
     // Time to First Byte
     ttfb: navigation?.responseStart - navigation?.requestStart,
-    
+
     // First Contentful Paint
     fcp: paint.find((entry) => entry.name === 'first-contentful-paint')?.startTime,
-    
+
     // Largest Contentful Paint (requires observer)
     // lcp: ...,
-    
+
     // DOM Content Loaded
     domContentLoaded: navigation?.domContentLoadedEventEnd - navigation?.domContentLoadedEventStart,
-    
+
     // Load Complete
     loadComplete: navigation?.loadEventEnd - navigation?.loadEventStart,
-    
+
     // Total Page Load Time
     pageLoadTime: navigation?.loadEventEnd - navigation?.fetchStart,
   };

@@ -24,7 +24,7 @@ export function useOptimizedQuery<TData = unknown, TError = unknown>(
 
       try {
         if (typeof queryFn === 'function') {
-          return await measureApiCall(key, () => (queryFn as Function)(context));
+          return await measureApiCall(key, () => (queryFn as (context: typeof context) => Promise<TData>)(context));
         }
         throw new Error('queryFn is required');
       } catch (error) {
@@ -44,7 +44,7 @@ export function useOptimizedQuery<TData = unknown, TError = unknown>(
 export function useOptimizedMutation<TData = unknown, TError = unknown, TVariables = void, TContext = unknown>(
   options: UseMutationOptions<TData, TError, TVariables, TContext> & {
     performanceKey?: string;
-    invalidateKeys?: any[];
+    invalidateKeys?: unknown[];
     logErrors?: boolean;
   }
 ) {
@@ -58,7 +58,7 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
 
       try {
         if (typeof mutationFn === 'function') {
-          return await measureApiCall(key, () => (mutationFn as Function)(variables));
+          return await measureApiCall(key, () => (mutationFn as (variables: TVariables) => Promise<TData>)(variables));
         }
         throw new Error('mutationFn is required');
       } catch (error) {
@@ -79,7 +79,7 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
 
       // Call original onSuccess
       if (onSuccess) {
-        (onSuccess as any)(data, variables, context);
+        (onSuccess as (data: TData, variables: TVariables, context: TContext) => void)(data, variables, context);
       }
     },
     onError: (error, variables, context) => {
@@ -90,7 +90,7 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
 
       // Call original onError
       if (onError) {
-        (onError as any)(error, variables, context);
+        (onError as (error: TError, variables: TVariables, context: TContext) => void)(error, variables, context);
       }
     },
   });
@@ -100,7 +100,7 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
  * Hook for prefetching data on hover/focus
  */
 export function usePrefetch<TData = unknown>(
-  queryKey: any[],
+  queryKey: unknown[],
   queryFn: () => Promise<TData>,
   options?: { staleTime?: number }
 ) {
@@ -118,7 +118,7 @@ export function usePrefetch<TData = unknown>(
 /**
  * Hook for optimistic updates
  */
-export function useOptimisticUpdate<TData = unknown>(queryKey: any[]) {
+export function useOptimisticUpdate<TData = unknown>(queryKey: unknown[]) {
   const queryClient = useQueryClient();
 
   const updateCache = (updater: (old: TData | undefined) => TData) => {
@@ -140,7 +140,7 @@ export function useOptimisticUpdate<TData = unknown>(queryKey: any[]) {
  * Hook for debounced queries (useful for search)
  */
 export function useDebouncedQuery<TData = unknown, TError = unknown>(
-  queryKey: any[],
+  queryKey: unknown[],
   queryFn: () => Promise<TData>,
   delay: number = 500,
   options?: UseQueryOptions<TData, TError>

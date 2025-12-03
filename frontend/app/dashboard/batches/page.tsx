@@ -50,7 +50,7 @@ export default function BatchesPage() {
     });
 
     const createBatchMutation = useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: { product_id: string; batch_number: string; quantity: number; manufacturing_date: string; expiry_date: string; warehouse_id: string }) => {
             const response = await api.post(`/products/${data.product_id}/batches`, data);
             return response.data;
         },
@@ -59,13 +59,14 @@ export default function BatchesPage() {
             setIsCreateDialogOpen(false);
             queryClient.invalidateQueries({ queryKey: ['batches', selectedProductId] });
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to create batch');
+        onError: (error: unknown) => {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Failed to create batch');
         },
     });
 
     const updateBatchMutation = useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: { id: string } & Partial<Batch>) => {
             const response = await api.put(`/batches/${data.id}`, data);
             return response.data;
         },
@@ -74,12 +75,13 @@ export default function BatchesPage() {
             setEditingBatch(null);
             queryClient.invalidateQueries({ queryKey: ['batches', selectedProductId] });
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.message || 'Failed to update batch');
+        onError: (error: unknown) => {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Failed to update batch');
         },
     });
 
-    const handleCreateBatch = async (batchData: any) => {
+    const handleCreateBatch = async (batchData: { batch_number: string; quantity: number; manufacturing_date: string; expiry_date: string; warehouse_id: string }) => {
         createBatchMutation.mutate({ ...batchData, product_id: selectedProductId });
     };
 
@@ -182,7 +184,7 @@ function CreateBatchDialog({
     onOpenChange: (open: boolean) => void;
     productId: string;
     warehouses: Warehouse[];
-    onSubmit: (data: any) => void;
+    onSubmit: (data: { batch_number: string; quantity: number; manufacturing_date: string; expiry_date: string; warehouse_id: string }) => void;
     isSubmitting: boolean;
 }) {
     const [formData, setFormData] = useState({

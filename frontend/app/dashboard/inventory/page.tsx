@@ -574,7 +574,7 @@ function StockAdjustmentDialog({
       setReason('');
     },
     onError: (error: Error) => {
-      // @ts-ignore - axios error structure
+      // @ts-expect-error - The error object from axios might not perfectly match the 'Error' interface, especially for network errors or custom backend errors.
       alert(error.response?.data?.error?.message || 'Failed to adjust stock');
     },
   });

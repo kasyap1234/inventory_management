@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import api from '@/lib/api';
 import { Distributor } from '@/types';
-import { formatDate } from '@/lib/utils';
 
 export default function DistributorsPage() {
   const [searchQuery, setSearchQuery] = useState('');

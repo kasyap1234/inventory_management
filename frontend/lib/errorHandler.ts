@@ -4,7 +4,7 @@ export interface AppError {
   message: string;
   code?: string;
   status?: number;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 /**
@@ -13,8 +13,8 @@ export interface AppError {
 export const handleApiError = (error: unknown): AppError => {
   // Handle Axios errors
   if (error instanceof Error && 'isAxiosError' in error) {
-    const axiosError = error as AxiosError<any>;
-    
+    const axiosError = error as AxiosError<{ message?: string; errors?: unknown; details?: unknown }>;
+
     // Network errors
     if (!axiosError.response) {
       if (axiosError.code === 'ECONNABORTED') {
@@ -30,10 +30,10 @@ export const handleApiError = (error: unknown): AppError => {
         status: 0,
       };
     }
-    
+
     // Server errors
     const { status, data } = axiosError.response;
-    
+
     // Handle specific status codes
     switch (status) {
       case 400:
@@ -41,66 +41,66 @@ export const handleApiError = (error: unknown): AppError => {
           message: data?.message || 'Invalid request. Please check your input.',
           code: 'BAD_REQUEST',
           status: 400,
-          details: data?.errors || data?.details,
+          details: (typeof data?.errors === 'object' && data?.errors !== null ? data.errors as Record<string, unknown> : typeof data?.details === 'object' && data?.details !== null ? data.details as Record<string, unknown> : undefined),
         };
-      
+
       case 401:
         return {
           message: 'Authentication required. Please log in.',
           code: 'UNAUTHORIZED',
           status: 401,
         };
-      
+
       case 403:
         return {
           message: 'You do not have permission to perform this action.',
           code: 'FORBIDDEN',
           status: 403,
         };
-      
+
       case 404:
         return {
           message: data?.message || 'Resource not found.',
           code: 'NOT_FOUND',
           status: 404,
         };
-      
+
       case 409:
         return {
           message: data?.message || 'Conflict. Resource already exists.',
           code: 'CONFLICT',
           status: 409,
         };
-      
+
       case 422:
         return {
           message: data?.message || 'Validation failed.',
           code: 'VALIDATION_ERROR',
           status: 422,
-          details: data?.errors || data?.details,
+          details: (typeof data?.errors === 'object' && data?.errors !== null ? data.errors as Record<string, unknown> : typeof data?.details === 'object' && data?.details !== null ? data.details as Record<string, unknown> : undefined),
         };
-      
+
       case 429:
         return {
           message: 'Too many requests. Please try again later.',
           code: 'RATE_LIMIT',
           status: 429,
         };
-      
+
       case 500:
         return {
           message: 'Server error. Please try again later.',
           code: 'INTERNAL_SERVER_ERROR',
           status: 500,
         };
-      
+
       case 503:
         return {
           message: 'Service temporarily unavailable. Please try again later.',
           code: 'SERVICE_UNAVAILABLE',
           status: 503,
         };
-      
+
       default:
         return {
           message: data?.message || 'An unexpected error occurred.',
@@ -109,7 +109,7 @@ export const handleApiError = (error: unknown): AppError => {
         };
     }
   }
-  
+
   // Handle standard JavaScript errors
   if (error instanceof Error) {
     return {
@@ -117,7 +117,7 @@ export const handleApiError = (error: unknown): AppError => {
       code: 'ERROR',
     };
   }
-  
+
   // Handle unknown errors
   return {
     message: 'An unexpected error occurred.',
@@ -149,14 +149,14 @@ export const isRetryableError = (error: AppError): boolean => {
     'SERVICE_UNAVAILABLE',
     'INTERNAL_SERVER_ERROR',
   ];
-  
+
   return retryableCodes.includes(error.code || '') || (error.status || 0) >= 500;
 };
 
 /**
  * Log error for monitoring
  */
-export const logError = (error: AppError, context?: Record<string, any>) => {
+export const logError = (error: AppError, context?: Record<string, unknown>) => {
   if (process.env.NODE_ENV === 'development') {
     console.error('Application Error:', {
       ...error,
@@ -164,7 +164,7 @@ export const logError = (error: AppError, context?: Record<string, any>) => {
       timestamp: new Date().toISOString(),
     });
   }
-  
+
   // In production, send to error tracking service (e.g., Sentry)
   // if (process.env.NODE_ENV === 'production') {
   //   Sentry.captureException(error, { extra: context });
