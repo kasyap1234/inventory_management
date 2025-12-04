@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 
@@ -41,10 +42,10 @@ func NewValidator() *RequestValidator {
 	}); err != nil {
 
 		// Log the error but continue - validation will still work without custom uuid4 validator
-		fmt.Printf("WARNING: Failed to register uuid4 validation: %v\n", err)
+		log.Printf("WARNING: Failed to register uuid4 validation: %v", err)
 
 		// Log the error but don't panic - allow server to continue with basic validation
-	
+
 	}
 
 	return &RequestValidator{validate: v}

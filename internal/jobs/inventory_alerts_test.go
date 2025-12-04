@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"agromart2/internal/models"
+	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -76,6 +77,24 @@ func (m *MockInventoryRepository) GetByProductForUpdate(ctx context.Context, ten
 
 func (m *MockInventoryRepository) Transfer(ctx context.Context, tenantID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity int) error {
 	args := m.Called(ctx, tenantID, productID, fromWarehouseID, toWarehouseID, quantity)
+	return args.Error(0)
+}
+
+func (m *MockInventoryRepository) GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*repositories.InventoryAnalyticsAggregates, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*repositories.InventoryAnalyticsAggregates), args.Error(1)
+}
+
+func (m *MockInventoryRepository) BulkAdjust(ctx context.Context, tenantID uuid.UUID, adjustments []repositories.BulkAdjustmentItem) error {
+	args := m.Called(ctx, tenantID, adjustments)
+	return args.Error(0)
+}
+
+func (m *MockInventoryRepository) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	args := m.Called(ctx, tenantID, ids)
 	return args.Error(0)
 }
 
@@ -156,6 +175,11 @@ func (m *MockProductRepository) ListWithCursor(ctx context.Context, tenantID uui
 func (m *MockProductRepository) CountProducts(ctx context.Context, tenantID uuid.UUID) (int, error) {
 	args := m.Called(ctx, tenantID)
 	return args.Int(0), args.Error(1)
+}
+
+func (m *MockProductRepository) BulkUpdatePrices(ctx context.Context, tenantID uuid.UUID, productIDs []uuid.UUID, adjustmentType string, adjustmentValue float64) (int64, error) {
+	args := m.Called(ctx, tenantID, productIDs, adjustmentType, adjustmentValue)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 // InventoryAlertServiceTestSuite is the comprehensive test suite for InventoryAlertService

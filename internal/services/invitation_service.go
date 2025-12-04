@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"agromart2/internal/models"
@@ -105,7 +106,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *CreateInv
 
 	if err := s.notificationService.SendEmail(ctx, req.TenantID, req.Email, "You have been invited to Agromart", emailBody); err != nil {
 		// Log error but don't fail the request
-		fmt.Printf("Failed to send invitation email: %v\n", err)
+		log.Printf("Failed to send invitation email: %v", err)
 	}
 
 	return invitation, nil
@@ -162,12 +163,12 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 	}
 	if err := s.userRoleRepo.Create(ctx, invitation.TenantID, userRole); err != nil {
 		// Log error, but user is created. Should probably rollback or handle better.
-		fmt.Printf("Failed to assign role to user %s: %v\n", user.ID, err)
+		log.Printf("Failed to assign role to user %s: %v", user.ID, err)
 	}
 
 	// Update invitation status
 	if err := s.invitationRepo.UpdateStatus(ctx, invitation.ID, models.InvitationStatusAccepted); err != nil {
-		fmt.Printf("Failed to update invitation status: %v\n", err)
+		log.Printf("Failed to update invitation status: %v", err)
 	}
 
 	return user, nil

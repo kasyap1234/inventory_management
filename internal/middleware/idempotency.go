@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -18,11 +19,11 @@ import (
 
 // IdempotencyConfig holds configuration for idempotency middleware
 type IdempotencyConfig struct {
-	CacheService   caching.CacheService
-	TTL            time.Duration
-	HeaderName     string
-	SkipMethods    []string
-	KeyPrefix      string
+	CacheService caching.CacheService
+	TTL          time.Duration
+	HeaderName   string
+	SkipMethods  []string
+	KeyPrefix    string
 }
 
 // IdempotencyMiddleware provides idempotent request handling
@@ -131,7 +132,7 @@ func (m *IdempotencyMiddleware) generateCacheKey(c echo.Context, idempotencyKey 
 	h.Write([]byte(c.Request().Method))
 	h.Write([]byte(c.Request().URL.Path))
 	h.Write([]byte(idempotencyKey))
-	
+
 	// Include user ID if available
 	if userID := c.Request().Header.Get("X-User-ID"); userID != "" {
 		h.Write([]byte(userID))
@@ -166,7 +167,7 @@ func (m *IdempotencyMiddleware) cacheResponse(ctx context.Context, key string, r
 	data := string(response.Body)
 	if err := m.config.CacheService.SetString(ctx, key, data, m.config.TTL); err != nil {
 		// Log error but don't fail the request
-		fmt.Printf("Failed to cache idempotent response: %v\n", err)
+		log.Printf("Failed to cache idempotent response: %v", err)
 	}
 }
 

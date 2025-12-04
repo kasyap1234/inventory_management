@@ -28,21 +28,21 @@ func NewInvitationRepo(db *pgxpool.Pool) InvitationRepository {
 
 func (r *invitationRepo) Create(ctx context.Context, invitation *models.Invitation) error {
 	query := `
-		INSERT INTO invitations (id, tenant_id, email, role_id, token, status, permissions, expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+		INSERT INTO invitations (id, tenant_id, email, role_id, token, status, permissions, invited_by, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
 	`
-	_, err := r.db.Exec(ctx, query, invitation.ID, invitation.TenantID, invitation.Email, invitation.RoleID, invitation.Token, invitation.Status, invitation.Permissions, invitation.ExpiresAt)
+	_, err := r.db.Exec(ctx, query, invitation.ID, invitation.TenantID, invitation.Email, invitation.RoleID, invitation.Token, invitation.Status, invitation.Permissions, invitation.InvitedBy, invitation.ExpiresAt)
 	return err
 }
 
 func (r *invitationRepo) GetByToken(ctx context.Context, token string) (*models.Invitation, error) {
 	invitation := &models.Invitation{}
 	query := `
-		SELECT id, tenant_id, email, role_id, token, status, permissions, expires_at, created_at, updated_at
+		SELECT id, tenant_id, email, role_id, token, status, permissions, invited_by, expires_at, created_at, updated_at
 		FROM invitations
 		WHERE token = $1
 	`
-	err := r.db.QueryRow(ctx, query, token).Scan(&invitation.ID, &invitation.TenantID, &invitation.Email, &invitation.RoleID, &invitation.Token, &invitation.Status, &invitation.Permissions, &invitation.ExpiresAt, &invitation.CreatedAt, &invitation.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, token).Scan(&invitation.ID, &invitation.TenantID, &invitation.Email, &invitation.RoleID, &invitation.Token, &invitation.Status, &invitation.Permissions, &invitation.InvitedBy, &invitation.ExpiresAt, &invitation.CreatedAt, &invitation.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +52,11 @@ func (r *invitationRepo) GetByToken(ctx context.Context, token string) (*models.
 func (r *invitationRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Invitation, error) {
 	invitation := &models.Invitation{}
 	query := `
-		SELECT id, tenant_id, email, role_id, token, status, permissions, expires_at, created_at, updated_at
+		SELECT id, tenant_id, email, role_id, token, status, permissions, invited_by, expires_at, created_at, updated_at
 		FROM invitations
 		WHERE id = $1
 	`
-	err := r.db.QueryRow(ctx, query, id).Scan(&invitation.ID, &invitation.TenantID, &invitation.Email, &invitation.RoleID, &invitation.Token, &invitation.Status, &invitation.Permissions, &invitation.ExpiresAt, &invitation.CreatedAt, &invitation.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, id).Scan(&invitation.ID, &invitation.TenantID, &invitation.Email, &invitation.RoleID, &invitation.Token, &invitation.Status, &invitation.Permissions, &invitation.InvitedBy, &invitation.ExpiresAt, &invitation.CreatedAt, &invitation.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (r *invitationRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status 
 
 func (r *invitationRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Invitation, error) {
 	query := `
-		SELECT id, tenant_id, email, role_id, token, status, permissions, expires_at, created_at, updated_at
+		SELECT id, tenant_id, email, role_id, token, status, permissions, invited_by, expires_at, created_at, updated_at
 		FROM invitations
 		WHERE tenant_id = $1
 		ORDER BY created_at DESC
@@ -90,7 +90,7 @@ func (r *invitationRepo) ListByTenant(ctx context.Context, tenantID uuid.UUID, l
 	var invitations []*models.Invitation
 	for rows.Next() {
 		invitation := &models.Invitation{}
-		if err := rows.Scan(&invitation.ID, &invitation.TenantID, &invitation.Email, &invitation.RoleID, &invitation.Token, &invitation.Status, &invitation.Permissions, &invitation.ExpiresAt, &invitation.CreatedAt, &invitation.UpdatedAt); err != nil {
+		if err := rows.Scan(&invitation.ID, &invitation.TenantID, &invitation.Email, &invitation.RoleID, &invitation.Token, &invitation.Status, &invitation.Permissions, &invitation.InvitedBy, &invitation.ExpiresAt, &invitation.CreatedAt, &invitation.UpdatedAt); err != nil {
 			return nil, err
 		}
 		invitations = append(invitations, invitation)
