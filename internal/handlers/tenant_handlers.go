@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"agromart2/internal/middleware"
@@ -105,6 +106,7 @@ func (h *TenantHandlers) CreateTenant(c echo.Context) error {
 	// Create tenant
 	tenant, err := h.tenantService.Create(c.Request().Context(), tenantReq)
 	if err != nil {
+		log.Printf("Failed to create tenant: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create tenant")
 	}
 

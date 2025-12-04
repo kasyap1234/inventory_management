@@ -85,17 +85,36 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 		return nil, err
 	}
 
+	// Seed default roles for the new tenant
+	defaultRoles := []struct {
+		Name        string
+		Description string
+	}{
+		{"admin", "Tenant Administrator with full access"},
+		{"user", "Standard user with basic access"},
+	}
+
+	for _, role := range defaultRoles {
+		desc := role.Description
+		newRole := &models.Role{
+			ID:          uuid.New(),
+			TenantID:    tenant.ID,
+			Name:        role.Name,
+			Description: &desc,
+			IsActive:    true,
+		}
+		if err := s.roleRepo.Create(ctx, newRole); err != nil {
+			// Log but continue - role might already exist from a trigger
+			fmt.Printf("Warning: failed to create role %s for tenant %s: %v\n", role.Name, tenant.ID, err)
+		}
+	}
+
 	// If admin email is provided, create an invitation for the admin
 	if req.AdminEmail != "" {
-		// Find admin role
+		// Find admin role (should exist now after seeding)
 		adminRole, err := s.roleRepo.GetByName(ctx, tenant.ID, "admin")
 		if err != nil {
-			// If admin role doesn't exist (e.g. not seeded yet), we might need to create it or handle error
-			// For now, let's log and continue, or fail.
-			// Ideally, tenant creation should seed roles.
-			// Let's assume roles are seeded by a trigger or we should seed them here.
-			// For simplicity, let's assume we can't invite if role is missing.
-			return tenant, nil // Or return error?
+			return nil, fmt.Errorf("tenant created but failed to find admin role: %w", err)
 		}
 
 		inviteReq := &CreateInvitationRequest{
@@ -111,10 +130,6 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 		}
 
 		if _, err := s.invitationService.CreateInvitation(ctx, inviteReq, invitedBy); err != nil {
-			// Log error but don't fail tenant creation?
-			// Or fail? Let's fail so the user knows something went wrong.
-			// But tenant is already created.
-			// Ideally we should wrap in transaction.
 			return nil, fmt.Errorf("tenant created but failed to invite admin: %w", err)
 		}
 	}
