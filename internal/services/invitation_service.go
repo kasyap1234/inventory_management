@@ -98,7 +98,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req *CreateInv
 	}
 
 	// Send invitation email
-	inviteURL := fmt.Sprintf("%s/accept-invite?token=%s", s.frontendBaseURL, token)
+	inviteURL := fmt.Sprintf("%s/invitations/%s", s.frontendBaseURL, token)
 	emailBody := fmt.Sprintf(
 		"<p>You have been invited to join Agromart. Click the link below to accept the invitation and set up your account.</p><p><a href=\"%s\">Accept Invitation</a></p><p>This link will expire in 48 hours.</p>",
 		inviteURL,

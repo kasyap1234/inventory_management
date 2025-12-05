@@ -20,6 +20,7 @@ export default function InvoicesPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isBulkGenerateOpen, setIsBulkGenerateOpen] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const queryClient = useQueryClient();
 

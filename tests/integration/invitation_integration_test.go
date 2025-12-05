@@ -265,6 +265,9 @@ func (m *MockNotificationService) RenderTemplate(template *models.NotificationTe
 	return "", nil
 }
 func (m *MockNotificationService) RetryFailedNotifications(ctx context.Context) error { return nil }
+func (m *MockNotificationService) SendEmailWithAttachment(ctx context.Context, tenantID uuid.UUID, recipient, subject, body string, attachmentName string, attachmentData []byte) error {
+	return nil
+}
 
 // MockAuthService
 type MockAuthService struct{}
@@ -357,4 +360,7 @@ func (m *MockAuthService) GetRoleByName(ctx context.Context, tenantID uuid.UUID,
 		TenantID: tenantID,
 		Name:     roleName,
 	}, nil
+}
+func (m *MockAuthService) SeedSuperAdmin(ctx context.Context, email, password string) error {
+	return nil
 }

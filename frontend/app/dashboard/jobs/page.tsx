@@ -15,7 +15,7 @@ import { showSuccess, showError, getErrorMessage } from '@/lib/toast';
 interface Job {
   id: string;
   type: string;
-  payload: any;
+  payload: Record<string, unknown>;
   state: string;
   max_retry: number;
   retried: number;
@@ -30,7 +30,7 @@ export default function JobsPage() {
   const [viewLogsJob, setViewLogsJob] = useState<Job | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: jobs, isLoading, refetch } = useQuery<{ jobs: Job[]; stats: any }>({
+  const { data: jobs, isLoading, refetch } = useQuery<{ jobs: Job[]; stats: { total: number; pending: number; active: number; completed: number; failed: number } }>({
     queryKey: ['background-jobs'],
     queryFn: async () => {
       const response = await api.get('/jobs');
@@ -66,11 +66,11 @@ export default function JobsPage() {
   });
 
   const getStatusBadge = (state: string) => {
-    const variants: Record<string, any> = {
+    const variants: Record<string, { variant: 'warning' | 'default' | 'success' | 'destructive' | 'secondary'; icon: typeof Clock }> = {
       pending: { variant: 'warning' as const, icon: Clock },
       active: { variant: 'default' as const, icon: Loader2 },
       completed: { variant: 'success' as const, icon: CheckCircle2 },
-      failed: { variant: 'danger' as const, icon: AlertCircle },
+      failed: { variant: 'destructive' as const, icon: AlertCircle },
       cancelled: { variant: 'secondary' as const, icon: XCircle },
     };
 
