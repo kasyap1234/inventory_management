@@ -1,21 +1,16 @@
 package middleware
 
 import (
-    "context"
-    "net/http"
-    "strings"
+	"context"
+	"net/http"
+	"strings"
 
-    "agromart2/internal/common"
+	"agromart2/internal/common"
 
-    "github.com/golang-jwt/jwt/v5"
-    "github.com/google/uuid"
-    "github.com/labstack/echo/v4"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
-
-
-
-
-
 
 // JWTCustomClaims represents custom JWT claims
 type JWTCustomClaims struct {
@@ -102,10 +97,10 @@ func ParseJWTPayload(c echo.Context, dst *JWTCustomClaims, jwtSecret string) err
 }
 
 // JWTMiddleware handles JWT token validation
-
+//
 // Define a minimal interface to avoid importing repositories
 type UserTenantResolver interface {
-    GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 }
 
 func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.MiddlewareFunc {
@@ -159,6 +154,15 @@ func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.Middlewar
 				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid user_id format")
 			}
 
+			var tokenTenantID uuid.UUID
+			if claimTenant, ok := claims["tenant_id"].(string); ok && claimTenant != "" {
+				if parsed, parseErr := uuid.Parse(claimTenant); parseErr == nil {
+					tokenTenantID = parsed
+				}
+			}
+
+			tenantFromCtx, hasCtxTenant := common.GetTenantIDFromContext(c.Request().Context())
+
 			defaultTenantID, err := userRepo.GetTenantIDByUserID(c.Request().Context(), userID)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
@@ -168,15 +172,34 @@ func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.Middlewar
 				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid tenant ID for user")
 			}
 
+			effectiveTenant := defaultTenantID
+
+			// Enforce tenant consistency across token, user record, and resolved context (subdomain)
+			if tokenTenantID != uuid.Nil && tokenTenantID != defaultTenantID {
+				return echo.NewHTTPError(http.StatusUnauthorized, "Tenant mismatch for token")
+			}
+
+			if hasCtxTenant {
+				if tenantFromCtx != defaultTenantID {
+					return echo.NewHTTPError(http.StatusUnauthorized, "Tenant mismatch for user")
+				}
+				if tokenTenantID != uuid.Nil && tokenTenantID != tenantFromCtx {
+					return echo.NewHTTPError(http.StatusUnauthorized, "Tenant mismatch for request")
+				}
+				effectiveTenant = tenantFromCtx
+			} else if tokenTenantID != uuid.Nil {
+				effectiveTenant = tokenTenantID
+			}
+
 			// SECURITY: Tenant context is IMMUTABLE after JWT validation
 			// No handler should be able to override the tenant context
 			// to prevent cross-tenant data access vulnerabilities
 
 			ctx := context.WithValue(c.Request().Context(), common.UserIDKey, userID)
-			ctx = context.WithValue(ctx, common.TenantIDKey, defaultTenantID)
+			ctx = context.WithValue(ctx, common.TenantIDKey, effectiveTenant)
 			c.SetRequest(c.Request().WithContext(ctx))
 
 			return next(c)
-				}
-			}
 		}
+	}
+}

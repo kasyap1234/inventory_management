@@ -110,6 +110,7 @@ type AuthHandlers struct {
 	rbacMiddleware      *middleware.RBACMiddleware
 	notificationService services.NotificationService
 	frontendBaseURL     string
+	ssoService          services.SSOService
 }
 
 // NewAuthHandlers creates a new auth handlers instance
@@ -124,6 +125,7 @@ func NewAuthHandlers(
 	rbacMiddleware *middleware.RBACMiddleware,
 	notificationService services.NotificationService,
 	frontendBaseURL string,
+	ssoService services.SSOService,
 ) *AuthHandlers {
 	return &AuthHandlers{
 		authService:         authService,
@@ -136,6 +138,7 @@ func NewAuthHandlers(
 		rbacMiddleware:      rbacMiddleware,
 		notificationService: notificationService,
 		frontendBaseURL:     frontendBaseURL,
+		ssoService:          ssoService,
 	}
 }
 
@@ -280,6 +283,71 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// StartSSO initiates the SSO login flow by returning the provider authorization URL.
+func (h *AuthHandlers) StartSSO(c echo.Context) error {
+	if h.ssoService == nil {
+		return echo.NewHTTPError(http.StatusNotImplemented, "SSO is not configured")
+	}
+
+	ctx := c.Request().Context()
+	tenantID := c.QueryParam("tenant_id")
+	if tenantID == "" {
+		if tid, ok := common.GetTenantIDFromContext(ctx); ok {
+			tenantID = tid.String()
+		}
+	}
+	if tenantID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "tenant_id is required")
+	}
+
+	authURL, err := h.ssoService.GetAuthURL(ctx, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"auth_url": authURL,
+	})
+}
+
+// HandleSSOCallback completes the SSO flow and issues internal JWT tokens.
+func (h *AuthHandlers) HandleSSOCallback(c echo.Context) error {
+	if h.ssoService == nil {
+		return echo.NewHTTPError(http.StatusNotImplemented, "SSO is not configured")
+	}
+
+	ctx := c.Request().Context()
+	code := c.QueryParam("code")
+	if code == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "authorization code is required")
+	}
+
+	tenantID := c.QueryParam("tenant_id")
+	if tenantID == "" {
+		if tid, ok := common.GetTenantIDFromContext(ctx); ok {
+			tenantID = tid.String()
+		}
+	}
+	if tenantID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "tenant_id is required")
+	}
+
+	user, err := h.ssoService.HandleCallback(ctx, tenantID, code)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, err.Error())
+	}
+
+	tokenResponse, err := h.authService.GenerateTokens(ctx, user.ID, user.TenantID, nil)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to generate tokens")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"token": tokenResponse,
+		"user":  user,
+	})
 }
 
 // TestEmailRequest represents the test email request payload

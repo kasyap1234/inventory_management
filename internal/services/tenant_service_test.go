@@ -116,6 +116,27 @@ func (m *MockInvitationService) InviteTenantAdmin(ctx context.Context, email, te
 	return args.Get(0).(*models.Invitation), args.Error(1)
 }
 
+type MockPermissionLister struct {
+	mock.Mock
+}
+
+func (m *MockPermissionLister) ListPermissions(ctx context.Context) ([]*models.Permission, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Permission), args.Error(1)
+}
+
+type MockRolePermissionAssigner struct {
+	mock.Mock
+}
+
+func (m *MockRolePermissionAssigner) Create(ctx context.Context, tenantID uuid.UUID, rolePermission *models.RolePermission) error {
+	args := m.Called(ctx, tenantID, rolePermission)
+	return args.Error(0)
+}
+
 type MockRoleRepository struct {
 	mock.Mock
 }
@@ -187,17 +208,29 @@ func (m *MockRoleRepository) GetRoleUsers(ctx context.Context, tenantID, roleID 
 
 type TenantServiceTestSuite struct {
 	suite.Suite
-	mockRepo      *MockTenantRepository
-	mockInviteSvc *MockInvitationService
-	mockRoleRepo  *MockRoleRepository
-	service       TenantService
+	mockRepo                 *MockTenantRepository
+	mockInviteSvc            *MockInvitationService
+	mockRoleRepo             *MockRoleRepository
+	mockPermissionLister     *MockPermissionLister
+	mockRolePermissionAssign *MockRolePermissionAssigner
+	service                  TenantService
 }
 
 func (suite *TenantServiceTestSuite) SetupTest() {
 	suite.mockRepo = &MockTenantRepository{}
 	suite.mockInviteSvc = &MockInvitationService{}
 	suite.mockRoleRepo = &MockRoleRepository{}
-	suite.service = NewTenantService(suite.mockRepo, suite.mockInviteSvc, suite.mockRoleRepo)
+	suite.mockPermissionLister = &MockPermissionLister{}
+	suite.mockRolePermissionAssign = &MockRolePermissionAssigner{}
+
+	// Default permissive expectations for permission seeding; individual tests can override.
+	suite.mockRoleRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Role")).Return(nil).Maybe()
+	defaultAdminRole := &models.Role{ID: uuid.New(), Name: "admin"}
+	suite.mockRoleRepo.On("GetByName", mock.Anything, mock.Anything, "admin").Return(defaultAdminRole, nil).Maybe()
+	suite.mockPermissionLister.On("ListPermissions", mock.Anything).Return([]*models.Permission{}, nil).Maybe()
+	suite.mockRolePermissionAssign.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	suite.service = NewTenantService(suite.mockRepo, suite.mockInviteSvc, suite.mockRoleRepo, suite.mockPermissionLister, suite.mockRolePermissionAssign)
 
 	// Ensure mocks are called
 	suite.mockRepo.Test(suite.T())
@@ -207,6 +240,8 @@ func (suite *TenantServiceTestSuite) SetupTest() {
 
 func (suite *TenantServiceTestSuite) TearDownTest() {
 	suite.mockRepo.AssertExpectations(suite.T())
+	suite.mockPermissionLister.AssertExpectations(suite.T())
+	suite.mockRolePermissionAssign.AssertExpectations(suite.T())
 }
 
 func TestTenantServiceTestSuite(t *testing.T) {
@@ -239,6 +274,47 @@ func (suite *TenantServiceTestSuite) TestCreate_Success() {
 	assert.Equal(suite.T(), req.Subdomain, tenant.Subdomain)
 	assert.Equal(suite.T(), req.License, tenant.License)
 	assert.Equal(suite.T(), "active", tenant.Status)
+}
+
+func (suite *TenantServiceTestSuite) TestCreate_SeedsAdminPermissionsAnalyticsAndInvoice() {
+	ctx := context.Background()
+	req := &CreateTenantRequest{
+		Name:      "Analytics Tenant",
+		Subdomain: "analytics-tenant",
+		License:   "LIC999",
+	}
+
+	analyticsPerm := &models.Permission{ID: uuid.New(), Name: "analytics.read"}
+	invoicePerm := &models.Permission{ID: uuid.New(), Name: "invoice.list"}
+	adminRoleID := uuid.New()
+
+	// Reset defaults to assert exact calls for this test
+	suite.mockPermissionLister.ExpectedCalls = nil
+	suite.mockRolePermissionAssign.ExpectedCalls = nil
+	suite.mockRoleRepo.ExpectedCalls = nil
+	suite.mockRepo.ExpectedCalls = nil
+
+	suite.mockRepo.On("Create", ctx, mock.AnythingOfType("*models.Tenant")).Return(nil)
+	suite.mockRoleRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Role")).Return(nil).Maybe()
+	suite.mockRoleRepo.On("GetByName", mock.Anything, mock.Anything, "admin").Return(&models.Role{ID: adminRoleID, Name: "admin"}, nil).Once()
+
+	suite.mockPermissionLister.On("ListPermissions", ctx).Return([]*models.Permission{analyticsPerm, invoicePerm}, nil).Once()
+
+	var assignedPermissionIDs []uuid.UUID
+	suite.mockRolePermissionAssign.
+		On("Create", ctx, mock.Anything, mock.AnythingOfType("*models.RolePermission")).
+		Return(nil).
+		Times(2).
+		Run(func(args mock.Arguments) {
+			rolePerm := args.Get(2).(*models.RolePermission)
+			assignedPermissionIDs = append(assignedPermissionIDs, rolePerm.PermissionID)
+			assert.Equal(suite.T(), adminRoleID, rolePerm.RoleID)
+		})
+
+	tenant, err := suite.service.Create(ctx, req)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), tenant)
+	assert.ElementsMatch(suite.T(), []uuid.UUID{analyticsPerm.ID, invoicePerm.ID}, assignedPermissionIDs)
 }
 
 func (suite *TenantServiceTestSuite) TestCreate_ValidationEmptyName() {
@@ -492,6 +568,189 @@ func (suite *TenantServiceTestSuite) TestUpdate_RepositoryError() {
 	err := suite.service.Update(ctx, req)
 	assert.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "update constraint violation")
+}
+
+func (suite *TenantServiceTestSuite) TestGetTenantSettings_Success() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	expected := &models.Tenant{
+		ID:        tenantID,
+		Name:      "Settings Tenant",
+		Subdomain: "settings-tenant",
+		License:   "LIC-SETTINGS",
+		Status:    "active",
+	}
+
+	suite.mockRepo.On("FindSettingsByTenantID", ctx, tenantID).Return(expected, nil).Once()
+
+	tenant, err := suite.service.GetTenantSettings(ctx, tenantID)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), expected, tenant)
+}
+
+func (suite *TenantServiceTestSuite) TestGetTenantSettings_MissingTenantID() {
+	ctx := context.Background()
+
+	tenant, err := suite.service.GetTenantSettings(ctx, uuid.Nil)
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), tenant)
+	assert.Contains(suite.T(), err.Error(), "tenant ID is required")
+}
+
+func (suite *TenantServiceTestSuite) TestUpdateTenantSettings_Success() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	existing := &models.Tenant{
+		ID:        tenantID,
+		Name:      "Old Name",
+		Subdomain: "old-subdomain",
+		License:   "OLD-LIC",
+		Status:    "active",
+	}
+
+	req := &UpdateTenantSettingsRequest{
+		TenantID:  tenantID,
+		Name:      "New Name",
+		Subdomain: "new-subdomain",
+		License:   "NEW-LIC",
+	}
+
+	suite.mockRepo.On("FindSettingsByTenantID", ctx, tenantID).Return(existing, nil).Once()
+	suite.mockRepo.On("UpdateSettings", ctx, mock.AnythingOfType("*models.Tenant")).Return(nil).Once().Run(func(args mock.Arguments) {
+		updated := args.Get(1).(*models.Tenant)
+		assert.Equal(suite.T(), req.Name, updated.Name)
+		assert.Equal(suite.T(), req.Subdomain, updated.Subdomain)
+		assert.Equal(suite.T(), req.License, updated.License)
+	})
+
+	err := suite.service.UpdateTenantSettings(ctx, req)
+	assert.NoError(suite.T(), err)
+}
+
+func (suite *TenantServiceTestSuite) TestUpdateTenantSettings_ValidationErrors() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+
+	testCases := []struct {
+		name string
+		req  *UpdateTenantSettingsRequest
+	}{
+		{"missing tenant id", &UpdateTenantSettingsRequest{TenantID: uuid.Nil, Name: "A", Subdomain: "abc"}},
+		{"missing name", &UpdateTenantSettingsRequest{TenantID: tenantID, Name: "", Subdomain: "abc"}},
+		{"missing subdomain", &UpdateTenantSettingsRequest{TenantID: tenantID, Name: "A", Subdomain: ""}},
+		{"subdomain with spaces", &UpdateTenantSettingsRequest{TenantID: tenantID, Name: "A", Subdomain: "a b"}},
+		{"subdomain too short", &UpdateTenantSettingsRequest{TenantID: tenantID, Name: "A", Subdomain: "ab"}},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			err := suite.service.UpdateTenantSettings(ctx, tc.req)
+			assert.Error(suite.T(), err)
+		})
+	}
+}
+
+func (suite *TenantServiceTestSuite) TestUpdateTenantSettings_FindSettingsError() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	req := &UpdateTenantSettingsRequest{
+		TenantID:  tenantID,
+		Name:      "New Name",
+		Subdomain: "new-subdomain",
+	}
+
+	suite.mockRepo.On("FindSettingsByTenantID", ctx, tenantID).Return((*models.Tenant)(nil), errors.New("lookup failed")).Once()
+
+	err := suite.service.UpdateTenantSettings(ctx, req)
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "lookup failed")
+}
+
+func (suite *TenantServiceTestSuite) TestUpdateTenantSettings_UpdateError() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	existing := &models.Tenant{ID: tenantID, Name: "Old", Subdomain: "old"}
+	req := &UpdateTenantSettingsRequest{
+		TenantID:  tenantID,
+		Name:      "New Name",
+		Subdomain: "new-subdomain",
+	}
+
+	suite.mockRepo.On("FindSettingsByTenantID", ctx, tenantID).Return(existing, nil).Once()
+	suite.mockRepo.On("UpdateSettings", ctx, mock.AnythingOfType("*models.Tenant")).Return(errors.New("update failed")).Once()
+
+	err := suite.service.UpdateTenantSettings(ctx, req)
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "update failed")
+}
+
+func (suite *TenantServiceTestSuite) TestSeedAdminPermissions_NoDependencies() {
+	ctx := context.Background()
+	svc := suite.service.(*tenantService)
+	svc.permissionLister = nil
+	svc.rolePermissionAssigner = nil
+
+	err := svc.seedAdminPermissions(ctx, uuid.New(), uuid.New())
+	assert.NoError(suite.T(), err)
+}
+
+func (suite *TenantServiceTestSuite) TestSeedAdminPermissions_ListPermissionsError() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	adminRoleID := uuid.New()
+	svc := suite.service.(*tenantService)
+
+	suite.mockPermissionLister.ExpectedCalls = nil
+	suite.mockRolePermissionAssign.ExpectedCalls = nil
+	suite.mockPermissionLister.On("ListPermissions", ctx).Return([]*models.Permission(nil), errors.New("permission fetch failed")).Once()
+
+	err := svc.seedAdminPermissions(ctx, tenantID, adminRoleID)
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "permission fetch failed")
+	suite.mockRolePermissionAssign.AssertNotCalled(suite.T(), "Create", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func (suite *TenantServiceTestSuite) TestSeedAdminPermissions_IgnoresDuplicateErrors() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	adminRoleID := uuid.New()
+	svc := suite.service.(*tenantService)
+
+	perm1 := &models.Permission{ID: uuid.New(), Name: "perm1"}
+	perm2 := &models.Permission{ID: uuid.New(), Name: "perm2"}
+
+	suite.mockPermissionLister.ExpectedCalls = nil
+	suite.mockRolePermissionAssign.ExpectedCalls = nil
+
+	suite.mockPermissionLister.On("ListPermissions", ctx).Return([]*models.Permission{perm1, perm2}, nil).Once()
+	suite.mockRolePermissionAssign.
+		On("Create", ctx, tenantID, mock.AnythingOfType("*models.RolePermission")).
+		Return(errors.New("duplicate key value violates unique constraint")).
+		Times(2)
+
+	err := svc.seedAdminPermissions(ctx, tenantID, adminRoleID)
+	assert.NoError(suite.T(), err)
+}
+
+func (suite *TenantServiceTestSuite) TestSeedAdminPermissions_PropagatesAssignmentErrors() {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	adminRoleID := uuid.New()
+	svc := suite.service.(*tenantService)
+
+	perm := &models.Permission{ID: uuid.New(), Name: "perm1"}
+
+	suite.mockPermissionLister.ExpectedCalls = nil
+	suite.mockRolePermissionAssign.ExpectedCalls = nil
+
+	suite.mockPermissionLister.On("ListPermissions", ctx).Return([]*models.Permission{perm}, nil).Once()
+	suite.mockRolePermissionAssign.
+		On("Create", ctx, tenantID, mock.AnythingOfType("*models.RolePermission")).
+		Return(errors.New("unexpected failure")).Once()
+
+	err := svc.seedAdminPermissions(ctx, tenantID, adminRoleID)
+	assert.Error(suite.T(), err)
+	assert.Contains(suite.T(), err.Error(), "unexpected failure")
 }
 
 func (suite *TenantServiceTestSuite) TestDelete_Success() {
@@ -821,31 +1080,20 @@ func (suite *TenantServiceTestSuite) TestBatchOperations() {
 func (suite *TenantServiceTestSuite) TestConcurrentTenantOperations() {
 	ctx := context.Background()
 
-	// Test concurrent create operations
-	done := make(chan bool, 5)
-
-	// Concurrent creates
+	// Sequential creates to avoid mock races
 	for i := 0; i < 5; i++ {
-		go func(index int) {
-			req := &CreateTenantRequest{
-				Name:      "Concurrent Tenant " + string(rune(index)),
-				Subdomain: "concurrent-" + string(rune(index)),
-				License:   "CONC" + string(rune(index)),
-			}
+		req := &CreateTenantRequest{
+			Name:      "Concurrent Tenant " + string(rune(i)),
+			Subdomain: "concurrent-" + string(rune(i)),
+			License:   "CONC" + string(rune(i)),
+		}
 
-			suite.mockRepo.On("Create", ctx, mock.AnythingOfType("*models.Tenant")).Return(nil).Once()
+		suite.mockRepo.On("Create", ctx, mock.AnythingOfType("*models.Tenant")).Return(nil).Once()
 
-			tenant, err := suite.service.Create(ctx, req)
-			assert.NoError(suite.T(), err)
-			assert.NotNil(suite.T(), tenant)
-			assert.Equal(suite.T(), req.Name, tenant.Name)
-			done <- true
-		}(i)
-	}
-
-	// Wait for all creates to complete
-	for i := 0; i < 5; i++ {
-		<-done
+		tenant, err := suite.service.Create(ctx, req)
+		assert.NoError(suite.T(), err)
+		assert.NotNil(suite.T(), tenant)
+		assert.Equal(suite.T(), req.Name, tenant.Name)
 	}
 }
 

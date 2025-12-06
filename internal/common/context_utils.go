@@ -17,8 +17,9 @@ import (
 type contextKey string
 
 const (
-	UserIDKey   contextKey = "user_id"
-	TenantIDKey contextKey = "tenant_id"
+	UserIDKey      contextKey = "user_id"
+	TenantIDKey    contextKey = "tenant_id"
+	TransactionKey contextKey = "db_tx"
 )
 
 // ErrorResponse represents a standardized error response
@@ -245,6 +246,7 @@ func GetTenantIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	tenantID, ok := ctx.Value(TenantIDKey).(uuid.UUID)
 	return tenantID, ok
 }
+
 // SanitizeHTMLElement escapes HTML characters to prevent XSS attacks
 // Deprecated: Use validation.SanitizeHTMLElement instead
 func SanitizeHTMLElement(input string) string {
@@ -275,8 +277,8 @@ func SanitizeSearchQuery(query string) string {
 
 	// Remove dangerous characters that could be used for SQL injection
 	// While we use parameterized queries, this provides additional defense
-	query = strings.ReplaceAll(query, "%", "")  // Remove wildcards
-	query = strings.ReplaceAll(query, "_", "")  // Remove single char wildcards
+	query = strings.ReplaceAll(query, "%", "")   // Remove wildcards
+	query = strings.ReplaceAll(query, "_", "")   // Remove single char wildcards
 	query = strings.ReplaceAll(query, "'", "''") // Escape single quotes
 
 	// Limit query length
@@ -334,10 +336,10 @@ func SecureErrorMessage(operation string, err error) error {
 func ValidateSortField(sortField string) string {
 	// Define allowed sort fields to prevent injection
 	allowedFields := map[string]bool{
-		"order_date":      true,
-		"created_at":      true,
-		"quantity":        true,
-		"unit_price":      true,
+		"order_date":        true,
+		"created_at":        true,
+		"quantity":          true,
+		"unit_price":        true,
 		"expected_delivery": true,
 	}
 

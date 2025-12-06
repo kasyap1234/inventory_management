@@ -398,7 +398,25 @@ func (r *productRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, fi
 	var products []*models.Product
 	for rows.Next() {
 		product := &models.Product{}
-		if err := rows.Scan(&product.ID, &product.TenantID, &product.CategoryID, &product.Name, &product.BatchNumber, &product.ExpiryDate, &product.Quantity, &product.UnitPrice, &product.Barcode, &product.UnitOfMeasure, &product.Description, &product.CreatedAt, &product.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&product.ID,
+			&product.TenantID,
+			&product.CategoryID,
+			&product.Name,
+			&product.BatchNumber,
+			&product.ExpiryDate,
+			&product.Quantity,
+			&product.UnitPrice,
+			&product.Barcode,
+			&product.UnitOfMeasure,
+			&product.Description,
+			&product.IsHazardous,
+			&product.HazardClass,
+			&product.SDSUrl,
+			&product.ActiveIngredients,
+			&product.CreatedAt,
+			&product.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		products = append(products, product)

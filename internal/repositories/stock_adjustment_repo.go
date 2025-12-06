@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"agromart2/internal/common"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -32,8 +36,22 @@ func NewStockAdjustmentRepo(db *pgxpool.Pool) StockAdjustmentRepository {
 	return &stockAdjustmentRepo{db: db}
 }
 
+type adjustmentRunner interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
+
+func getAdjustmentRunner(ctx context.Context, db *pgxpool.Pool) adjustmentRunner {
+	if tx, ok := ctx.Value(common.TransactionKey).(pgx.Tx); ok {
+		return tx
+	}
+	return db
+}
+
 // Create creates a new stock adjustment record
 func (r *stockAdjustmentRepo) Create(ctx context.Context, adjustment *StockAdjustment) error {
+	runner := getAdjustmentRunner(ctx, r.db)
 	query := `
 		INSERT INTO stock_adjustments (
 			id, tenant_id, product_id, warehouse_id, adjustment_type,
@@ -71,7 +89,7 @@ func (r *stockAdjustmentRepo) Create(ctx context.Context, adjustment *StockAdjus
 		referenceID = &adjustment.ReferenceID
 	}
 
-	err := r.db.QueryRow(
+	err := runner.QueryRow(
 		ctx, query,
 		adjustment.ID,
 		adjustment.TenantID,
@@ -97,6 +115,7 @@ func (r *stockAdjustmentRepo) Create(ctx context.Context, adjustment *StockAdjus
 
 // GetByID retrieves a stock adjustment by ID
 func (r *stockAdjustmentRepo) GetByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*StockAdjustment, error) {
+	runner := getAdjustmentRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, adjustment_type,
 		       quantity, previous_stock, new_stock, reason, reference_type,
@@ -109,7 +128,7 @@ func (r *stockAdjustmentRepo) GetByID(ctx context.Context, tenantID uuid.UUID, i
 	var warehouseID, referenceID *uuid.UUID
 	var reason, referenceType *string
 
-	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(
+	err := runner.QueryRow(ctx, query, id, tenantID).Scan(
 		&adjustment.ID,
 		&adjustment.TenantID,
 		&adjustment.ProductID,
@@ -247,7 +266,8 @@ func (r *stockAdjustmentRepo) List(ctx context.Context, tenantID uuid.UUID, limi
 
 // scanAdjustments is a helper function to scan multiple stock adjustments
 func (r *stockAdjustmentRepo) scanAdjustments(ctx context.Context, query string, args ...interface{}) ([]*StockAdjustment, error) {
-	rows, err := r.db.Query(ctx, query, args...)
+	runner := getAdjustmentRunner(ctx, r.db)
+	rows, err := runner.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query stock adjustments: %w", err)
 	}

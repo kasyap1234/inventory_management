@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"agromart2/internal/common"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -35,8 +39,22 @@ func NewInventoryReservationRepo(db *pgxpool.Pool) InventoryReservationRepositor
 	return &inventoryReservationRepo{db: db}
 }
 
+type reservationQueryRunner interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
+
+func getReservationRunner(ctx context.Context, db *pgxpool.Pool) reservationQueryRunner {
+	if tx, ok := ctx.Value(common.TransactionKey).(pgx.Tx); ok {
+		return tx
+	}
+	return db
+}
+
 // Create creates a new inventory reservation
 func (r *inventoryReservationRepo) Create(ctx context.Context, reservation *InventoryReservation) error {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		INSERT INTO inventory_reservations (
 			id, tenant_id, product_id, warehouse_id, reservation_id, 
@@ -73,7 +91,7 @@ func (r *inventoryReservationRepo) Create(ctx context.Context, reservation *Inve
 		notes = &reservation.Notes
 	}
 
-	err := r.db.QueryRow(
+	err := runner.QueryRow(
 		ctx, query,
 		reservation.ID,
 		reservation.TenantID,
@@ -98,6 +116,7 @@ func (r *inventoryReservationRepo) Create(ctx context.Context, reservation *Inve
 
 // GetByID retrieves a reservation by ID
 func (r *inventoryReservationRepo) GetByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -110,7 +129,7 @@ func (r *inventoryReservationRepo) GetByID(ctx context.Context, tenantID uuid.UU
 	var warehouseID, orderID *uuid.UUID
 	var notes *string
 
-	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(
+	err := runner.QueryRow(ctx, query, id, tenantID).Scan(
 		&reservation.ID,
 		&reservation.TenantID,
 		&reservation.ProductID,
@@ -146,6 +165,7 @@ func (r *inventoryReservationRepo) GetByID(ctx context.Context, tenantID uuid.UU
 
 // GetByReservationID retrieves a reservation by reservation ID
 func (r *inventoryReservationRepo) GetByReservationID(ctx context.Context, tenantID uuid.UUID, reservationID string) (*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -158,7 +178,7 @@ func (r *inventoryReservationRepo) GetByReservationID(ctx context.Context, tenan
 	var warehouseID, orderID *uuid.UUID
 	var notes *string
 
-	err := r.db.QueryRow(ctx, query, reservationID, tenantID).Scan(
+	err := runner.QueryRow(ctx, query, reservationID, tenantID).Scan(
 		&reservation.ID,
 		&reservation.TenantID,
 		&reservation.ProductID,
@@ -194,6 +214,7 @@ func (r *inventoryReservationRepo) GetByReservationID(ctx context.Context, tenan
 
 // GetByProduct retrieves all reservations for a product
 func (r *inventoryReservationRepo) GetByProduct(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -203,7 +224,7 @@ func (r *inventoryReservationRepo) GetByProduct(ctx context.Context, tenantID uu
 		ORDER BY reserved_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query, productID, tenantID)
+	rows, err := runner.Query(ctx, query, productID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reservations by product: %w", err)
 	}
@@ -253,6 +274,7 @@ func (r *inventoryReservationRepo) GetByProduct(ctx context.Context, tenantID uu
 
 // GetByWarehouse retrieves all reservations for a warehouse
 func (r *inventoryReservationRepo) GetByWarehouse(ctx context.Context, tenantID uuid.UUID, warehouseID uuid.UUID) ([]*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -262,7 +284,7 @@ func (r *inventoryReservationRepo) GetByWarehouse(ctx context.Context, tenantID 
 		ORDER BY reserved_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query, warehouseID, tenantID)
+	rows, err := runner.Query(ctx, query, warehouseID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reservations by warehouse: %w", err)
 	}
@@ -312,6 +334,7 @@ func (r *inventoryReservationRepo) GetByWarehouse(ctx context.Context, tenantID 
 
 // GetByStatus retrieves all reservations with a specific status
 func (r *inventoryReservationRepo) GetByStatus(ctx context.Context, tenantID uuid.UUID, status string) ([]*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -321,7 +344,7 @@ func (r *inventoryReservationRepo) GetByStatus(ctx context.Context, tenantID uui
 		ORDER BY reserved_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query, status, tenantID)
+	rows, err := runner.Query(ctx, query, status, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reservations by status: %w", err)
 	}
@@ -371,6 +394,7 @@ func (r *inventoryReservationRepo) GetByStatus(ctx context.Context, tenantID uui
 
 // GetExpired retrieves all expired reservations
 func (r *inventoryReservationRepo) GetExpired(ctx context.Context, tenantID uuid.UUID) ([]*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -384,7 +408,7 @@ func (r *inventoryReservationRepo) GetExpired(ctx context.Context, tenantID uuid
 		ORDER BY expires_at ASC
 	`
 
-	rows, err := r.db.Query(ctx, query, tenantID)
+	rows, err := runner.Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get expired reservations: %w", err)
 	}
@@ -434,6 +458,7 @@ func (r *inventoryReservationRepo) GetExpired(ctx context.Context, tenantID uuid
 
 // Update updates a reservation
 func (r *inventoryReservationRepo) Update(ctx context.Context, reservation *InventoryReservation) error {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		UPDATE inventory_reservations
 		SET quantity = $1, status = $2, expires_at = $3, notes = $4, updated_at = NOW()
@@ -445,7 +470,7 @@ func (r *inventoryReservationRepo) Update(ctx context.Context, reservation *Inve
 		notes = &reservation.Notes
 	}
 
-	result, err := r.db.Exec(
+	result, err := runner.Exec(
 		ctx, query,
 		reservation.Quantity,
 		reservation.Status,
@@ -468,13 +493,14 @@ func (r *inventoryReservationRepo) Update(ctx context.Context, reservation *Inve
 
 // UpdateStatus updates the status of a reservation
 func (r *inventoryReservationRepo) UpdateStatus(ctx context.Context, tenantID uuid.UUID, id uuid.UUID, status string) error {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		UPDATE inventory_reservations
 		SET status = $1, updated_at = NOW()
 		WHERE id = $2 AND tenant_id = $3 AND deleted_at IS NULL
 	`
 
-	result, err := r.db.Exec(ctx, query, status, id, tenantID)
+	result, err := runner.Exec(ctx, query, status, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to update reservation status: %w", err)
 	}
@@ -488,13 +514,14 @@ func (r *inventoryReservationRepo) UpdateStatus(ctx context.Context, tenantID uu
 
 // Delete soft deletes a reservation
 func (r *inventoryReservationRepo) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		UPDATE inventory_reservations
 		SET deleted_at = NOW()
 		WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 	`
 
-	result, err := r.db.Exec(ctx, query, id, tenantID)
+	result, err := runner.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to delete reservation: %w", err)
 	}
@@ -508,6 +535,7 @@ func (r *inventoryReservationRepo) Delete(ctx context.Context, tenantID uuid.UUI
 
 // GetActiveReservationsByProduct retrieves active reservations for a product in a warehouse
 func (r *inventoryReservationRepo) GetActiveReservationsByProduct(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, warehouseID uuid.UUID) ([]*InventoryReservation, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, product_id, warehouse_id, reservation_id, 
 		       quantity, reserved_by, reserved_at, expires_at, status, 
@@ -522,7 +550,7 @@ func (r *inventoryReservationRepo) GetActiveReservationsByProduct(ctx context.Co
 		ORDER BY reserved_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query, productID, tenantID, warehouseID)
+	rows, err := runner.Query(ctx, query, productID, tenantID, warehouseID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active reservations: %w", err)
 	}
@@ -572,6 +600,7 @@ func (r *inventoryReservationRepo) GetActiveReservationsByProduct(ctx context.Co
 
 // GetTotalReservedQuantity calculates total reserved quantity for a product in a warehouse
 func (r *inventoryReservationRepo) GetTotalReservedQuantity(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, warehouseID uuid.UUID) (int, error) {
+	runner := getReservationRunner(ctx, r.db)
 	query := `
 		SELECT COALESCE(SUM(quantity), 0)
 		FROM inventory_reservations
@@ -584,7 +613,7 @@ func (r *inventoryReservationRepo) GetTotalReservedQuantity(ctx context.Context,
 	`
 
 	var total int
-	err := r.db.QueryRow(ctx, query, productID, tenantID, warehouseID).Scan(&total)
+	err := runner.QueryRow(ctx, query, productID, tenantID, warehouseID).Scan(&total)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total reserved quantity: %w", err)
 	}

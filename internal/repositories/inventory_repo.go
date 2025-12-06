@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"agromart2/internal/common"
 	"agromart2/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -57,24 +59,41 @@ func NewInventoryRepo(db *pgxpool.Pool) InventoryRepository {
 	return &inventoryRepo{db: db}
 }
 
+// queryRunner abstracts pgxpool.Pool and pgx.Tx so repositories can transparently
+// participate in caller-managed transactions (using context propagation).
+type queryRunner interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
+
+func getRunner(ctx context.Context, db *pgxpool.Pool) queryRunner {
+	if tx, ok := ctx.Value(common.TransactionKey).(pgx.Tx); ok {
+		return tx
+	}
+	return db
+}
+
 func (r *inventoryRepo) Create(ctx context.Context, inventory *models.Inventory) error {
+	runner := getRunner(ctx, r.db)
 	query := `
 		INSERT INTO inventory (id, tenant_id, warehouse_id, product_id, quantity, last_updated)
 		VALUES ($1, $2, $3, $4, $5, NOW())
 		ON CONFLICT (tenant_id, warehouse_id, product_id) DO UPDATE SET quantity = inventory.quantity + EXCLUDED.quantity, last_updated = NOW()
 	`
-	_, err := r.db.Exec(ctx, query, inventory.ID, inventory.TenantID, inventory.WarehouseID, inventory.ProductID, inventory.Quantity)
+	_, err := runner.Exec(ctx, query, inventory.ID, inventory.TenantID, inventory.WarehouseID, inventory.ProductID, inventory.Quantity)
 	return err
 }
 
 func (r *inventoryRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Inventory, error) {
+	runner := getRunner(ctx, r.db)
 	inventory := &models.Inventory{}
 	query := `
 		SELECT id, tenant_id, warehouse_id, product_id, quantity, last_updated
 		FROM inventory
 		WHERE tenant_id = $1 AND id = $2
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated)
+	err := runner.QueryRow(ctx, query, tenantID, id).Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated)
 	if err != nil {
 		return nil, err
 	}
@@ -82,13 +101,14 @@ func (r *inventoryRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*m
 }
 
 func (r *inventoryRepo) GetByWarehouseAndProduct(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) (*models.Inventory, error) {
+	runner := getRunner(ctx, r.db)
 	inventory := &models.Inventory{}
 	query := `
 		SELECT id, tenant_id, warehouse_id, product_id, quantity, last_updated
 		FROM inventory
 		WHERE tenant_id = $1 AND warehouse_id = $2 AND product_id = $3
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, warehouseID, productID).Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated)
+	err := runner.QueryRow(ctx, query, tenantID, warehouseID, productID).Scan(&inventory.ID, &inventory.TenantID, &inventory.WarehouseID, &inventory.ProductID, &inventory.Quantity, &inventory.LastUpdated)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInventoryNotFound
@@ -99,22 +119,25 @@ func (r *inventoryRepo) GetByWarehouseAndProduct(ctx context.Context, tenantID, 
 }
 
 func (r *inventoryRepo) Update(ctx context.Context, inventory *models.Inventory) error {
+	runner := getRunner(ctx, r.db)
 	query := `
 		UPDATE inventory
 		SET quantity = $1, reserved_quantity = $2, last_updated = NOW()
 		WHERE tenant_id = $3 AND id = $4
 	`
-	_, err := r.db.Exec(ctx, query, inventory.Quantity, inventory.ReservedQuantity, inventory.TenantID, inventory.ID)
+	_, err := runner.Exec(ctx, query, inventory.Quantity, inventory.ReservedQuantity, inventory.TenantID, inventory.ID)
 	return err
 }
 
 func (r *inventoryRepo) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	runner := getRunner(ctx, r.db)
 	query := `DELETE FROM inventory WHERE tenant_id = $1 AND id = $2`
-	_, err := r.db.Exec(ctx, query, tenantID, id)
+	_, err := runner.Exec(ctx, query, tenantID, id)
 	return err
 }
 
 func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Inventory, error) {
+	runner := getRunner(ctx, r.db)
 	query := `
 		SELECT 
 			i.id, i.tenant_id, i.warehouse_id, i.product_id, i.quantity, i.last_updated,
@@ -127,7 +150,7 @@ func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 		ORDER BY i.last_updated DESC
 		LIMIT $2 OFFSET $3
 	`
-	rows, err := r.db.Query(ctx, query, tenantID, limit, offset)
+	rows, err := runner.Query(ctx, query, tenantID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -154,13 +177,14 @@ func (r *inventoryRepo) List(ctx context.Context, tenantID uuid.UUID, limit, off
 }
 
 func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	runner := getRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, warehouse_id, product_id, quantity, reserved_quantity, last_updated
 		FROM inventory
 		WHERE tenant_id = $1 AND product_id = $2
 	`
 
-	rows, err := r.db.Query(ctx, query, tenantID, productID)
+	rows, err := runner.Query(ctx, query, tenantID, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +209,7 @@ func (r *inventoryRepo) GetByProduct(ctx context.Context, tenantID, productID uu
 // GetByProductForUpdate retrieves inventory with SELECT FOR UPDATE lock to prevent race conditions.
 // This should be used within a transaction when performing atomic stock operations.
 func (r *inventoryRepo) GetByProductForUpdate(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.Inventory, error) {
+	runner := getRunner(ctx, r.db)
 	query := `
 		SELECT id, tenant_id, warehouse_id, product_id, quantity, reserved_quantity, last_updated
 		FROM inventory
@@ -192,7 +217,7 @@ func (r *inventoryRepo) GetByProductForUpdate(ctx context.Context, tenantID, pro
 		FOR UPDATE
 	`
 
-	rows, err := r.db.Query(ctx, query, tenantID, productID)
+	rows, err := runner.Query(ctx, query, tenantID, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +241,7 @@ func (r *inventoryRepo) GetByProductForUpdate(ctx context.Context, tenantID, pro
 
 // AdvancedSearch performs advanced search on inventory with multiple filters
 func (r *inventoryRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.InventorySearchFilter) ([]*models.Inventory, error) {
+	runner := getRunner(ctx, r.db)
 	// Set defaults
 	if filter.Limit == 0 {
 		filter.Limit = 50
@@ -347,7 +373,7 @@ func (r *inventoryRepo) AdvancedSearch(ctx context.Context, tenantID uuid.UUID, 
 		args = append(args, filter.Offset)
 	}
 
-	rows, err := r.db.Query(ctx, queryBase, args...)
+	rows, err := runner.Query(ctx, queryBase, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -375,12 +401,18 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 		return fmt.Errorf("transfer quantity must be positive")
 	}
 
-	// Start a transaction
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
+	runner := getRunner(ctx, r.db)
+
+	// If caller already provided a transaction, reuse it; otherwise create one locally.
+	tx, inTx := runner.(pgx.Tx)
+	var err error
+	if !inTx {
+		tx, err = r.db.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to start transaction: %w", err)
+		}
+		defer tx.Rollback(ctx)
 	}
-	defer tx.Rollback(ctx)
 
 	// Check if source warehouse has enough stock
 	var sourceQuantity int
@@ -402,31 +434,29 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 	}
 
 	// Decrease quantity in source warehouse
-	_, err = tx.Exec(ctx, `
+	if _, err = tx.Exec(ctx, `
 		UPDATE inventory
 		SET quantity = quantity - $1, last_updated = NOW()
 		WHERE tenant_id = $2 AND warehouse_id = $3 AND product_id = $4
-	`, quantity, tenantID, fromWarehouseID, productID)
-
-	if err != nil {
+	`, quantity, tenantID, fromWarehouseID, productID); err != nil {
 		return fmt.Errorf("failed to decrease source inventory: %w", err)
 	}
 
 	// Increase quantity in destination warehouse (or create if doesn't exist)
-	_, err = tx.Exec(ctx, `
+	if _, err = tx.Exec(ctx, `
 		INSERT INTO inventory (id, tenant_id, warehouse_id, product_id, quantity, last_updated)
 		VALUES ($1, $2, $3, $4, $5, NOW())
 		ON CONFLICT (tenant_id, warehouse_id, product_id)
-		DO UPDATE SET quantity = inventory.quantity + $5, last_updated = NOW()
-	`, uuid.New(), tenantID, toWarehouseID, productID, quantity)
-
-	if err != nil {
+		DO UPDATE SET quantity = inventory.quantity + EXCLUDED.quantity, last_updated = NOW()
+	`, uuid.New(), tenantID, toWarehouseID, productID, quantity); err != nil {
 		return fmt.Errorf("failed to increase destination inventory: %w", err)
 	}
 
-	// Commit transaction
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	if !inTx {
+		// Commit transaction when we created it locally
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
 	}
 
 	return nil
@@ -435,6 +465,7 @@ func (r *inventoryRepo) Transfer(ctx context.Context, tenantID, productID, fromW
 // GetAnalyticsAggregates returns aggregated inventory analytics data using SQL
 // This joins inventory with products to calculate total stock value in a single query
 func (r *inventoryRepo) GetAnalyticsAggregates(ctx context.Context, tenantID uuid.UUID) (*InventoryAnalyticsAggregates, error) {
+	runner := getRunner(ctx, r.db)
 	query := `
 		SELECT 
 			COALESCE(SUM(i.quantity * p.unit_price), 0) as total_stock_value,
@@ -446,7 +477,7 @@ func (r *inventoryRepo) GetAnalyticsAggregates(ctx context.Context, tenantID uui
 	`
 
 	aggregates := &InventoryAnalyticsAggregates{}
-	err := r.db.QueryRow(ctx, query, tenantID).Scan(
+	err := runner.QueryRow(ctx, query, tenantID).Scan(
 		&aggregates.TotalStockValue,
 		&aggregates.LowStockCount,
 		&aggregates.TotalItemsCount,
@@ -464,11 +495,16 @@ func (r *inventoryRepo) BulkAdjust(ctx context.Context, tenantID uuid.UUID, adju
 		return nil
 	}
 
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
+	runner := getRunner(ctx, r.db)
+	tx, inTx := runner.(pgx.Tx)
+	var err error
+	if !inTx {
+		tx, err = r.db.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to start transaction: %w", err)
+		}
+		defer tx.Rollback(ctx)
 	}
-	defer tx.Rollback(ctx)
 
 	for _, adj := range adjustments {
 		// Get current stock with lock
@@ -522,8 +558,10 @@ func (r *inventoryRepo) BulkAdjust(ctx context.Context, tenantID uuid.UUID, adju
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	if !inTx {
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
 	}
 
 	return nil
@@ -535,7 +573,8 @@ func (r *inventoryRepo) BulkDelete(ctx context.Context, tenantID uuid.UUID, ids 
 		return nil
 	}
 
+	runner := getRunner(ctx, r.db)
 	query := `DELETE FROM inventory WHERE tenant_id = $1 AND id = ANY($2)`
-	_, err := r.db.Exec(ctx, query, tenantID, ids)
+	_, err := runner.Exec(ctx, query, tenantID, ids)
 	return err
 }

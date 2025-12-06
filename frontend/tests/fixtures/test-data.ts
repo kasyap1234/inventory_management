@@ -72,6 +72,15 @@ export const testWarehouses = {
   },
 };
 
+export const testDistributors = {
+  basic: {
+    name: `Test Distributor ${Date.now()}`,
+    contactEmail: `distributor-${Date.now()}@example.com`,
+    contactPhone: '+1234567890',
+    address: '456 Distribution Ave',
+  },
+};
+
 export const apiEndpoints = {
   auth: {
     login: '/api/v1/auth/login',
@@ -89,11 +98,24 @@ export const apiEndpoints = {
   },
   inventory: {
     list: '/api/v1/inventory',
+    create: '/api/v1/inventory',
     update: '/api/v1/inventory/adjust',
+    adjust: '/api/v1/inventory/adjust',
   },
   orders: {
     list: '/api/v1/orders',
     create: '/api/v1/orders',
+    delete: (id: string) => `/api/v1/orders/${id}`,
+  },
+  warehouses: {
+    list: '/api/v1/warehouses',
+    create: '/api/v1/warehouses',
+    delete: (id: string) => `/api/v1/warehouses/${id}`,
+  },
+  distributors: {
+    list: '/api/v1/distributors',
+    create: '/api/v1/distributors',
+    delete: (id: string) => `/api/v1/distributors/${id}`,
   },
 };
 

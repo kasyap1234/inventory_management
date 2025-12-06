@@ -96,6 +96,8 @@ func (s *InvitationIntegrationTestSuite) SetupSuite() {
 		s.tenantRepo,
 		s.invitationService,
 		s.roleRepo,
+		s.permissionRepo,
+		s.rolePermissionRepo,
 	)
 }
 

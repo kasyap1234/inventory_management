@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { userService, invitationService } from '@/lib/services';
+import { userService, invitationService, roleService } from '@/lib/services';
 import { Loader2, Mail, UserPlus, Trash2 } from 'lucide-react';
 import { getErrorMessage } from '@/lib/toast';
 import toast from 'react-hot-toast';
@@ -29,22 +29,35 @@ type Invitation = {
     created_at: string;
 };
 
+type Role = {
+    id: string;
+    name: string;
+};
+
 export default function UsersPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [invitations, setInvitations] = useState<Invitation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isInviting, setIsInviting] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [selectedRoleId, setSelectedRoleId] = useState('');
     const { user } = useAuth();
 
     const fetchData = async () => {
         try {
-            const [usersRes, invitationsRes] = await Promise.all([
+            const [usersRes, invitationsRes, rolesRes] = await Promise.all([
                 userService.list(),
-                invitationService.list()
+                invitationService.list(),
+                roleService.list()
             ]);
             setUsers(usersRes.data.users || []);
             setInvitations(invitationsRes.data.invitations || []);
+            const fetchedRoles: Role[] = rolesRes.data?.roles || [];
+            setRoles(fetchedRoles);
+            if (!selectedRoleId && fetchedRoles.length > 0) {
+                setSelectedRoleId(fetchedRoles[0].id);
+            }
         } catch (error) {
             console.error('Failed to fetch data', error);
             toast.error('Failed to load users and invitations');
@@ -60,34 +73,17 @@ export default function UsersPage() {
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inviteEmail) return;
+        if (!selectedRoleId) {
+            toast.error('Please select a role for the invitation');
+            return;
+        }
 
         setIsInviting(true);
         try {
-            // Default to 'user' role for now, or fetch roles to select
-            // We need a role ID. Let's assume the backend handles default or we need to fetch roles.
-            // For simplicity, let's assume we have a way to get role ID or the backend accepts role name?
-            // The backend CreateInvitation expects RoleID.
-            // We should probably fetch roles first.
-            // For this MVP, let's just show a toast that we need to implement role selection.
-            // Or better, let's fetch roles.
-
-            // Wait, invitationService.create takes { email, role_id }.
-            // I don't have roles loaded.
-            // Let's just implement the UI structure for now and add role fetching if I have time.
-            // Or I can hardcode a known role ID if I knew it, but I don't.
-            // I'll skip the actual API call for now or mock it?
-            // No, I should do it right.
-
-            // Let's assume there's a 'user' role and we can find it.
-            // But I don't have a roleService exposed in frontend yet.
-
-            // I'll just put a placeholder for now.
-            toast.error("Role selection not implemented yet");
-
-            // await invitationService.create({ email: inviteEmail, role_id: '...' });
-            // toast.success(`Invitation sent to ${inviteEmail}`);
-            // setInviteEmail('');
-            // fetchData();
+            await invitationService.create({ email: inviteEmail, role_id: selectedRoleId });
+            toast.success(`Invitation sent to ${inviteEmail}`);
+            setInviteEmail('');
+            fetchData();
         } catch (error: unknown) {
             toast.error(getErrorMessage(error));
         } finally {
@@ -144,6 +140,22 @@ export default function UsersPage() {
                                         required
                                     />
                                 </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="role">Role</Label>
+                                <select
+                                    id="role"
+                                    className="w-full rounded-md border px-3 py-2 text-sm"
+                                    value={selectedRoleId}
+                                    onChange={(e) => setSelectedRoleId(e.target.value)}
+                                >
+                                    {roles.length === 0 && <option value="">No roles available</option>}
+                                    {roles.map((role) => (
+                                        <option key={role.id} value={role.id}>
+                                            {role.name}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                             <Button type="submit" className="w-full" disabled={isInviting}>
                                 {isInviting ? (

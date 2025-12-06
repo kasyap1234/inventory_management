@@ -2,10 +2,12 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 
 	"agromart2/internal/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -38,28 +40,21 @@ func (r *tenantRepo) Create(ctx context.Context, tenant *models.Tenant) error {
 }
 
 func (r *tenantRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Tenant, error) {
-	tenant := &models.Tenant{}
 	query := `
-		SELECT id, name, subdomain, license_number, status, created_at, updated_at
+		SELECT id, name, subdomain, license_number, status, created_at, updated_at, sso_config
 		FROM tenants
 		WHERE id = $1
 	`
-	err := r.db.QueryRow(ctx, query, id).Scan(&tenant.ID, &tenant.Name, &tenant.Subdomain, &tenant.License, &tenant.Status, &tenant.CreatedAt, &tenant.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return tenant, nil
+	return scanTenant(r.db.QueryRow(ctx, query, id))
 }
 
 func (r *tenantRepo) GetBySubdomain(ctx context.Context, subdomain string) (*models.Tenant, error) {
-	tenant := &models.Tenant{}
 	query := `
-		SELECT id, name, subdomain, license_number, status, created_at, updated_at
+		SELECT id, name, subdomain, license_number, status, created_at, updated_at, sso_config
 		FROM tenants
 		WHERE subdomain = $1
 	`
-	err := r.db.QueryRow(ctx, query, subdomain).Scan(&tenant.ID, &tenant.Name, &tenant.Subdomain, &tenant.License, &tenant.Status, &tenant.CreatedAt, &tenant.UpdatedAt)
-	return tenant, err
+	return scanTenant(r.db.QueryRow(ctx, query, subdomain))
 }
 
 func (r *tenantRepo) Update(ctx context.Context, tenant *models.Tenant) error {
@@ -79,6 +74,7 @@ func (r *tenantRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *tenantRepo) List(ctx context.Context, limit, offset int) ([]*models.Tenant, error) {
+	// sso_config intentionally omitted here to keep list lightweight
 	query := `
 		SELECT id, name, subdomain, license_number, status, created_at, updated_at
 		FROM tenants
@@ -111,4 +107,30 @@ func (r *tenantRepo) FindSettingsByTenantID(ctx context.Context, id uuid.UUID) (
 
 func (r *tenantRepo) UpdateSettings(ctx context.Context, tenant *models.Tenant) error {
 	return r.Update(ctx, tenant)
+}
+
+func scanTenant(row pgx.Row) (*models.Tenant, error) {
+	tenant := &models.Tenant{}
+	var ssoConfig json.RawMessage
+	if err := row.Scan(
+		&tenant.ID,
+		&tenant.Name,
+		&tenant.Subdomain,
+		&tenant.License,
+		&tenant.Status,
+		&tenant.CreatedAt,
+		&tenant.UpdatedAt,
+		&ssoConfig,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(ssoConfig) > 0 {
+		var cfg models.SSOConfig
+		if err := json.Unmarshal(ssoConfig, &cfg); err == nil {
+			tenant.SSOConfig = &cfg
+		}
+	}
+
+	return tenant, nil
 }

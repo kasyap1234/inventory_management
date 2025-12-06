@@ -63,6 +63,18 @@ export async function apiCreateOrder(
   return await response.json();
 }
 
+export async function apiDeleteOrder(
+  request: APIRequestContext,
+  token: string,
+  orderId: string
+) {
+  const response = await request.delete(`${API_BASE_URL}/api/v1/orders/${orderId}`, {
+    headers: await createAuthHeaders(token),
+  });
+
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function apiGetProducts(
   request: APIRequestContext,
   token: string,
@@ -79,6 +91,106 @@ export async function apiGetProducts(
     headers: await createAuthHeaders(token),
   });
   
+  expect(response.ok()).toBeTruthy();
+  return await response.json();
+}
+
+export async function apiCreateWarehouse(
+  request: APIRequestContext,
+  token: string,
+  warehouseData: any
+) {
+  const response = await request.post(`${API_BASE_URL}/api/v1/warehouses`, {
+    headers: await createAuthHeaders(token),
+    data: warehouseData,
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return await response.json();
+}
+
+export async function apiDeleteWarehouse(
+  request: APIRequestContext,
+  token: string,
+  warehouseId: string
+) {
+  const response = await request.delete(`${API_BASE_URL}/api/v1/warehouses/${warehouseId}`, {
+    headers: await createAuthHeaders(token),
+  });
+
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function apiCreateDistributor(
+  request: APIRequestContext,
+  token: string,
+  distributorData: any
+) {
+  const response = await request.post(`${API_BASE_URL}/api/v1/distributors`, {
+    headers: await createAuthHeaders(token),
+    data: distributorData,
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return await response.json();
+}
+
+export async function apiDeleteDistributor(
+  request: APIRequestContext,
+  token: string,
+  distributorId: string
+) {
+  const response = await request.delete(`${API_BASE_URL}/api/v1/distributors/${distributorId}`, {
+    headers: await createAuthHeaders(token),
+  });
+
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function apiCreateInventory(
+  request: APIRequestContext,
+  token: string,
+  inventoryData: any
+) {
+  const response = await request.post(`${API_BASE_URL}/api/v1/inventory`, {
+    headers: await createAuthHeaders(token),
+    data: inventoryData,
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return await response.json();
+}
+
+export async function apiAdjustInventory(
+  request: APIRequestContext,
+  token: string,
+  adjustmentData: any
+) {
+  const response = await request.post(`${API_BASE_URL}/api/v1/inventory/adjust`, {
+    headers: await createAuthHeaders(token),
+    data: adjustmentData,
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return await response.json();
+}
+
+export async function apiListInventories(
+  request: APIRequestContext,
+  token: string,
+  params?: { limit?: number; offset?: number }
+) {
+  const queryParams = new URLSearchParams();
+  if (params?.limit) queryParams.set('limit', params.limit.toString());
+  if (params?.offset) queryParams.set('offset', params.offset.toString());
+
+  const response = await request.get(
+    `${API_BASE_URL}/api/v1/inventory${queryParams.toString() ? '?' + queryParams.toString() : ''}`,
+    {
+      headers: await createAuthHeaders(token),
+    }
+  );
+
   expect(response.ok()).toBeTruthy();
   return await response.json();
 }

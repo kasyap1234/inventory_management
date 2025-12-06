@@ -35,6 +35,9 @@ func (tm *TransactionManager) ExecuteInTransaction(ctx context.Context, fn Trans
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
+	// Propagate transaction in context so repositories can reuse it
+	ctx = context.WithValue(ctx, TransactionKey, tx)
+
 	// Ensure rollback on panic or error
 	defer func() {
 		if p := recover(); p != nil {
@@ -121,7 +124,7 @@ func isRetryableError(err error) bool {
 
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
 }
 
@@ -155,6 +158,9 @@ func (tm *TransactionManager) ExecuteInTransactionWithOptions(ctx context.Contex
 		})
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
+	// Propagate transaction in context so repositories can reuse it
+	ctx = context.WithValue(ctx, TransactionKey, tx)
 
 	// Ensure rollback on panic or error
 	defer func() {
@@ -319,7 +325,7 @@ func (tm *TransactionManager) ExecuteBatchWithSavepoints(ctx context.Context, op
 
 		if len(errors) > 0 {
 			tm.logger.WarnWithContext(ctx, "Batch execution completed with errors", map[string]interface{}{
-				"total_operations": len(operations),
+				"total_operations":  len(operations),
 				"failed_operations": len(errors),
 			})
 			return fmt.Errorf("batch execution had %d errors: %v", len(errors), errors)

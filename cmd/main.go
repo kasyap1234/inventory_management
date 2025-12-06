@@ -312,7 +312,7 @@ func main() {
 	productHandlers := handlers.NewProductHandlers(productSvc, rbacMiddleware)
 
 	// Create tenant service
-	tenantService := services.NewTenantService(tenantRepo, invitationService, roleRepo)
+	tenantService := services.NewTenantService(tenantRepo, invitationService, roleRepo, permissionRepo, rolePermissionRepo)
 
 	// Subdomain middleware
 	subdomainMiddleware := middleware.NewSubdomainMiddleware(tenantService)
@@ -324,6 +324,7 @@ func main() {
 	// invoiceSvc := services.NewInvoiceService(invoiceRepo, orderRepo, analyticsSvc, pool) // moved after inventoryService
 
 	// Create handlers
+	ssoService := services.NewSSOService(tenantRepo, userRepo, backendURL)
 	authHandlers := handlers.NewAuthHandlers(
 		authService,
 		userRepo,
@@ -335,6 +336,7 @@ func main() {
 		rbacMiddleware,
 		notificationService,
 		frontendURL,
+		ssoService,
 	)
 	invitationHandlers := handlers.NewInvitationHandlers(invitationService)
 	userHandlers := handlers.NewUserHandlers(userRepo, tenantRepo, rbacMiddleware, userService, roleManagementService)
@@ -356,7 +358,9 @@ func main() {
 	)
 	// logger := common.GetGlobalLogger() // Already initialized
 	inventoryAdapter := repositories.NewInventoryAdapter(inventoryRepo)
-	inventoryService := services.NewInventoryService(inventoryAdapter, logger)
+	inventoryAdapter.SetReservationRepo(reservationRepo)
+	inventoryAdapter.SetStockAdjustmentRepo(stockAdjustmentRepo)
+	inventoryService := services.NewInventoryService(inventoryAdapter, logger, common.NewTransactionManager(pool, logger))
 	auditLogsService := services.NewAuditLogsService(auditLogsRepo)
 
 	orderSvc := services.NewOrderService(pool, orderRepo, inventoryRepo, inventoryService, orderStatusHistoryRepo, logger)
@@ -662,6 +666,8 @@ func main() {
 	auth.POST("/password/forgot", authHandlers.ForgotPassword)
 	auth.POST("/password/reset", authHandlers.ResetPassword)
 	auth.POST("/verify", authHandlers.VerifyEmail)
+	auth.GET("/sso/login", authHandlers.StartSSO)
+	auth.GET("/sso/callback", authHandlers.HandleSSOCallback)
 
 	// Google Auth routes
 	auth.GET("/google/login", authHandlers.GoogleLogin)

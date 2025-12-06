@@ -24,21 +24,38 @@ type TenantService interface {
 	UpdateTenantSettings(ctx context.Context, req *UpdateTenantSettingsRequest) error
 }
 
+// PermissionLister abstracts permission listing for seeding defaults.
+// Defined locally to avoid pulling the full repository interface into this service.
+type PermissionLister interface {
+	ListPermissions(ctx context.Context) ([]*models.Permission, error)
+}
+
+// RolePermissionAssigner abstracts creating role-permission mappings.
+type RolePermissionAssigner interface {
+	Create(ctx context.Context, tenantID uuid.UUID, rolePermission *models.RolePermission) error
+}
+
 type tenantService struct {
-	tenantRepo        repositories.TenantRepository
-	invitationService InvitationService
-	roleRepo          repositories.RoleRepository
+	tenantRepo             repositories.TenantRepository
+	invitationService      InvitationService
+	roleRepo               repositories.RoleRepository
+	permissionLister       PermissionLister
+	rolePermissionAssigner RolePermissionAssigner
 }
 
 func NewTenantService(
 	tenantRepo repositories.TenantRepository,
 	invitationService InvitationService,
 	roleRepo repositories.RoleRepository,
+	permissionLister PermissionLister,
+	rolePermissionAssigner RolePermissionAssigner,
 ) TenantService {
 	return &tenantService{
-		tenantRepo:        tenantRepo,
-		invitationService: invitationService,
-		roleRepo:          roleRepo,
+		tenantRepo:             tenantRepo,
+		invitationService:      invitationService,
+		roleRepo:               roleRepo,
+		permissionLister:       permissionLister,
+		rolePermissionAssigner: rolePermissionAssigner,
 	}
 }
 
@@ -85,6 +102,13 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 		return nil, err
 	}
 
+	rollbackOnError := func(origErr error) error {
+		if rbErr := s.tenantRepo.Delete(ctx, tenant.ID); rbErr != nil {
+			return fmt.Errorf("%w; rollback failed: %v", origErr, rbErr)
+		}
+		return origErr
+	}
+
 	// Seed default roles for the new tenant
 	defaultRoles := []struct {
 		Name        string
@@ -109,14 +133,19 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 		}
 	}
 
+	// Fetch admin role and seed full permissions so admins have complete access
+	adminRole, err := s.roleRepo.GetByName(ctx, tenant.ID, "admin")
+	if err != nil {
+		return nil, rollbackOnError(fmt.Errorf("tenant created but failed to find admin role: %w", err))
+	}
+
+	if err := s.seedAdminPermissions(ctx, tenant.ID, adminRole.ID); err != nil {
+		return nil, rollbackOnError(fmt.Errorf("tenant created but failed to seed admin permissions: %w", err))
+	}
+
 	// If admin email is provided, create an invitation for the admin
 	if req.AdminEmail != "" {
 		// Find admin role (should exist now after seeding)
-		adminRole, err := s.roleRepo.GetByName(ctx, tenant.ID, "admin")
-		if err != nil {
-			return nil, fmt.Errorf("tenant created but failed to find admin role: %w", err)
-		}
-
 		inviteReq := &CreateInvitationRequest{
 			TenantID: tenant.ID,
 			Email:    req.AdminEmail,
@@ -130,7 +159,7 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 		}
 
 		if _, err := s.invitationService.CreateInvitation(ctx, inviteReq, invitedBy); err != nil {
-			return nil, fmt.Errorf("tenant created but failed to invite admin: %w", err)
+			return nil, rollbackOnError(fmt.Errorf("tenant created but failed to invite admin: %w", err))
 		}
 	}
 
@@ -149,6 +178,25 @@ func (s *tenantService) GetBySubdomain(ctx context.Context, subdomain string) (*
 }
 
 func (s *tenantService) Update(ctx context.Context, req *UpdateTenantRequest) error {
+	if req.ID == uuid.Nil {
+		return errors.New("tenant ID is required")
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		return errors.New("name is required")
+	}
+	if strings.TrimSpace(req.Subdomain) == "" {
+		return errors.New("subdomain is required")
+	}
+	if strings.Contains(req.Subdomain, " ") {
+		return errors.New("subdomain cannot contain spaces")
+	}
+	if len(req.Subdomain) < 3 {
+		return errors.New("subdomain must be at least 3 characters long")
+	}
+	if strings.TrimSpace(req.Status) == "" {
+		return errors.New("status is required")
+	}
+
 	// Get existing tenant
 	existing, err := s.tenantRepo.GetByID(ctx, req.ID)
 	if err != nil {
@@ -211,4 +259,33 @@ func (s *tenantService) UpdateTenantSettings(ctx context.Context, req *UpdateTen
 	existing.License = req.License
 
 	return s.tenantRepo.UpdateSettings(ctx, existing)
+}
+
+// seedAdminPermissions assigns every permission to the tenant's admin role.
+func (s *tenantService) seedAdminPermissions(ctx context.Context, tenantID, adminRoleID uuid.UUID) error {
+	if s.permissionLister == nil || s.rolePermissionAssigner == nil {
+		// No-op if dependencies are missing (e.g., in limited test setups)
+		return nil
+	}
+
+	perms, err := s.permissionLister.ListPermissions(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, perm := range perms {
+		rolePerm := &models.RolePermission{
+			RoleID:       adminRoleID,
+			PermissionID: perm.ID,
+		}
+
+		if err := s.rolePermissionAssigner.Create(ctx, tenantID, rolePerm); err != nil {
+			// Ignore duplicates; surface any other error
+			if !strings.Contains(err.Error(), "duplicate") && !strings.Contains(err.Error(), "23505") {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

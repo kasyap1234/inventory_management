@@ -994,6 +994,10 @@ export const webhookService = {
   update: (id: string, data: Record<string, unknown>) => api.put(`/webhooks/subscriptions/${id}`, data),
   delete: (id: string) => api.delete(`/webhooks/subscriptions/${id}`),
 };
+
+export const roleService = {
+  list: () => api.get('/roles'),
+};
 // Invitation Services
 export const invitationService = {
   getDetails: async (token: string): Promise<{

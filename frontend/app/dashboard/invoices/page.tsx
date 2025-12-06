@@ -274,7 +274,7 @@ export default function InvoicesPage() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="h-10 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-colors"
             >
               <option value="all">All Status</option>
               <option value="unpaid">Unpaid</option>

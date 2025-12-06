@@ -46,6 +46,7 @@ bun run test:e2e           # E2E tests only
 bun run test:integration   # Integration tests only
 bun run test:auth          # Auth tests only
 bun run test:ui            # UI tests in headed mode
+bun run test:e2e --grep "Full-stack"   # Backend + frontend full-stack flows
 ```
 
 ### Run tests in specific browser
@@ -191,6 +192,13 @@ Create test users in the database:
 - ✅ Timeout handling
 - ✅ Loading states
 - ✅ Error recovery
+
+### Full-stack Flows (full-stack-flows.spec.ts)
+- ✅ Seeds product, warehouse, distributor, order via backend APIs
+- ✅ Verifies inventory UI reflects backend adjustments
+- ✅ Ensures orders and reports surface server data
+- ✅ Confirms non-admin roles are blocked from RBAC/admin routes
+- ⚠️ Requires backend available at `NEXT_PUBLIC_API_URL` and test accounts seeded
 
 ## Best Practices
 

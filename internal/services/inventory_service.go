@@ -10,6 +10,7 @@ import (
 	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // InventoryRepository interface for inventory operations
@@ -69,16 +70,30 @@ type InventoryService interface {
 
 // inventoryService implements InventoryService
 type inventoryService struct {
-	repository InventoryRepository
-	logger     *common.StructuredLogger
+	repository         InventoryRepository
+	logger             *common.StructuredLogger
+	transactionManager *common.TransactionManager
 }
 
 // NewInventoryService creates a new inventory service instance
-func NewInventoryService(repository InventoryRepository, logger *common.StructuredLogger) InventoryService {
+func NewInventoryService(repository InventoryRepository, logger *common.StructuredLogger, txManager *common.TransactionManager) InventoryService {
 	return &inventoryService{
-		repository: repository,
-		logger:     logger,
+		repository:         repository,
+		logger:             logger,
+		transactionManager: txManager,
 	}
+}
+
+// runWithTx executes the given function within a transaction when a transaction manager is configured.
+// This ensures SELECT ... FOR UPDATE locks are held for the full reservation/release lifecycle.
+func (s *inventoryService) runWithTx(ctx context.Context, fn func(context.Context) error) error {
+	if s.transactionManager == nil {
+		return fn(ctx)
+	}
+
+	return s.transactionManager.ExecuteInTransaction(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+		return fn(txCtx)
+	})
 }
 
 // GetByWarehouseAndProduct retrieves inventory by warehouse and product
@@ -155,9 +170,15 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 	return auditLogs[start:end], nil
 }
 
-// ReserveStock reserves stock for a specific reservation
-// Uses SELECT FOR UPDATE to prevent race conditions during concurrent reservations
+// ReserveStock reserves stock for a specific reservation using transactional semantics.
+// Uses SELECT FOR UPDATE to prevent race conditions during concurrent reservations.
 func (s *inventoryService) ReserveStock(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int, reservationID string) error {
+	return s.runWithTx(ctx, func(txCtx context.Context) error {
+		return s.reserveStockInternal(txCtx, tenantID, productID, quantity, reservationID)
+	})
+}
+
+func (s *inventoryService) reserveStockInternal(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, quantity int, reservationID string) error {
 	// Validate inputs
 	if quantity <= 0 {
 		return common.CreateValidationError("reserve_stock", map[string]interface{}{
@@ -265,97 +286,101 @@ func (s *inventoryService) ReleaseStock(ctx context.Context, tenantID uuid.UUID,
 	return s.ReleaseReservation(ctx, tenantID, reservationID)
 }
 
-// ReleaseReservation releases a stock reservation
+// ReleaseReservation releases a stock reservation with transactional safety.
 func (s *inventoryService) ReleaseReservation(ctx context.Context, tenantID uuid.UUID, reservationID string) error {
-	// Get reservation
-	reservation, err := s.repository.GetReservation(ctx, tenantID, reservationID)
-	if err != nil {
-		return common.CreateDatabaseError("release_reservation", err)
-	}
+	return s.runWithTx(ctx, func(txCtx context.Context) error {
+		// Get reservation
+		reservation, err := s.repository.GetReservation(txCtx, tenantID, reservationID)
+		if err != nil {
+			return common.CreateDatabaseError("release_reservation", err)
+		}
 
-	if reservation.Status != "active" {
-		return common.CreateValidationError("release_reservation", map[string]interface{}{
-			"reservation": "Reservation is not active",
-		})
-	}
+		if reservation.Status != "active" {
+			return common.CreateValidationError("release_reservation", map[string]interface{}{
+				"reservation": "Reservation is not active",
+			})
+		}
 
-	// Get current stock
-	stock, err := s.repository.GetStock(ctx, tenantID, reservation.ProductID)
-	if err != nil {
-		return common.CreateDatabaseError("release_reservation", err)
-	}
+		// Get current stock
+		stock, err := s.repository.GetStock(txCtx, tenantID, reservation.ProductID)
+		if err != nil {
+			return common.CreateDatabaseError("release_reservation", err)
+		}
 
-	// Update reserved quantity
-	newReservedQuantity := stock.ReservedQuantity - reservation.Quantity
-	if newReservedQuantity < 0 {
-		newReservedQuantity = 0
-	}
+		// Update reserved quantity
+		newReservedQuantity := stock.ReservedQuantity - reservation.Quantity
+		if newReservedQuantity < 0 {
+			newReservedQuantity = 0
+		}
 
-	if err := s.updateReservedQuantity(ctx, tenantID, reservation.ProductID, newReservedQuantity); err != nil {
-		return err
-	}
+		if err := s.updateReservedQuantity(txCtx, tenantID, reservation.ProductID, newReservedQuantity); err != nil {
+			return err
+		}
 
-	// Delete reservation
-	if err := s.repository.DeleteReservation(ctx, tenantID, reservationID); err != nil {
-		s.logger.ErrorWithContext(ctx, "Failed to delete reservation", err, map[string]interface{}{
+		// Delete reservation
+		if err := s.repository.DeleteReservation(txCtx, tenantID, reservationID); err != nil {
+			s.logger.ErrorWithContext(txCtx, "Failed to delete reservation", err, map[string]interface{}{
+				"reservation_id": reservationID,
+			})
+			return common.CreateDatabaseError("release_reservation", err)
+		}
+
+		// Get user ID from context
+		userID, _ := common.GetUserIDFromContext(txCtx)
+
+		// Create stock adjustment record
+		adjustment := &StockAdjustment{
+			ID:             uuid.New(),
+			TenantID:       tenantID,
+			ProductID:      reservation.ProductID,
+			AdjustmentType: "release",
+			Quantity:       reservation.Quantity,
+			PreviousStock:  stock.ReservedQuantity,
+			NewStock:       newReservedQuantity,
+			Reason:         fmt.Sprintf("Released reservation %s", reservationID),
+			AdjustedBy:     userID,
+			AdjustedAt:     time.Now(),
+		}
+
+		if err := s.repository.CreateStockAdjustment(txCtx, adjustment); err != nil {
+			s.logger.WarnWithContext(txCtx, "Failed to create stock adjustment record", map[string]interface{}{
+				"product_id": reservation.ProductID,
+				"error":      err.Error(),
+			})
+		}
+
+		s.logger.InfoWithContext(txCtx, "Reservation released successfully", map[string]interface{}{
+			"product_id":     reservation.ProductID,
+			"quantity":       reservation.Quantity,
 			"reservation_id": reservationID,
 		})
-		return common.CreateDatabaseError("release_reservation", err)
-	}
 
-	// Get user ID from context
-	userID, _ := common.GetUserIDFromContext(ctx)
-
-	// Create stock adjustment record
-	adjustment := &StockAdjustment{
-		ID:             uuid.New(),
-		TenantID:       tenantID,
-		ProductID:      reservation.ProductID,
-		AdjustmentType: "release",
-		Quantity:       reservation.Quantity,
-		PreviousStock:  stock.ReservedQuantity,
-		NewStock:       newReservedQuantity,
-		Reason:         fmt.Sprintf("Released reservation %s", reservationID),
-		AdjustedBy:     userID,
-		AdjustedAt:     time.Now(),
-	}
-
-	if err := s.repository.CreateStockAdjustment(ctx, adjustment); err != nil {
-		s.logger.WarnWithContext(ctx, "Failed to create stock adjustment record", map[string]interface{}{
-			"product_id": reservation.ProductID,
-			"error":      err.Error(),
-		})
-	}
-
-	s.logger.InfoWithContext(ctx, "Reservation released successfully", map[string]interface{}{
-		"product_id":     reservation.ProductID,
-		"quantity":       reservation.Quantity,
-		"reservation_id": reservationID,
+		return nil
 	})
-
-	return nil
 }
 
 // CommitStock commits a reservation (deducts from available stock)
 func (s *inventoryService) CommitStock(ctx context.Context, tenantID uuid.UUID, reservationID string) error {
-	// Get reservation
-	reservation, err := s.repository.GetReservation(ctx, tenantID, reservationID)
-	if err != nil {
-		return common.CreateDatabaseError("commit_reservation", err)
-	}
+	return s.runWithTx(ctx, func(txCtx context.Context) error {
+		// Get reservation
+		reservation, err := s.repository.GetReservation(txCtx, tenantID, reservationID)
+		if err != nil {
+			return common.CreateDatabaseError("commit_reservation", err)
+		}
 
-	if reservation.Status != "active" {
-		return common.CreateValidationError("commit_reservation", map[string]interface{}{
-			"reservation": "Reservation is not active",
-		})
-	}
+		if reservation.Status != "active" {
+			return common.CreateValidationError("commit_reservation", map[string]interface{}{
+				"reservation": "Reservation is not active",
+			})
+		}
 
-	// Delete reservation (committed reservations are removed)
-	if err := s.repository.DeleteReservation(ctx, tenantID, reservationID); err != nil {
-		return common.CreateDatabaseError("commit_reservation", err)
-	}
+		// Delete reservation (committed reservations are removed)
+		if err := s.repository.DeleteReservation(txCtx, tenantID, reservationID); err != nil {
+			return common.CreateDatabaseError("commit_reservation", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // AdjustStock adjusts stock levels (increase or decrease)

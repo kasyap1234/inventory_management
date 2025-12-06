@@ -130,7 +130,7 @@ export default function AuditLogsPage() {
         {statCards.map((stat, index) => (
           <Card
             key={stat.title}
-            className="card-hover border-0 shadow-md bg-white overflow-hidden"
+            className="card-hover border border-border shadow-md bg-card overflow-hidden"
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <CardHeader className="flex flex-row items-center justify-between pb-3 pt-6">
@@ -229,7 +229,7 @@ function ListViewLogs({ logs, getActionColor }: { logs: AuditLogEntry[]; getActi
       {logs.map((log) => (
         <div
           key={log.id}
-          className="flex items-start justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+          className="flex items-start justify-between p-4 bg-muted/40 hover:bg-muted/60 rounded-lg border border-border transition-colors"
         >
           <div className="flex items-start space-x-4 flex-1">
             <div className="flex-shrink-0 mt-1">
@@ -287,19 +287,19 @@ function TimelineViewLogs({
   return (
     <div className="relative">
       {/* Timeline line */}
-      <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-300"></div>
+      <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-border"></div>
       
       <div className="space-y-6">
         {logs.map((log) => (
           <div key={log.id} className="relative pl-16">
             {/* Timeline dot */}
-            <div className={`absolute left-6 w-5 h-5 rounded-full border-4 border-white shadow-md ${
+            <div className={`absolute left-6 w-5 h-5 rounded-full border-4 border-background shadow-md ${
               log.action === 'INSERT' || log.action === 'CREATE' ? 'bg-green-500' :
               log.action === 'UPDATE' ? 'bg-blue-500' :
               log.action === 'DELETE' ? 'bg-red-500' : 'bg-gray-500'
             }`}></div>
             
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-card rounded-lg border border-border p-4 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <Badge className={getActionColor(log.action)}>

@@ -23,6 +23,7 @@ type RepositoryTestSuite struct {
 	container     *containers.PostgresContainer
 	ctx           context.Context
 	cancel        context.CancelFunc
+	tenantRepo    repositories.TenantRepository
 	productRepo   repositories.ProductRepository
 	categoryRepo  repositories.CategoryRepository
 	inventoryRepo repositories.InventoryRepository
@@ -54,6 +55,7 @@ func (s *RepositoryTestSuite) SetupSuite() {
 	s.container = container
 
 	// Initialize repositories
+	s.tenantRepo = repositories.NewTenantRepo(container.Pool)
 	s.productRepo = repositories.NewProductRepo(container.Pool)
 	s.categoryRepo = repositories.NewCategoryRepo(container.Pool)
 	s.inventoryRepo = repositories.NewInventoryRepo(container.Pool)
@@ -83,6 +85,131 @@ func (s *RepositoryTestSuite) SetupTest() {
 		VALUES ($1, 'Test Tenant', $2, 'active', NOW())
 	`, s.tenantID, "test-tenant-"+s.tenantID.String()[:8])
 	require.NoError(s.T(), err)
+}
+
+// =====================
+// Tenant Repository Tests
+// =====================
+
+func (s *RepositoryTestSuite) TestTenantCreateAndFetch() {
+	tenantID := uuid.New()
+	subdomain := "tenant-" + tenantID.String()[:8]
+
+	tenant := &models.Tenant{
+		ID:        tenantID,
+		Name:      "Tenant Repo",
+		Subdomain: subdomain,
+		License:   "LIC-123",
+		Status:    "active",
+	}
+
+	err := s.tenantRepo.Create(s.ctx, tenant)
+	require.NoError(s.T(), err)
+
+	fetchedByID, err := s.tenantRepo.GetByID(s.ctx, tenantID)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), tenant.Name, fetchedByID.Name)
+	assert.Equal(s.T(), tenant.Subdomain, fetchedByID.Subdomain)
+	assert.False(s.T(), fetchedByID.CreatedAt.IsZero())
+
+	fetchedBySubdomain, err := s.tenantRepo.GetBySubdomain(s.ctx, subdomain)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), tenantID, fetchedBySubdomain.ID)
+	assert.Equal(s.T(), subdomain, fetchedBySubdomain.Subdomain)
+}
+
+func (s *RepositoryTestSuite) TestTenantUpdateAndDelete() {
+	tenantID := uuid.New()
+	tenant := &models.Tenant{
+		ID:        tenantID,
+		Name:      "Original Tenant",
+		Subdomain: "tenant-" + tenantID.String()[:8],
+		License:   "LIC-ORIGINAL",
+		Status:    "active",
+	}
+
+	err := s.tenantRepo.Create(s.ctx, tenant)
+	require.NoError(s.T(), err)
+
+	tenant.Name = "Updated Tenant"
+	tenant.Subdomain = "updated-" + tenantID.String()[:6]
+	tenant.License = "LIC-UPDATED"
+	tenant.Status = "inactive"
+
+	err = s.tenantRepo.Update(s.ctx, tenant)
+	require.NoError(s.T(), err)
+
+	updated, err := s.tenantRepo.GetByID(s.ctx, tenantID)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), "Updated Tenant", updated.Name)
+	assert.Equal(s.T(), tenant.Subdomain, updated.Subdomain)
+	assert.Equal(s.T(), "LIC-UPDATED", updated.License)
+	assert.Equal(s.T(), "inactive", updated.Status)
+
+	err = s.tenantRepo.Delete(s.ctx, tenantID)
+	require.NoError(s.T(), err)
+
+	_, err = s.tenantRepo.GetByID(s.ctx, tenantID)
+	require.Error(s.T(), err)
+}
+
+func (s *RepositoryTestSuite) TestTenantSettingsRoundTrip() {
+	tenantID := uuid.New()
+	subdomain := "settings-" + tenantID.String()[:8]
+
+	tenant := &models.Tenant{
+		ID:        tenantID,
+		Name:      "Settings Tenant",
+		Subdomain: subdomain,
+		License:   "LIC-SET",
+		Status:    "active",
+	}
+
+	err := s.tenantRepo.Create(s.ctx, tenant)
+	require.NoError(s.T(), err)
+
+	settings, err := s.tenantRepo.FindSettingsByTenantID(s.ctx, tenantID)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), tenantID, settings.ID)
+
+	settings.Name = "Settings Updated"
+	settings.Subdomain = "settings-updated-" + tenantID.String()[:6]
+	settings.License = "LIC-SET-NEW"
+
+	err = s.tenantRepo.UpdateSettings(s.ctx, settings)
+	require.NoError(s.T(), err)
+
+	updated, err := s.tenantRepo.FindSettingsByTenantID(s.ctx, tenantID)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), "Settings Updated", updated.Name)
+	assert.Equal(s.T(), settings.Subdomain, updated.Subdomain)
+	assert.Equal(s.T(), "LIC-SET-NEW", updated.License)
+}
+
+func (s *RepositoryTestSuite) TestTenantListPagination() {
+	baseCount := 1 // SetupTest inserts a base tenant
+
+	tenants := []*models.Tenant{
+		{ID: uuid.New(), Name: "Tenant A", Subdomain: "tenant-a-" + uuid.NewString()[:6], Status: "active"},
+		{ID: uuid.New(), Name: "Tenant B", Subdomain: "tenant-b-" + uuid.NewString()[:6], Status: "active"},
+		{ID: uuid.New(), Name: "Tenant C", Subdomain: "tenant-c-" + uuid.NewString()[:6], Status: "active"},
+	}
+
+	for _, t := range tenants {
+		err := s.tenantRepo.Create(s.ctx, t)
+		require.NoError(s.T(), err)
+	}
+
+	firstPage, err := s.tenantRepo.List(s.ctx, 2, 0)
+	require.NoError(s.T(), err)
+	assert.Len(s.T(), firstPage, 2)
+
+	secondPage, err := s.tenantRepo.List(s.ctx, 2, 2)
+	require.NoError(s.T(), err)
+	assert.GreaterOrEqual(s.T(), len(secondPage), 1)
+
+	totalFetched := len(firstPage) + len(secondPage)
+	assert.Equal(s.T(), baseCount+len(tenants), totalFetched)
 }
 
 // =====================
@@ -303,6 +430,111 @@ func (s *RepositoryTestSuite) TestProductUpdateQuantity() {
 	fetched, err := s.productRepo.GetByID(s.ctx, s.tenantID, product.ID)
 	require.NoError(s.T(), err)
 	assert.Equal(s.T(), 150, fetched.Quantity)
+}
+
+func (s *RepositoryTestSuite) TestProductAdvancedSearch() {
+	category := &models.Category{
+		ID:       uuid.New(),
+		TenantID: s.tenantID,
+		Name:     "Advanced Category",
+	}
+	err := s.categoryRepo.Create(s.ctx, category)
+	require.NoError(s.T(), err)
+
+	hazardClass := "flammable"
+	sdsURL := "http://example.com/sds"
+	activeIngredients := "ABC-123"
+	description := "Hazard gear description"
+
+	targetProduct := &models.Product{
+		ID:                uuid.New(),
+		TenantID:          s.tenantID,
+		CategoryID:        &category.ID,
+		Name:              "Hazard Gear",
+		Quantity:          10,
+		UnitPrice:         50.0,
+		Description:       &description,
+		IsHazardous:       true,
+		HazardClass:       &hazardClass,
+		SDSUrl:            &sdsURL,
+		ActiveIngredients: &activeIngredients,
+	}
+
+	otherProduct := &models.Product{
+		ID:         uuid.New(),
+		TenantID:   s.tenantID,
+		CategoryID: &category.ID,
+		Name:       "Regular Item",
+		Quantity:   5,
+		UnitPrice:  20.0,
+	}
+
+	require.NoError(s.T(), s.productRepo.Create(s.ctx, targetProduct))
+	require.NoError(s.T(), s.productRepo.Create(s.ctx, otherProduct))
+
+	filter := &models.ProductSearchFilter{
+		Query: "hazard",
+		Limit: 10,
+	}
+
+	results, err := s.productRepo.AdvancedSearch(s.ctx, s.tenantID, filter)
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), results)
+
+	var found *models.Product
+	for _, p := range results {
+		if p.ID == targetProduct.ID {
+			found = p
+			break
+		}
+	}
+
+	require.NotNil(s.T(), found, "expected to find the hazardous product in results")
+	assert.Equal(s.T(), targetProduct.IsHazardous, found.IsHazardous)
+	assert.Equal(s.T(), hazardClass, *found.HazardClass)
+	assert.Equal(s.T(), sdsURL, *found.SDSUrl)
+	assert.Equal(s.T(), activeIngredients, *found.ActiveIngredients)
+}
+
+func (s *RepositoryTestSuite) TestProductBulkUpdatePrices() {
+	category := &models.Category{
+		ID:       uuid.New(),
+		TenantID: s.tenantID,
+		Name:     "Price Category",
+	}
+	require.NoError(s.T(), s.categoryRepo.Create(s.ctx, category))
+
+	productA := &models.Product{
+		ID:         uuid.New(),
+		TenantID:   s.tenantID,
+		CategoryID: &category.ID,
+		Name:       "Price A",
+		Quantity:   10,
+		UnitPrice:  100.0,
+	}
+	productB := &models.Product{
+		ID:         uuid.New(),
+		TenantID:   s.tenantID,
+		CategoryID: &category.ID,
+		Name:       "Price B",
+		Quantity:   20,
+		UnitPrice:  200.0,
+	}
+
+	require.NoError(s.T(), s.productRepo.Create(s.ctx, productA))
+	require.NoError(s.T(), s.productRepo.Create(s.ctx, productB))
+
+	rows, err := s.productRepo.BulkUpdatePrices(s.ctx, s.tenantID, []uuid.UUID{productA.ID, productB.ID}, "percentage", 10.0)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(2), rows)
+
+	updatedA, err := s.productRepo.GetByID(s.ctx, s.tenantID, productA.ID)
+	require.NoError(s.T(), err)
+	updatedB, err := s.productRepo.GetByID(s.ctx, s.tenantID, productB.ID)
+	require.NoError(s.T(), err)
+
+	assert.InDelta(s.T(), 110.0, updatedA.UnitPrice, 0.001)
+	assert.InDelta(s.T(), 220.0, updatedB.UnitPrice, 0.001)
 }
 
 // =====================
