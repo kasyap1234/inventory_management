@@ -172,7 +172,7 @@ func (s *notificationService) SendEmail(ctx context.Context, tenantID uuid.UUID,
 	log.Printf("[EMAIL] SendEmail invoked: tenant=%s recipient=%s subject=%q", tenantID.String(), recipient, subject)
 	var smtpErr error
 	if s.smtpHost != "" {
-		smtpErr = s.sendEmailViaSMTP(tenantID, recipient, subject, body)
+		smtpErr = s.sendEmailViaSMTP(recipient, subject, body)
 		if smtpErr == nil {
 			return nil
 		}
@@ -213,7 +213,7 @@ func (s *notificationService) SendEmailWithAttachment(ctx context.Context, tenan
 
 	var smtpErr error
 	if s.smtpHost != "" {
-		smtpErr = s.sendEmailViaSMTPWithAttachment(tenantID, recipient, subject, body, attachmentName, attachmentData)
+		smtpErr = s.sendEmailViaSMTPWithAttachment(recipient, subject, body, attachmentName, attachmentData)
 		if smtpErr == nil {
 			return nil
 		}
@@ -302,7 +302,7 @@ func (s *notificationService) sendEmailViaResendWithSender(ctx context.Context, 
 	return nil
 }
 
-func (s *notificationService) sendEmailViaSMTP(tenantID uuid.UUID, recipient, subject, body string) error {
+func (s *notificationService) sendEmailViaSMTP(recipient, subject, body string) error {
 	fromEmail := s.smtpFromEmail
 	if fromEmail == "" {
 		fromEmail = s.smtpUsername
@@ -333,12 +333,12 @@ func (s *notificationService) sendEmailViaSMTP(tenantID uuid.UUID, recipient, su
 		auth = smtp.PlainAuth("", s.smtpUsername, s.smtpPassword, s.smtpHost)
 	}
 
-	log.Printf("[EMAIL] Attempting SMTP send: tenant=%s host=%s from=%s to=%s subject=%q", tenantID.String(), addr, fromEmail, recipient, subject)
+	log.Printf("[EMAIL] Attempting SMTP send: host=%s from=%s to=%s subject=%q", addr, fromEmail, recipient, subject)
 	if err := smtp.SendMail(addr, auth, fromEmail, []string{recipient}, msg.Bytes()); err != nil {
 		return fmt.Errorf("failed to send email via SMTP: %w", err)
 	}
 
-	log.Printf("[EMAIL] Successfully sent email via SMTP to %s for tenant %s", recipient, tenantID.String())
+	log.Printf("[EMAIL] Successfully sent email via SMTP to %s", recipient)
 	return nil
 }
 
@@ -375,7 +375,7 @@ func (s *notificationService) sendEmailViaResendWithAttachment(ctx context.Conte
 	return nil
 }
 
-func (s *notificationService) sendEmailViaSMTPWithAttachment(tenantID uuid.UUID, recipient, subject, body string, attachmentName string, attachmentData []byte) error {
+func (s *notificationService) sendEmailViaSMTPWithAttachment(recipient, subject, body string, attachmentName string, attachmentData []byte) error {
 	fromEmail := s.smtpFromEmail
 	if fromEmail == "" {
 		fromEmail = s.smtpUsername

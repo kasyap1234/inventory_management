@@ -157,7 +157,9 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 		auditLogs = append(auditLogs, auditLog)
 	}
 
-	// Apply pagination manually (ideally this would be done at the repository level)
+	// TODO: Move pagination to repository level for better performance with large datasets
+	// Currently fetches all stock adjustments then paginates in memory - inefficient for large histories
+	// This requires adding limit/offset parameters to GetStockHistory repository method
 	start := offset
 	if start > len(auditLogs) {
 		return []*models.AuditLog{}, nil

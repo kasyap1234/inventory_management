@@ -75,9 +75,11 @@ func (s *OrderIntegrationTestSuite) SetupSuite() {
 
 	// Initialize services - use adapter to bridge repository and service interfaces
 	inventoryAdapter := repositories.NewInventoryAdapter(s.inventoryRepo)
+	txMgr := common.NewTransactionManager(container.Pool, s.logger)
 	s.inventoryService = services.NewInventoryService(
 		inventoryAdapter,
 		s.logger,
+		txMgr,
 	)
 
 	s.orderService = services.NewOrderService(

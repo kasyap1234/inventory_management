@@ -486,8 +486,11 @@ func (r *productRepo) ListWithCategory(ctx context.Context, tenantID uuid.UUID, 
 }
 
 func (r *productRepo) CategoryAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]int, error) {
+	// First query: count products by category for all defined categories
+	// Second query: count products with NULL category_id (uncategorized)
+	// The LEFT JOIN won't include NULL category products, so no duplicate 'Uncategorized' entries
 	query := `
-		SELECT COALESCE(c.name, 'Uncategorized'), COUNT(p.id)
+		SELECT c.name, COUNT(p.id)
 		FROM categories c
 		LEFT JOIN products p ON c.id = p.category_id AND c.tenant_id = p.tenant_id
 		WHERE c.tenant_id = $1

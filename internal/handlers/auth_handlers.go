@@ -48,6 +48,11 @@ var globalTwoFATracker = &twoFAAttemptTracker{
 	attempts: make(map[string]*attemptInfo),
 }
 
+// init starts the cleanup goroutine for the global 2FA tracker
+func init() {
+	go globalTwoFATracker.startCleanup()
+}
+
 func (t *twoFAAttemptTracker) checkAndIncrement(key string) (allowed bool, remainingAttempts int, lockoutRemaining time.Duration) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -96,6 +101,34 @@ func (t *twoFAAttemptTracker) clearAttempts(key string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	delete(t.attempts, key)
+}
+
+// startCleanup runs a periodic cleanup of expired 2FA attempt entries
+func (t *twoFAAttemptTracker) startCleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		t.cleanup()
+	}
+}
+
+// cleanup removes expired entries from the 2FA attempt tracker
+func (t *twoFAAttemptTracker) cleanup() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	now := time.Now()
+	for key, info := range t.attempts {
+		// Remove locked entries that have expired
+		if info.lockedAt != nil {
+			if now.Sub(*info.lockedAt) > twoFALockoutDuration {
+				delete(t.attempts, key)
+			}
+		} else if now.Sub(info.firstAt) > twoFAAttemptWindow {
+			// Remove attempt windows that have expired
+			delete(t.attempts, key)
+		}
+	}
 }
 
 // AuthHandlers handles authentication-related HTTP requests

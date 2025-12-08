@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"agromart2/internal/models"
-	"agromart2/internal/repositories"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

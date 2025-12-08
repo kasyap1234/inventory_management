@@ -622,7 +622,8 @@ func (s *authService) IsAccountLocked(ctx context.Context, userID uuid.UUID) (bo
 	lockKey := fmt.Sprintf("login_lock:%s", userID.String())
 	val, err := s.cacheSvc.GetString(ctx, lockKey)
 	if err != nil {
-		return false, err
+		// Cache miss means user is not locked - this is expected for most users
+		return false, nil
 	}
 	return val != "", nil
 }
