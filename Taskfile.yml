@@ -171,6 +171,18 @@ tasks:
       - task db:stop
       - echo "All services stopped"
 
+  stop:backend:
+    desc: Stop backend process only
+    cmds:
+      - pkill -f {{.BACKEND_BINARY}} || true
+      - echo "Backend stopped"
+
+  stop:frontend:
+    desc: Stop frontend dev server (bun/next)
+    cmds:
+      - pkill -f "bun dev" || pkill -f "next dev" || true
+      - echo "Frontend stopped"
+
   # TESTING
   test:backend:
     desc: Run all Go backend tests

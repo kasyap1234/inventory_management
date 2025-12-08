@@ -273,7 +273,13 @@ func (s *tenantService) seedAdminPermissions(ctx context.Context, tenantID, admi
 		return err
 	}
 
+	var wildcardPermissionID uuid.UUID
+
 	for _, perm := range perms {
+		if perm.Name == "*" {
+			wildcardPermissionID = perm.ID
+		}
+
 		rolePerm := &models.RolePermission{
 			RoleID:       adminRoleID,
 			PermissionID: perm.ID,
@@ -285,6 +291,21 @@ func (s *tenantService) seedAdminPermissions(ctx context.Context, tenantID, admi
 				return err
 			}
 		}
+	}
+
+	// Ensure wildcard permission is explicitly present for admins so future permissions are covered
+	if wildcardPermissionID != uuid.Nil {
+		rolePerm := &models.RolePermission{
+			RoleID:       adminRoleID,
+			PermissionID: wildcardPermissionID,
+		}
+		if err := s.rolePermissionAssigner.Create(ctx, tenantID, rolePerm); err != nil {
+			if !strings.Contains(err.Error(), "duplicate") && !strings.Contains(err.Error(), "23505") {
+				return err
+			}
+		}
+	} else {
+		fmt.Printf("Warning: wildcard permission '*' not found when seeding admin role for tenant %s\n", tenantID.String())
 	}
 
 	return nil
