@@ -83,19 +83,19 @@ export function ExportButton({
           />
           
           {/* Menu */}
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+          <div className="absolute right-0 mt-2 w-48 bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-20">
             <button
               onClick={() => handleExport('csv')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover-surface transition-colors"
             >
-              <FileText className="h-4 w-4 text-gray-500" />
+              <FileText className="h-4 w-4 text-muted-foreground" />
               <span>Export as CSV</span>
             </button>
             <button
               onClick={() => handleExport('excel')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover-surface transition-colors"
             >
-              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              <FileSpreadsheet className="h-4 w-4 text-primary" />
               <span>Export as Excel</span>
             </button>
           </div>

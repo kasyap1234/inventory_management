@@ -997,6 +997,17 @@ export const webhookService = {
 
 export const roleService = {
   list: () => api.get('/roles'),
+  getUserRoles: (userId: string) => api.get(`/users/${userId}/roles`),
+  assignRolesToUser: (userId: string, roleIds: string[]) =>
+    api.post(`/users/${userId}/roles`, { role_ids: roleIds }),
+  removeRoleFromUser: (userId: string, roleId: string) =>
+    api.delete(`/users/${userId}/roles/${roleId}`),
+};
+
+// User Services - Extended for user management
+export const userManagementService = {
+  getPendingUsers: () => api.get('/users/pending'),
+  approveUser: (userId: string) => api.post(`/users/${userId}/approve`),
 };
 // Invitation Services
 export const invitationService = {

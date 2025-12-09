@@ -141,7 +141,7 @@ export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-border text-foreground bg-background rounded-lg hover-surface transition-colors"
             >
               <Upload className="h-5 w-5" />
               Upload Image
@@ -168,7 +168,7 @@ export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
             Stop Scanning
           </button>
 
-          <p className="text-sm text-center text-gray-600">
+          <p className="text-sm text-center text-muted-foreground">
             Position the QR code within the frame
           </p>
         </div>

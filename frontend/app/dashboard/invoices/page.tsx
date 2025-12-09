@@ -692,8 +692,8 @@ function BulkInvoiceGenerateDialog({
           <DialogTitle>Bulk Generate Invoices</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-sm text-blue-800">
+          <div className="surface-info rounded-lg p-3 text-sm">
+            <p>
               Generate invoices for multiple orders at once with default GST settings
             </p>
           </div>
@@ -730,24 +730,24 @@ function BulkInvoiceGenerateDialog({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Select Orders</label>
-              <label className="flex items-center text-sm">
+              <label className="text-sm font-medium text-foreground">Select Orders</label>
+              <label className="flex items-center text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={selectedOrders.length === eligibleOrders.length && eligibleOrders.length > 0}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="mr-2 h-4 w-4 rounded border-gray-300"
+                  className="mr-2 h-4 w-4 rounded border border-border bg-background"
                 />
                 Select All
               </label>
             </div>
-            <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
+            <div className="border border-border rounded-lg bg-card/60 max-h-64 overflow-y-auto">
               {eligibleOrders.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                   No eligible orders found. Orders must be approved, shipped, or delivered.
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200">
+                <div className="divide-y divide-border/80">
                   {eligibleOrders.map((order) => {
                     const amount = order.quantity * order.unit_price;
                     const gstAmount = (amount * defaultGSTRate) / 100;
@@ -756,7 +756,7 @@ function BulkInvoiceGenerateDialog({
                     return (
                       <label
                         key={order.id}
-                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
+                        className="flex items-center p-3 rounded-md transition hover-surface cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -764,25 +764,25 @@ function BulkInvoiceGenerateDialog({
                           onChange={() => handleToggleOrder(order.id)}
                           className="h-4 w-4 text-blue-600 rounded mr-3"
                         />
-                        <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
+                        <div className="flex-1 grid grid-cols-4 gap-4 text-sm text-foreground">
                           <div>
-                            <div className="font-medium text-foreground">
+                            <div className="font-medium">
                               Order #{order.id.substring(0, 8)}...
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               {order.order_type}
                             </div>
                           </div>
                           <div>
-                            <div className="text-gray-600">Qty: {order.quantity}</div>
-                            <div className="text-xs text-gray-500">@ {formatCurrency(order.unit_price)}</div>
+                            <div className="text-muted-foreground">Qty: {order.quantity}</div>
+                            <div className="text-xs text-muted-foreground">@ {formatCurrency(order.unit_price)}</div>
                           </div>
                           <div>
-                            <div className="text-gray-600">Taxable: {formatCurrency(amount)}</div>
-                            <div className="text-xs text-gray-500">GST: {formatCurrency(gstAmount)}</div>
+                            <div className="text-muted-foreground">Taxable: {formatCurrency(amount)}</div>
+                            <div className="text-xs text-muted-foreground">GST: {formatCurrency(gstAmount)}</div>
                           </div>
                           <div className="text-right">
-                            <div className="font-semibold text-foreground">
+                            <div className="font-semibold">
                               {formatCurrency(total)}
                             </div>
                             <Badge variant={order.status === 'delivered' ? 'success' : 'warning'}>
@@ -799,8 +799,8 @@ function BulkInvoiceGenerateDialog({
           </div>
 
           {selectedOrders.length > 0 && (
-            <div className="bg-green-50 p-3 rounded-lg">
-              <p className="text-sm text-green-800">
+            <div className="surface-success p-3 rounded-lg">
+              <p className="text-sm">
                 <strong>{selectedOrders.length}</strong> invoice(s) will be generated
               </p>
             </div>

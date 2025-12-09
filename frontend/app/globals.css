@@ -45,6 +45,22 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --surface-info: oklch(0.96 0.05 230);
+  --surface-info-foreground: oklch(0.24 0.02 230);
+  --surface-info-border: oklch(0.9 0.04 230);
+  --surface-success: oklch(0.95 0.12 150);
+  --surface-success-foreground: oklch(0.28 0.06 150);
+  --surface-success-border: oklch(0.88 0.1 150);
+  --surface-warning: oklch(0.97 0.08 85);
+  --surface-warning-foreground: oklch(0.32 0.1 85);
+  --surface-warning-border: oklch(0.9 0.09 85);
+  --surface-danger: oklch(0.96 0.11 25);
+  --surface-danger-foreground: oklch(0.32 0.18 25);
+  --surface-danger-border: oklch(0.89 0.12 25);
+  --surface-muted: var(--muted);
+  --surface-muted-foreground: var(--muted-foreground);
+  --surface-muted-border: var(--border);
+  --surface-hover: oklch(0.94 0 0);
 }
 
 .dark {
@@ -99,6 +115,22 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.22 0.01 240);
   --sidebar-ring: oklch(0.72 0.18 150);
+  --surface-info: oklch(0.22 0.05 240);
+  --surface-info-foreground: oklch(0.96 0.02 255);
+  --surface-info-border: oklch(0.32 0.06 240);
+  --surface-success: oklch(0.24 0.07 150);
+  --surface-success-foreground: oklch(0.95 0.02 150);
+  --surface-success-border: oklch(0.34 0.08 150);
+  --surface-warning: oklch(0.3 0.08 90);
+  --surface-warning-foreground: oklch(0.96 0.02 95);
+  --surface-warning-border: oklch(0.4 0.09 90);
+  --surface-danger: oklch(0.24 0.1 25);
+  --surface-danger-foreground: oklch(0.96 0.02 20);
+  --surface-danger-border: oklch(0.34 0.12 25);
+  --surface-muted: oklch(0.18 0.01 240);
+  --surface-muted-foreground: oklch(0.9 0 0);
+  --surface-muted-border: oklch(0.22 0.01 240);
+  --surface-hover: oklch(0.22 0.01 240);
 }
 
 @theme inline {
@@ -147,6 +179,46 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .surface-info {
+    background-color: var(--surface-info);
+    color: var(--surface-info-foreground);
+    border: 1px solid var(--surface-info-border);
+  }
+
+  .surface-success {
+    background-color: var(--surface-success);
+    color: var(--surface-success-foreground);
+    border: 1px solid var(--surface-success-border);
+  }
+
+  .surface-warning {
+    background-color: var(--surface-warning);
+    color: var(--surface-warning-foreground);
+    border: 1px solid var(--surface-warning-border);
+  }
+
+  .surface-danger {
+    background-color: var(--surface-danger);
+    color: var(--surface-danger-foreground);
+    border: 1px solid var(--surface-danger-border);
+  }
+
+  .surface-muted {
+    background-color: var(--surface-muted);
+    color: var(--surface-muted-foreground);
+    border: 1px solid var(--surface-muted-border);
+  }
+
+  .hover-surface {
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+
+  .hover-surface:hover {
+    background-color: var(--surface-hover);
   }
 }
 

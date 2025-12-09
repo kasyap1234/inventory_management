@@ -41,13 +41,13 @@ export function VirtualizedTable<T extends Record<string, any>>({
   return (
     <div className={`overflow-auto ${className}`} ref={parentRef} style={{ height: '600px' }}>
       <div className="min-w-full">
-        <div className="grid grid-cols-1 bg-gray-100 border-b sticky top-0 z-10" style={{
+        <div className="grid grid-cols-1 bg-muted text-muted-foreground border-b border-border sticky top-0 z-10" style={{
           gridTemplateColumns: columns.map(col => col.width || '1fr').join(' '),
         }}>
           {columns.map((column) => (
             <div
               key={column.key}
-              className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"
+              className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider"
             >
               {column.header}
             </div>
@@ -66,7 +66,7 @@ export function VirtualizedTable<T extends Record<string, any>>({
             return (
               <div
                 key={virtualRow.key}
-                className={`grid grid-cols-1 border-b hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                className={`grid grid-cols-1 border-b border-border hover-surface ${onRowClick ? 'cursor-pointer' : ''}`}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -81,7 +81,7 @@ export function VirtualizedTable<T extends Record<string, any>>({
                 {columns.map((column) => (
                   <div
                     key={column.key}
-                    className="px-4 py-3 text-sm text-gray-900 overflow-hidden text-ellipsis"
+                    className="px-4 py-3 text-sm text-foreground overflow-hidden text-ellipsis"
                   >
                     {column.render ? column.render(item) : item[column.key]}
                   </div>

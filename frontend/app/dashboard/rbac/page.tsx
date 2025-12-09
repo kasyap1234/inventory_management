@@ -511,12 +511,12 @@ function ManagePermissionsDialog({ open, onOpenChange, role }: {
           <DialogTitle>Manage Permissions for {role.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Select permissions to grant to this role
           </div>
           <div className="space-y-4">
             {Object.entries(groupedPermissions).map(([resource, perms]) => (
-              <div key={resource} className="border border-gray-200 rounded-lg p-4">
+              <div key={resource} className="border border-border rounded-lg p-4 bg-card/60">
                 <h4 className="font-semibold text-sm text-foreground mb-3 capitalize">
                   {resource}
                 </h4>
@@ -524,7 +524,7 @@ function ManagePermissionsDialog({ open, onOpenChange, role }: {
                   {perms.map((permission) => (
                     <label
                       key={permission.id}
-                      className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+                      className="flex items-center p-2 rounded cursor-pointer hover-surface transition"
                     >
                       <input
                         type="checkbox"
@@ -535,7 +535,7 @@ function ManagePermissionsDialog({ open, onOpenChange, role }: {
                       <div className="ml-2 text-sm">
                         <span className="font-medium">{permission.action}</span>
                         {permission.description && (
-                          <span className="text-gray-500 ml-1">({permission.description})</span>
+                          <span className="text-muted-foreground ml-1">({permission.description})</span>
                         )}
                       </div>
                     </label>
@@ -619,14 +619,14 @@ function ManageUserRolesDialog({ open, onOpenChange, user }: {
           <DialogTitle>Assign Roles to {user.first_name} {user.last_name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             Select roles to assign to this user
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {roles?.roles?.map((role) => (
               <label
                 key={role.id}
-                className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                className="flex items-center p-3 border border-border rounded-lg bg-card/60 hover-surface cursor-pointer transition"
               >
                 <input
                   type="checkbox"
@@ -637,7 +637,7 @@ function ManageUserRolesDialog({ open, onOpenChange, user }: {
                 <div className="ml-3 flex-1">
                   <div className="font-medium text-sm">{role.name}</div>
                   {role.description && (
-                    <div className="text-xs text-gray-500">{role.description}</div>
+                    <div className="text-xs text-muted-foreground">{role.description}</div>
                   )}
                 </div>
               </label>

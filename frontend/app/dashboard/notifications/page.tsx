@@ -61,7 +61,7 @@ export default function NotificationsPage() {
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
+              <div key={i} className="h-24 bg-muted rounded-lg animate-pulse"></div>
             ))}
           </div>
         ) : notifications.length > 0 ? (
@@ -72,14 +72,14 @@ export default function NotificationsPage() {
               <Card
                 key={notification.id}
                 className={`border-0 shadow-md hover:shadow-lg transition-all ${
-                  isRead ? 'bg-white' : 'bg-blue-50 border-l-4 border-blue-600'
+                  isRead ? 'bg-card' : 'surface-info border-l-4 border-primary/80'
                 }`}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4 flex-1">
                       <div className={`p-3 rounded-full ${
-                        isRead ? 'bg-gray-100' : 'bg-blue-100'
+                        isRead ? 'surface-muted' : 'bg-primary/15 text-primary'
                       }`}>
                         {getNotificationIcon(notification.type)}
                       </div>
@@ -88,12 +88,12 @@ export default function NotificationsPage() {
                           <h3 className="font-semibold text-foreground">
                             {notification.subject || 'Notification'}
                           </h3>
-                          <span className="px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-full">
+                          <span className="px-2 py-0.5 text-xs font-medium bg-muted text-foreground rounded-full">
                             {notification.status || 'pending'}
                           </span>
                         </div>
-                        <p className="text-gray-700 mb-2">{notification.body}</p>
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                        <p className="text-foreground mb-2">{notification.body}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                           <span className="capitalize">Channel: {notification.type}</span>
                           {notification.event_type && (
                             <span className="capitalize">Event: {notification.event_type}</span>
@@ -108,7 +108,7 @@ export default function NotificationsPage() {
                           </span>
                         </div>
                         {notification.error && (
-                          <p className="mt-2 text-sm text-red-600">Error: {notification.error}</p>
+                          <p className="mt-2 text-sm text-destructive">Error: {notification.error}</p>
                         )}
                       </div>
                     </div>
@@ -118,7 +118,7 @@ export default function NotificationsPage() {
                           size="sm"
                           variant="ghost"
                           onClick={() => markAsReadMutation.mutate(notification.id)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="text-primary hover:text-primary hover-surface"
                         >
                           <Check className="h-4 w-4 mr-1" />
                           Mark Read
@@ -128,7 +128,7 @@ export default function NotificationsPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => deleteMutation.mutate(notification.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-destructive hover:text-destructive hover-surface"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -142,11 +142,11 @@ export default function NotificationsPage() {
           <Card className="border-0 shadow-md">
             <CardContent className="py-16">
               <div className="text-center">
-                <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <Bell className="h-16 w-16 text-muted-foreground/60 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">
                   No notifications yet
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-muted-foreground">
                   When you receive notifications, they&rsquo;ll appear here
                 </p>
               </div>
