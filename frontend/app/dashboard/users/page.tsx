@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key, CheckCircle, Clock, XCircle, Mail, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,11 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
-import { tenantService } from '@/lib/services';
-import { User, Role, Permission, Tenant } from '@/types';
+import { tenantService, invitationService } from '@/lib/services';
+import { User, Role, Permission, Tenant, Invitation } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
-type TabType = 'users' | 'pending' | 'roles' | 'permissions';
+type TabType = 'users' | 'pending' | 'roles' | 'permissions' | 'invitations';
+
 
 export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -52,6 +54,17 @@ export default function UsersPage() {
             <Clock className="h-5 w-5" />
             Pending Approval
           </button>
+          <button
+            onClick={() => setActiveTab('invitations')}
+            className={`${activeTab === 'invitations'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
+          >
+            <Mail className="h-5 w-5" />
+            Invitations
+          </button>
+
           <button
             onClick={() => setActiveTab('roles')}
             className={`${activeTab === 'roles'
@@ -91,14 +104,17 @@ export default function UsersPage() {
       {/* Tab Content */}
       {activeTab === 'users' && <UsersTab searchQuery={searchQuery} />}
       {activeTab === 'pending' && <PendingApprovalTab searchQuery={searchQuery} />}
+      {activeTab === 'invitations' && <InvitationsTab searchQuery={searchQuery} />}
       {activeTab === 'roles' && <RolesTab searchQuery={searchQuery} />}
       {activeTab === 'permissions' && <PermissionsTab searchQuery={searchQuery} />}
+
     </div>
   );
 }
 
 function UsersTab({ searchQuery }: { searchQuery: string }) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [assigningRoles, setAssigningRoles] = useState<User | null>(null);
   const queryClient = useQueryClient();
@@ -146,12 +162,17 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
 
   return (
     <>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4 gap-2">
+        <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)}>
+          <Mail className="h-4 w-4 mr-2" />
+          Invite User
+        </Button>
         <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add User
         </Button>
       </div>
+
 
       <Card>
         <CardContent className="pt-6">
@@ -245,6 +266,12 @@ function UsersTab({ searchQuery }: { searchQuery: string }) {
           if (!open) setEditingUser(null);
         }}
         user={editingUser}
+      />
+
+      <InviteUserDialog
+        open={isInviteDialogOpen}
+        onOpenChange={setIsInviteDialogOpen}
+        roles={roles?.roles || []}
       />
 
       <AssignRolesDialog
@@ -582,11 +609,14 @@ function UserFormDialog({ open, onOpenChange, user }: {
   user?: User | null;
 }) {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+
   const [formData, setFormData] = useState({
     email: user?.email || '',
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
-    tenant_id: user?.tenant_id || '',
+    tenant_id: user?.tenant_id || currentUser?.tenant_id || '',
     password: '',
     status: user?.status || 'active',
   });
@@ -652,26 +682,28 @@ function UserFormDialog({ open, onOpenChange, user }: {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tenant *</label>
-            <select
-              required
-              value={formData.tenant_id}
-              onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!!user}
-            >
-              <option value="">Select a tenant</option>
-              {tenantsData?.tenants?.map((tenant) => (
-                <option key={tenant.id} value={tenant.id}>
-                  {tenant.name} ({tenant.subdomain})
-                </option>
-              ))}
-            </select>
-            {user && (
-              <p className="text-xs text-muted-foreground">Tenant cannot be changed after user creation</p>
-            )}
-          </div>
+          {isSuperAdmin && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tenant *</label>
+              <select
+                required
+                value={formData.tenant_id}
+                onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!!user}
+              >
+                <option value="">Select a tenant</option>
+                {tenantsData?.tenants?.map((tenant) => (
+                  <option key={tenant.id} value={tenant.id}>
+                    {tenant.name} ({tenant.subdomain})
+                  </option>
+                ))}
+              </select>
+              {user && (
+                <p className="text-xs text-muted-foreground">Tenant cannot be changed after user creation</p>
+              )}
+            </div>
+          )}
           {!user && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Password *</label>
@@ -971,6 +1003,170 @@ function ManagePermissionsDialog({ open, onOpenChange, role, permissions }: {
             </Button>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Invitations Tab Component
+function InvitationsTab({ searchQuery }: { searchQuery: string }) {
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery<{ invitations: Invitation[], count: number }>({
+    queryKey: ['invitations'],
+    queryFn: async () => {
+      // invitationService.list() returns Promise<AxiosResponse> in the existing service
+      // We need to unwrap the data
+      const response = await invitationService.list();
+      // Ensure we return object with invitations array. 
+      // Existing service returns AxiosResponse.
+      // If backend returns { invitations: [...] }, then response.data is that object.
+      return response.data;
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (id: string) => invitationService.revoke(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+    },
+  });
+
+  const filteredInvitations = data?.invitations?.filter(inv =>
+    inv.email.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold">Pending Invitations</h3>
+          <p className="text-sm text-muted-foreground">
+            Manage outstanding invitations to join the tenant.
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading invitations...</div>
+        ) : filteredInvitations.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No pending invitations found.
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Expires</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredInvitations.map((inv) => (
+                <TableRow key={inv.id}>
+                  <TableCell>{inv.email}</TableCell>
+                  <TableCell>
+                    <Badge variant={inv.status === 'pending' ? 'warning' : 'secondary'}>
+                      {inv.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{formatDate(inv.expires_at)}</TableCell>
+                  <TableCell>{formatDate(inv.created_at)}</TableCell>
+                  <TableCell>
+                    {inv.status === 'pending' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm(`Revoke invitation for ${inv.email}?`)) {
+                            revokeMutation.mutate(inv.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Invite User Dialog
+function InviteUserDialog({ open, onOpenChange, roles }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  roles: Role[];
+}) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    email: '',
+    role_id: '',
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: (data: typeof formData) => invitationService.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      onOpenChange(false);
+      setFormData({ email: '', role_id: '' });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    inviteMutation.mutate(formData);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invite User</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Email *</label>
+            <Input
+              required
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="user@example.com"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Role *</label>
+            <select
+              required
+              value={formData.role_id}
+              onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <option value="">Select a role</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={inviteMutation.isPending}>
+              {inviteMutation.isPending ? 'Sending...' : 'Send Invitation'}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

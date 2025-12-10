@@ -208,3 +208,29 @@ export interface RolePermission {
   permission_id: string;
   granted_at: string;
 }
+
+export interface Invitation {
+  id: string;
+  tenant_id: string;
+  email: string;
+  role_id: string;
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  token: string; // Only shown upon creation ideally, but backend might return it for now or we might not need it in list
+  expires_at: string;
+  created_at: string;
+  created_by?: string;
+  role_name?: string; // Enriched by frontend or backend
+}
+
+export interface CreateInvitationPayload {
+  email: string;
+  role_id: string;
+  permissions?: string[];
+}
+
+export interface AcceptInvitationPayload {
+  first_name: string;
+  last_name: string;
+  password: string;
+}
+

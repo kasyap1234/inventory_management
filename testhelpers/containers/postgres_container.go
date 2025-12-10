@@ -157,6 +157,12 @@ func (pc *PostgresContainer) RunMigrations(ctx context.Context, migrationsPath s
 	sort.Strings(sqlFiles)
 
 	for _, fileName := range sqlFiles {
+		// Skip seed data files - they require pre-existing data (e.g., tenants)
+		// that won't exist in fresh test databases
+		if strings.Contains(strings.ToLower(fileName), "seed") {
+			continue
+		}
+
 		filePath := filepath.Join(migrationsPath, fileName)
 		content, err := os.ReadFile(filePath)
 		if err != nil {

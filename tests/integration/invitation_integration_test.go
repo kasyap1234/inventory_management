@@ -136,6 +136,22 @@ func (s *InvitationIntegrationTestSuite) TestInvitationFlow() {
 	})
 	require.NoError(s.T(), err)
 
+	// 2.5. Create an admin user who will send the invitation
+	adminUserID := uuid.New()
+	now := time.Now()
+	err = s.userRepo.Create(s.ctx, &models.User{
+		ID:           adminUserID,
+		TenantID:     tenantID,
+		Email:        "admin@test.com",
+		FirstName:    "Admin",
+		LastName:     "User",
+		PasswordHash: "hashedpassword",
+		Status:       "active",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	require.NoError(s.T(), err)
+
 	// 3. Create Invitation
 	inviteReq := &services.CreateInvitationRequest{
 		TenantID: tenantID,
@@ -143,7 +159,7 @@ func (s *InvitationIntegrationTestSuite) TestInvitationFlow() {
 		RoleID:   roleID,
 	}
 
-	invitation, err := s.invitationService.CreateInvitation(s.ctx, inviteReq, uuid.New())
+	invitation, err := s.invitationService.CreateInvitation(s.ctx, inviteReq, adminUserID)
 	require.NoError(s.T(), err)
 	assert.NotEmpty(s.T(), invitation.Token)
 	assert.Equal(s.T(), models.InvitationStatusPending, invitation.Status)

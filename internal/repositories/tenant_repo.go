@@ -90,8 +90,12 @@ func (r *tenantRepo) List(ctx context.Context, limit, offset int) ([]*models.Ten
 	var tenants []*models.Tenant
 	for rows.Next() {
 		tenant := &models.Tenant{}
-		if err := rows.Scan(&tenant.ID, &tenant.Name, &tenant.Subdomain, &tenant.License, &tenant.Status, &tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
+		var license *string
+		if err := rows.Scan(&tenant.ID, &tenant.Name, &tenant.Subdomain, &license, &tenant.Status, &tenant.CreatedAt, &tenant.UpdatedAt); err != nil {
 			return nil, err
+		}
+		if license != nil {
+			tenant.License = *license
 		}
 		tenants = append(tenants, tenant)
 	}
@@ -112,17 +116,22 @@ func (r *tenantRepo) UpdateSettings(ctx context.Context, tenant *models.Tenant) 
 func scanTenant(row pgx.Row) (*models.Tenant, error) {
 	tenant := &models.Tenant{}
 	var ssoConfig json.RawMessage
+	var license *string
 	if err := row.Scan(
 		&tenant.ID,
 		&tenant.Name,
 		&tenant.Subdomain,
-		&tenant.License,
+		&license,
 		&tenant.Status,
 		&tenant.CreatedAt,
 		&tenant.UpdatedAt,
 		&ssoConfig,
 	); err != nil {
 		return nil, err
+	}
+
+	if license != nil {
+		tenant.License = *license
 	}
 
 	if len(ssoConfig) > 0 {
