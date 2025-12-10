@@ -22,6 +22,8 @@ type RazorpayService interface {
 	PauseSubscription(ctx context.Context, subscriptionID string) (*PauseSubscriptionResponse, error)
 	ResumeSubscription(ctx context.Context, subscriptionID string) (*ResumeSubscriptionResponse, error)
 	UpdateSubscription(ctx context.Context, subscriptionID string, updates map[string]interface{}) (*UpdateSubscriptionResponse, error)
+	CreateOrder(ctx context.Context, amountPaise int64, currency, receipt string, notes map[string]string, capture bool) (*CreateOrderResponse, error)
+	VerifyPaymentSignature(orderID, paymentID, signature string) error
 	WebhookVerify(ctx context.Context, rawData []byte, signature string) (*WebhookEvent, error)
 }
 
@@ -48,6 +50,28 @@ type CreateSubscriptionRequest struct {
 	EndAt         int64  `json:"end_at,omitempty"`
 	Quantity      int    `json:"quantity,omitempty"`
 	OfferID       string `json:"offer_id,omitempty"`
+}
+
+type CreateOrderRequest struct {
+	Amount          int64             `json:"amount"`
+	Currency        string            `json:"currency"`
+	Receipt         string            `json:"receipt,omitempty"`
+	PaymentCapture  int               `json:"payment_capture"`
+	Notes           map[string]string `json:"notes,omitempty"`
+	PartialPayment  bool              `json:"partial_payment,omitempty"`
+	FirstPaymentMin int64             `json:"first_payment_min,omitempty"`
+}
+
+type CreateOrderResponse struct {
+	ID         string                 `json:"id"`
+	Entity     string                 `json:"entity"`
+	Amount     int64                  `json:"amount"`
+	Currency   string                 `json:"currency"`
+	Receipt    string                 `json:"receipt"`
+	Status     string                 `json:"status"`
+	CreatedAt  int64                  `json:"created_at"`
+	Notes      map[string]interface{} `json:"notes"`
+	AmountPaid int64                  `json:"amount_paid"`
 }
 
 type CreateSubscriptionResponse struct {
@@ -179,6 +203,64 @@ func (s *razorpayService) UpdateSubscription(ctx context.Context, subscriptionID
 	}
 
 	return &resp, nil
+}
+
+// CreateOrder creates a one-time payment order in Razorpay
+func (s *razorpayService) CreateOrder(ctx context.Context, amountPaise int64, currency, receipt string, notes map[string]string, capture bool) (*CreateOrderResponse, error) {
+	if amountPaise <= 0 {
+		return nil, fmt.Errorf("amount must be greater than zero")
+	}
+	if currency == "" {
+		currency = "INR"
+	}
+
+	req := CreateOrderRequest{
+		Amount:         amountPaise,
+		Currency:       currency,
+		Receipt:        receipt,
+		PaymentCapture: 0,
+		Notes:          notes,
+	}
+	if capture {
+		req.PaymentCapture = 1
+	}
+
+	respBytes, err := s.makeRequest(ctx, "POST", "/orders", req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Razorpay order: %w", err)
+	}
+
+	var resp CreateOrderResponse
+	if err := json.Unmarshal(respBytes, &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+	return &resp, nil
+}
+
+// VerifyPaymentSignature validates the payment signature returned from Razorpay Checkout
+func (s *razorpayService) VerifyPaymentSignature(orderID, paymentID, signature string) error {
+	if orderID == "" || paymentID == "" {
+		return fmt.Errorf("order_id and payment_id are required for signature verification")
+	}
+	trimmed := strings.TrimSpace(signature)
+	if trimmed == "" {
+		return fmt.Errorf("missing payment signature")
+	}
+
+	payload := fmt.Sprintf("%s|%s", orderID, paymentID)
+	mac := hmac.New(sha256.New, []byte(s.apiSecret))
+	mac.Write([]byte(payload))
+	expected := mac.Sum(nil)
+
+	provided, err := hex.DecodeString(trimmed)
+	if err != nil {
+		return fmt.Errorf("invalid payment signature format: %w", err)
+	}
+
+	if !hmac.Equal(provided, expected) {
+		return fmt.Errorf("invalid payment signature")
+	}
+	return nil
 }
 
 // WebhookVerify verifies webhook signature (HMAC)

@@ -24,9 +24,24 @@ func (m *MockMinioServiceForMinioTest) UploadImage(ctx context.Context, bucket, 
 	return args.Error(0)
 }
 
+func (m *MockMinioServiceForMinioTest) UploadObject(ctx context.Context, bucket, key string, reader io.Reader, size int64, contentType string) error {
+	args := m.Called(ctx, bucket, key, reader, size, contentType)
+	return args.Error(0)
+}
+
 func (m *MockMinioServiceForMinioTest) GetPresignedURL(bucket, key string, expiry time.Duration) (string, error) {
 	args := m.Called(bucket, key, expiry)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockMinioServiceForMinioTest) GetPresignedPutURL(ctx context.Context, bucket, key string, expiry time.Duration, contentType string) (string, error) {
+	args := m.Called(ctx, bucket, key, expiry, contentType)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockMinioServiceForMinioTest) FetchObject(ctx context.Context, bucket, key string) ([]byte, string, error) {
+	args := m.Called(ctx, bucket, key)
+	return args.Get(0).([]byte), args.String(1), args.Error(2)
 }
 
 func (m *MockMinioServiceForMinioTest) DeleteImage(ctx context.Context, bucket, key string) error {
@@ -46,7 +61,7 @@ func (m *MockMinioServiceForMinioTest) HealthCheck(ctx context.Context) error {
 
 type MinioServiceTestSuite struct {
 	suite.Suite
-	service MinioService
+	service     MinioService
 	mockService *MockMinioServiceForMinioTest
 }
 

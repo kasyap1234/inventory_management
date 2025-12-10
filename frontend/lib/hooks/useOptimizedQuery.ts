@@ -24,7 +24,7 @@ export function useOptimizedQuery<TData = unknown, TError = unknown>(
 
       try {
         if (typeof queryFn === 'function') {
-          return await measureApiCall(key, () => (queryFn as (context: typeof context) => Promise<TData>)(context));
+          return await measureApiCall(key, () => (queryFn as (ctx: unknown) => Promise<TData>)(context));
         }
         throw new Error('queryFn is required');
       } catch (error) {
@@ -44,7 +44,7 @@ export function useOptimizedQuery<TData = unknown, TError = unknown>(
 export function useOptimizedMutation<TData = unknown, TError = unknown, TVariables = void, TContext = unknown>(
   options: UseMutationOptions<TData, TError, TVariables, TContext> & {
     performanceKey?: string;
-    invalidateKeys?: unknown[];
+    invalidateKeys?: readonly unknown[];
     logErrors?: boolean;
   }
 ) {
@@ -73,13 +73,17 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
       // Auto-invalidate specified query keys
       if (invalidateKeys && invalidateKeys.length > 0) {
         invalidateKeys.forEach((key) => {
-          queryClient.invalidateQueries({ queryKey: key });
+          queryClient.invalidateQueries({ queryKey: key as readonly unknown[] });
         });
       }
 
       // Call original onSuccess
       if (onSuccess) {
-        (onSuccess as (data: TData, variables: TVariables, context: TContext) => void)(data, variables, context);
+        (onSuccess as (data: TData, variables: TVariables, context?: TContext) => void)(
+          data,
+          variables,
+          context as TContext | undefined
+        );
       }
     },
     onError: (error, variables, context) => {
@@ -90,7 +94,11 @@ export function useOptimizedMutation<TData = unknown, TError = unknown, TVariabl
 
       // Call original onError
       if (onError) {
-        (onError as (error: TError, variables: TVariables, context: TContext) => void)(error, variables, context);
+        (onError as (error: TError, variables: TVariables, context?: TContext) => void)(
+          error,
+          variables,
+          context as TContext | undefined
+        );
       }
     },
   });

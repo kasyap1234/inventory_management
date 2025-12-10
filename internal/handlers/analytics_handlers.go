@@ -53,6 +53,9 @@ func (h *AnalyticsHandlers) GetDashboardAnalytics(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to calculate analytics: "+err.Error())
 	}
 
+	// Short-term caching to smooth dashboard reloads
+	c.Response().Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"tenant_id":         data.TenantID,
 		"total_sales":       data.TotalSales,
@@ -103,6 +106,8 @@ func (h *AnalyticsHandlers) GetSalesTrends(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to get sales trends: "+err.Error())
 	}
+
+	c.Response().Header().Set("Cache-Control", "public, max-age=120, stale-while-revalidate=300")
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"start_date": startDate.Format("2006-01-02"),

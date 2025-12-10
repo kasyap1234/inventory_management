@@ -173,6 +173,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize MinIO service: %v", err)
 	}
+	ctx := context.Background()
+	if err := minioSvc.EnsureBucketExists(ctx, "product-images"); err != nil {
+		log.Fatalf("Failed to ensure product-images bucket: %v", err)
+	}
+	if err := minioSvc.EnsureBucketExists(ctx, "invoices"); err != nil {
+		log.Fatalf("Failed to ensure invoices bucket: %v", err)
+	}
 
 	// Create repositories
 	userRepo := repositories.NewUserRepo(pool)
@@ -192,6 +199,8 @@ func main() {
 	orderStatusHistoryRepo := repositories.NewOrderStatusHistoryRepo(pool)
 	invoiceRepo := repositories.NewInvoiceRepo(pool)
 	productImageRepo := repositories.NewProductImageRepo(pool)
+	paymentRepo := repositories.NewPaymentRepo(pool)
+	webhookEventRepo := repositories.NewWebhookEventRepo(pool)
 	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
 	// notificationRepo := repositories.NewNotificationRepo(pool) // Removed unused
 	// notificationConfigRepo := repositories.NewNotificationConfigRepo(pool) // Removed unused
@@ -395,9 +404,11 @@ func main() {
 		log.Printf("WARNING: RAZORPAY_WEBHOOK_SECRET is not configured; Razorpay webhooks will be rejected")
 	}
 	razorpayService := services.NewRazorpayService(razorpayKeyID, razorpayKeySecret, razorpayWebhookSecret)
+	paymentService := services.NewPaymentService(paymentRepo, orderRepo, razorpayService)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, razorpayService)
 	subscriptionHandlers := handlers.NewSubscriptionHandlers(subscriptionService, subscriptionMiddleware, rbacMiddleware)
-	webhookHandlers := handlers.NewWebhookHandlers(subscriptionService, razorpayService, invoiceSvc, notificationService, razorpayWebhookSecret, rbacMiddleware)
+	webhookHandlers := handlers.NewWebhookHandlers(subscriptionService, razorpayService, invoiceSvc, notificationService, paymentService, webhookEventRepo, razorpayWebhookSecret, rbacMiddleware)
+	paymentHandlers := handlers.NewPaymentHandlers(paymentService, rbacMiddleware, razorpayKeyID)
 
 	notificationHandlers := handlers.NewNotificationHandlers(notificationService)
 
@@ -749,6 +760,8 @@ func main() {
 
 	// Product image routes - require product permissions
 	protected.POST("/products/:id/images", productHandlers.UploadProductImage, rbacMiddleware.RequirePermission("product.update"))
+	protected.POST("/products/:id/images/presign", productHandlers.PresignProductImageUpload, rbacMiddleware.RequirePermission("product.update"))
+	protected.POST("/products/:id/images/finalize", productHandlers.FinalizeProductImageUpload, rbacMiddleware.RequirePermission("product.update"))
 	protected.GET("/products/:id/images", productHandlers.GetProductImages, rbacMiddleware.RequirePermission("product.read"))
 	protected.GET("/products/:id/images/:imageId/url", productHandlers.GetProductImageURL, rbacMiddleware.RequirePermission("product.read"))
 	protected.DELETE("/products/:id/images/:imageId", productHandlers.DeleteProductImage, rbacMiddleware.RequirePermission("product.update"))
@@ -917,6 +930,11 @@ func main() {
 	protected.POST("/subscriptions/:id/pause", subscriptionHandlers.PauseSubscription)
 	protected.POST("/subscriptions/:id/resume", subscriptionHandlers.ResumeSubscription)
 	protected.DELETE("/subscriptions/:id", subscriptionHandlers.DeleteSubscription)
+
+	// Payments routes (one-time Razorpay)
+	protected.GET("/payments/config", paymentHandlers.GetPaymentConfig)
+	protected.POST("/payments/orders", paymentHandlers.CreateOrderPayment, rbacMiddleware.RequirePermission("order.process||order.update"))
+	protected.POST("/payments/verify", paymentHandlers.VerifyOrderPayment)
 
 	// Notification routes
 	protected.POST("/notifications/send", notificationHandlers.SendNotification)

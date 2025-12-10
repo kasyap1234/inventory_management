@@ -17,6 +17,7 @@ import (
 	"agromart2/internal/config"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
+	"agromart2/internal/repositories"
 	"agromart2/internal/services"
 
 	"github.com/google/uuid"
@@ -29,6 +30,8 @@ type WebhookHandlers struct {
 	razorpayService     services.RazorpayService
 	invoiceService      services.InvoiceServiceInterface
 	notificationService services.NotificationService
+	paymentService      services.PaymentService
+	webhookRepo         repositories.WebhookEventRepository
 	webhookSecret       string
 	rbacMiddleware      *middleware.RBACMiddleware
 }
@@ -39,6 +42,8 @@ func NewWebhookHandlers(
 	razorpayService services.RazorpayService,
 	invoiceService services.InvoiceServiceInterface,
 	notificationService services.NotificationService,
+	paymentService services.PaymentService,
+	webhookRepo repositories.WebhookEventRepository,
 	webhookSecret string,
 	rbacMiddleware *middleware.RBACMiddleware,
 ) *WebhookHandlers {
@@ -47,6 +52,8 @@ func NewWebhookHandlers(
 		razorpayService:     razorpayService,
 		invoiceService:      invoiceService,
 		notificationService: notificationService,
+		paymentService:      paymentService,
+		webhookRepo:         webhookRepo,
 		webhookSecret:       webhookSecret,
 		rbacMiddleware:      rbacMiddleware,
 	}
@@ -96,10 +103,24 @@ func (h *WebhookHandlers) RazorpayWebhook(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	// Idempotency guard
+	if h.webhookRepo != nil && event != nil && event.ID != "" {
+		if processed, _ := h.webhookRepo.AlreadyProcessed(c.Request().Context(), "razorpay", event.ID); processed {
+			return c.JSON(http.StatusOK, map[string]string{
+				"status": "ignored_duplicate",
+				"event":  event.Event,
+			})
+		}
+	}
+
 	// Process webhook based on event type
 	err = h.processRazorpayEvent(event)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	if h.webhookRepo != nil && event != nil {
+		_ = h.webhookRepo.MarkProcessed(c.Request().Context(), "razorpay", event.ID, signature, event)
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
@@ -111,6 +132,8 @@ func (h *WebhookHandlers) RazorpayWebhook(c echo.Context) error {
 // processRazorpayEvent processes different Razorpay webhook events
 func (h *WebhookHandlers) processRazorpayEvent(event *services.WebhookEvent) error {
 	switch event.Event {
+	case "payment.authorized", "payment.captured", "payment.failed":
+		return h.handlePaymentEvent(event)
 	case "subscription.activated":
 		return h.handleSubscriptionActivated(event)
 	case "subscription.charged":
@@ -129,6 +152,54 @@ func (h *WebhookHandlers) processRazorpayEvent(event *services.WebhookEvent) err
 		// Log unknown events but don't return error
 		return nil
 	}
+}
+
+// handlePaymentEvent processes one-time payment webhooks (order payments)
+func (h *WebhookHandlers) handlePaymentEvent(event *services.WebhookEvent) error {
+	if h.paymentService == nil {
+		return nil
+	}
+
+	payload, ok := event.Data["payload"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	paymentMap, ok := payload["payment"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	entity, ok := paymentMap["entity"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	orderID, _ := entity["order_id"].(string)
+	paymentID, _ := entity["id"].(string)
+	status := event.Event
+	if parts := strings.Split(event.Event, "."); len(parts) == 2 {
+		status = parts[1]
+	}
+
+	// Extract tenant ID from notes (we add tenant_id when creating orders)
+	var tenantID uuid.UUID
+	if notes, ok := entity["notes"].(map[string]interface{}); ok {
+		if tid, ok := notes["tenant_id"].(string); ok {
+			if parsed, err := uuid.Parse(tid); err == nil {
+				tenantID = parsed
+			}
+		}
+	}
+	if tenantID == uuid.Nil || orderID == "" {
+		return nil
+	}
+
+	var paidAt *time.Time
+	if status == "captured" {
+		now := time.Now()
+		paidAt = &now
+	}
+
+	return h.paymentService.MarkPaymentStatus(context.Background(), tenantID, orderID, status, &paymentID, nil, paidAt)
 }
 
 // handleSubscriptionActivated handles subscription activation events

@@ -8,27 +8,27 @@ class TokenStorage {
   // Keep these methods for backward compatibility but they no longer interact with localStorage
   // The backend sets HttpOnly cookies that are automatically sent with requests
 
-  getAccessToken() {
+  getAccessToken(): string | null {
     // Tokens are in HttpOnly cookies - not accessible from JavaScript
     return null;
   }
 
-  getRefreshToken() {
+  getRefreshToken(): string | null {
     // Tokens are in HttpOnly cookies - not accessible from JavaScript
     return null;
   }
 
-  setTokens() {
+  setTokens(): void {
     // No-op: Tokens are set by backend as HttpOnly cookies
     // This method is kept for backward compatibility
   }
 
-  clear() {
+  clear(): void {
     // Tokens are cleared by calling the logout endpoint
     // The backend will clear the HttpOnly cookies
   }
 
-  hasAccessToken() {
+  hasAccessToken(): boolean {
     // Cannot check token presence from JavaScript with HttpOnly cookies
     // Auth state is determined by making an authenticated API call
     return false;

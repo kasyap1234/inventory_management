@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   render?: (item: T) => React.ReactNode;
   width?: string;
 }
@@ -17,6 +17,7 @@ interface VirtualizedTableProps<T> {
   overscan?: number;
   onRowClick?: (item: T) => void;
   className?: string;
+  height?: number | string;
 }
 
 export function VirtualizedTable<T extends Record<string, any>>({
@@ -26,6 +27,7 @@ export function VirtualizedTable<T extends Record<string, any>>({
   overscan = 5,
   onRowClick,
   className = '',
+  height,
 }: VirtualizedTableProps<T>) {
   const parentRef = React.useRef<HTMLDivElement>(null);
 
@@ -39,7 +41,11 @@ export function VirtualizedTable<T extends Record<string, any>>({
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className={`overflow-auto ${className}`} ref={parentRef} style={{ height: '600px' }}>
+    <div
+      className={`overflow-auto ${className}`}
+      ref={parentRef}
+      style={{ height: height ?? '600px' }}
+    >
       <div className="min-w-full">
         <div className="grid grid-cols-1 bg-muted text-muted-foreground border-b border-border sticky top-0 z-10" style={{
           gridTemplateColumns: columns.map(col => col.width || '1fr').join(' '),

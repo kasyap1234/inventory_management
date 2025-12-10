@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"agromart2/internal/models"
+	"agromart2/internal/repositories"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -79,6 +81,14 @@ func (m *MockOrderRepository) GetOrdersByStatus(ctx context.Context, tenantID uu
 	return args.Get(0).([]*models.Order), args.Error(1)
 }
 
+func (m *MockOrderRepository) GetSalesTrendsAggregates(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]repositories.SalesTrendAggregate, error) {
+	args := m.Called(ctx, tenantID, startDate, endDate)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repositories.SalesTrendAggregate), args.Error(1)
+}
+
 func (m *MockOrderRepository) GetOrdersBySupplier(ctx context.Context, tenantID, supplierID uuid.UUID, limit, offset int) ([]*models.Order, error) {
 	args := m.Called(ctx, tenantID, supplierID, limit, offset)
 	if args.Get(0) == nil {
@@ -95,13 +105,18 @@ func (m *MockOrderRepository) GetOrdersByTypeAndStatus(ctx context.Context, tena
 	return args.Get(0).([]*models.Order), args.Error(1)
 }
 
+func (m *MockOrderRepository) UpdatePaymentStatus(ctx context.Context, tenantID, orderID uuid.UUID, status string) error {
+	args := m.Called(ctx, tenantID, orderID, status)
+	return args.Error(0)
+}
+
 // MockInventoryRepository is now defined in mocks_test.go
 
 // Test ValidateStatusTransition
 func TestValidateStatusTransition(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepository)
 	mockInventoryRepo := new(MockInventoryRepository)
-	
+
 	service := &orderService{
 		orderRepo:     mockOrderRepo,
 		inventoryRepo: mockInventoryRepo,
@@ -140,7 +155,7 @@ func TestValidateStatusTransition(t *testing.T) {
 func TestCreateOrder(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepository)
 	mockInventoryRepo := new(MockInventoryRepository)
-	
+
 	service := &orderService{
 		orderRepo:     mockOrderRepo,
 		inventoryRepo: mockInventoryRepo,
@@ -371,7 +386,7 @@ func TestCancelOrder(t *testing.T) {
 func TestOrderLifecycle(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepository)
 	mockInventoryRepo := new(MockInventoryRepository)
-	
+
 	service := &orderService{
 		orderRepo:     mockOrderRepo,
 		inventoryRepo: mockInventoryRepo,

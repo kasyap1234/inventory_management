@@ -1,29 +1,14 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { ArrowRight, TrendingUp, Users, BarChart3, CheckCircle2 } from 'lucide-react';
-import { AxiosError } from 'axios';
-import { PasswordStrengthMeter } from '@/components/password-strength-meter';
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
-import { evaluatePasswordStrength } from '@/lib/password';
+import { TrendingUp, Users, CheckCircle2 } from 'lucide-react';
 
 export default function SignupPage() {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    tenant_name: '',
-    subdomain: '',
-  });
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const { signup, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   // Redirect if already authenticated - must be in useEffect to avoid setState during render
@@ -37,28 +22,6 @@ export default function SignupPage() {
   if (!isLoading && isAuthenticated) {
     return null;
   }
-
-  const passwordStrength = useMemo(() => evaluatePasswordStrength(formData.password), [formData.password]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passwordStrength.isAcceptable) {
-      setPasswordError('Password is too weak. Follow the suggestions to create a stronger password.');
-      return;
-    }
-    setPasswordError(null);
-    signup.mutate(formData);
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
-    if (e.target.name === 'password') {
-      setPasswordError(null);
-    }
-  };
 
   const features = [
     "Real-time inventory tracking",

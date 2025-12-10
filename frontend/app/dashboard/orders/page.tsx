@@ -17,6 +17,7 @@ import api from '@/lib/api';
 import { Order, Product, Warehouse, Supplier, Distributor } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,6 +29,7 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { createOneTimePayment, isLoading: isPaymentLoading } = useRazorpayCheckout();
 
   const { data: orders, isLoading } = useQuery<{ orders: Order[] }>({
     queryKey: ['orders'],
@@ -120,6 +122,32 @@ export default function OrdersPage() {
       alert('Failed to delete selected orders');
     },
   });
+
+  const handleCollectPayment = (order: Order) => {
+    const amount = Number(order.quantity || 0) * Number(order.unit_price || 0);
+    if (!amount || amount <= 0) {
+      alert('Order amount is invalid for payment');
+      return;
+    }
+
+    createOneTimePayment({
+      amount,
+      currency: 'INR',
+      receipt: `order-${order.id}`,
+      orderId: order.id,
+      notes: {
+        order_type: order.order_type || 'sales',
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        alert('Payment captured successfully');
+      },
+      onError: (err) => {
+        console.error(err);
+        alert((err as any)?.message || 'Payment failed');
+      },
+    });
+  };
 
   const filteredOrders = orders?.orders?.filter(order => {
     const product = products?.products?.find(p => p.id === order.product_id);
@@ -521,6 +549,14 @@ export default function OrdersPage() {
                           className="font-mono text-xs uppercase cursor-pointer focus:bg-primary/10 focus:text-primary"
                         >
                           View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={() => handleCollectPayment(order)}
+                          className="font-mono text-xs uppercase cursor-pointer focus:bg-primary/10 focus:text-primary"
+                          disabled={isPaymentLoading}
+                        >
+                          Collect Payment
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {order.status === 'pending' && (

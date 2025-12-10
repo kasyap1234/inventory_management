@@ -79,6 +79,15 @@ This will start:
 -   **Backend API**: [http://localhost:8080](http://localhost:8080)
 -   **Mailpit (Email Testing)**: [http://localhost:8025](http://localhost:8025)
 
+## Payments & Storage Configuration
+
+- **Razorpay**: set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` in `.env`. The webhook endpoint is `POST /v1/webhooks/razorpay`; point the Razorpay dashboard to `https://<backend>/v1/webhooks/razorpay`.
+- **Checkout config**: the frontend reads the public key from `GET /payments/config` (no secret values are exposed).
+- **One-time payments**: create orders via `POST /payments/orders`, verify with `POST /payments/verify`, and webhooks handle `payment.authorized/captured/failed` with idempotency.
+- **Subscriptions**: `POST /subscriptions` creates Razorpay subscriptions; webhooks update lifecycle events.
+- **MinIO**: set `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_USE_SSL`. Buckets `product-images` and `invoices` are created automatically at startup.
+- **Image uploads**: request a presigned URL via `POST /products/:id/images/presign`, upload directly to MinIO, then call `POST /products/:id/images/finalize` to generate thumbnails and persist metadata.
+
 ## Features
 
 -   **Dashboard**: Real-time overview of sales, stock, and orders.

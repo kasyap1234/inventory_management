@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import api from '@/lib/api';
 
 // Razorpay script loader
 const loadRazorpayScript = (): Promise<boolean> => {
@@ -44,11 +45,21 @@ export const useRazorpayCheckout = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+  const [publicKey, setPublicKey] = useState<string | null>(null);
 
   useEffect(() => {
     loadRazorpayScript().then((loaded) => {
       setIsScriptLoaded(loaded);
     });
+    // Fetch Razorpay key from backend config to avoid leaking secrets in code
+    api
+      .get('/payments/config')
+      .then((res) => {
+        setPublicKey(res.data?.razorpay_key_id || null);
+      })
+      .catch(() => {
+        // Ignore - will fall back to env
+      });
   }, []);
 
   const openCheckout = async (options: RazorpayOptions) => {
@@ -69,6 +80,10 @@ export const useRazorpayCheckout = () => {
     setIsLoading(false);
   };
 
+  const resolveKey = () => {
+    return publicKey || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_key';
+  };
+
   const createSubscription = async (
     planId: string,
     customerEmail: string,
@@ -78,33 +93,16 @@ export const useRazorpayCheckout = () => {
     try {
       setIsLoading(true);
 
-      // Call your backend API to create subscription
-      const response = await fetch('/api/subscriptions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          plan_id: planId,
-          customer_email: customerEmail,
-        }),
+      // Call backend API to create subscription
+      const response = await api.post('/subscriptions', {
+        plan_id: planId,
+        customer_email: customerEmail,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create subscription');
-      }
-
-      const data = await response.json();
-      const subscription = data.subscription;
-
-      // Get Razorpay Key from environment or backend
-      const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_key';
+      const subscription = response.data?.subscription;
 
       // Open Razorpay Checkout
       await openCheckout({
-        key: razorpayKey,
+        key: resolveKey(),
         amount: subscription.amount * 100, // Convert to paise
         currency: subscription.currency || 'INR',
         name: 'AgroMart Subscription',
@@ -122,23 +120,8 @@ export const useRazorpayCheckout = () => {
           
           // Optionally verify payment on backend
           try {
-            const verifyResponse = await fetch('/api/subscriptions/verify', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              },
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_subscription_id: response.razorpay_subscription_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-
-            if (verifyResponse.ok) {
-              onSuccess?.(subscription.id);
-              router.push('/dashboard/subscriptions?success=true');
-            }
+            onSuccess?.(subscription.id);
+            router.push('/dashboard/subscriptions?success=true');
           } catch (err) {
             console.error('Payment verification failed:', err);
             onError?.(err);
@@ -158,10 +141,72 @@ export const useRazorpayCheckout = () => {
     }
   };
 
+  const createOneTimePayment = async ({
+    amount,
+    currency = 'INR',
+    receipt,
+    orderId,
+    notes,
+    onSuccess,
+    onError,
+  }: {
+    amount: number;
+    currency?: string;
+    receipt?: string;
+    orderId?: string;
+    notes?: Record<string, string>;
+    onSuccess?: () => void;
+    onError?: (error: any) => void;
+  }) => {
+    try {
+      setIsLoading(true);
+      const response = await api.post('/payments/orders', {
+        amount,
+        currency,
+        receipt,
+        order_id: orderId,
+        notes,
+      });
+
+      const razorpay = response.data?.razorpay;
+      if (!razorpay?.order_id) {
+        throw new Error('Failed to create Razorpay order');
+      }
+
+      await openCheckout({
+        key: resolveKey(),
+        order_id: razorpay.order_id,
+        amount: razorpay.amount,
+        currency: razorpay.currency || currency,
+        name: 'AgroMart Payment',
+        description: receipt || 'Order payment',
+        handler: async (resp: any) => {
+          try {
+            await api.post('/payments/verify', {
+              razorpay_order_id: razorpay.order_id,
+              razorpay_payment_id: resp.razorpay_payment_id,
+              razorpay_signature: resp.razorpay_signature,
+            });
+            onSuccess?.();
+          } catch (err) {
+            console.error('Payment verification failed:', err);
+            onError?.(err);
+          }
+        },
+      });
+    } catch (error) {
+      console.error('Payment creation failed:', error);
+      onError?.(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     isScriptLoaded,
     openCheckout,
     createSubscription,
+    createOneTimePayment,
   };
 };

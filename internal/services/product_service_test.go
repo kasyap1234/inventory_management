@@ -359,9 +359,24 @@ func (m *MockMinioService) UploadImage(ctx context.Context, bucket, key string, 
 	return args.Error(0)
 }
 
+func (m *MockMinioService) UploadObject(ctx context.Context, bucket, key string, reader io.Reader, size int64, contentType string) error {
+	args := m.Called(ctx, bucket, key, reader, size, contentType)
+	return args.Error(0)
+}
+
 func (m *MockMinioService) GetPresignedURL(bucket, key string, expiry time.Duration) (string, error) {
 	args := m.Called(bucket, key, expiry)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockMinioService) GetPresignedPutURL(ctx context.Context, bucket, key string, expiry time.Duration, contentType string) (string, error) {
+	args := m.Called(ctx, bucket, key, expiry, contentType)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockMinioService) FetchObject(ctx context.Context, bucket, key string) ([]byte, string, error) {
+	args := m.Called(ctx, bucket, key)
+	return args.Get(0).([]byte), args.String(1), args.Error(2)
 }
 
 func (m *MockMinioService) DeleteImage(ctx context.Context, bucket, key string) error {

@@ -20,15 +20,24 @@ type OrderRepository interface {
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error)
 	GetOrdersByTenantAndDateRange(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]*models.Order, error)
+	GetSalesTrendsAggregates(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]SalesTrendAggregate, error)
 	GetOrdersByStatus(ctx context.Context, tenantID uuid.UUID, status string, limit, offset int) ([]*models.Order, error)
 	GetOrdersByTypeAndStatus(ctx context.Context, tenantID uuid.UUID, orderType, status string, limit, offset int) ([]*models.Order, error)
 	GetOrdersBySupplier(ctx context.Context, tenantID uuid.UUID, supplierID uuid.UUID, limit, offset int) ([]*models.Order, error)
 	GetOrdersByDistributor(ctx context.Context, tenantID uuid.UUID, distributorID uuid.UUID, limit, offset int) ([]*models.Order, error)
 	AdvancedSearch(ctx context.Context, tenantID uuid.UUID, filter *models.OrderSearchFilter) ([]*models.Order, error)
+	UpdatePaymentStatus(ctx context.Context, tenantID, orderID uuid.UUID, status string) error
 }
 
 type orderRepo struct {
 	db *pgxpool.Pool
+}
+
+// SalesTrendAggregate represents aggregated sales totals for a given day.
+type SalesTrendAggregate struct {
+	Date        time.Time
+	SalesAmount float64
+	OrderCount  int
 }
 
 func NewOrderRepo(db *pgxpool.Pool) OrderRepository {
@@ -83,6 +92,13 @@ func (r *orderRepo) Update(ctx context.Context, order *models.Order) error {
 func (r *orderRepo) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	query := `DELETE FROM orders WHERE tenant_id = $1 AND id = $2`
 	_, err := r.db.Exec(ctx, query, tenantID, id)
+	return err
+}
+
+// UpdatePaymentStatus updates payment status for an order without changing other fields.
+func (r *orderRepo) UpdatePaymentStatus(ctx context.Context, tenantID, id uuid.UUID, status string) error {
+	query := `UPDATE orders SET payment_status = $1, updated_at = NOW() WHERE tenant_id = $2 AND id = $3`
+	_, err := r.db.Exec(ctx, query, status, tenantID, id)
 	return err
 }
 
@@ -321,6 +337,38 @@ func (r *orderRepo) GetOrdersByTenantAndDateRange(ctx context.Context, tenantID 
 		orders = append(orders, order)
 	}
 	return orders, nil
+}
+
+// GetSalesTrendsAggregates returns aggregated sales totals and counts grouped by day.
+func (r *orderRepo) GetSalesTrendsAggregates(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]SalesTrendAggregate, error) {
+	query := `
+		SELECT
+			DATE(order_date) AS day,
+			COALESCE(SUM(quantity * unit_price), 0) AS sales_amount,
+			COUNT(*) AS order_count
+		FROM orders
+		WHERE tenant_id = $1
+			AND order_date BETWEEN $2 AND $3
+		GROUP BY day
+		ORDER BY day ASC
+	`
+
+	rows, err := r.db.Query(ctx, query, tenantID, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var trends []SalesTrendAggregate
+	for rows.Next() {
+		var agg SalesTrendAggregate
+		if err := rows.Scan(&agg.Date, &agg.SalesAmount, &agg.OrderCount); err != nil {
+			return nil, err
+		}
+		trends = append(trends, agg)
+	}
+
+	return trends, nil
 }
 
 // GetOrdersByStatus retrieves orders by status with pagination

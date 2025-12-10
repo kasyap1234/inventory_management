@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useDeferredValue, useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash, Package, AlertTriangle, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 import { Product } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { VirtualizedTable } from '@/components/ui/virtualized-table';
 
 export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,11 +25,12 @@ export default function ProductsPage() {
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery<{ products: Product[] }>({
-    queryKey: ['products'],
+    queryKey: ['products', 50],
     queryFn: async () => {
-      const response = await api.get('/products?limit=100');
+      const response = await api.get('/products?limit=50');
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const deleteProduct = useMutation({
@@ -41,10 +42,17 @@ export default function ProductsPage() {
     },
   });
 
-  const filteredProducts = products?.products?.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.barcode?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const deferredSearch = useDeferredValue(searchQuery);
+
+  const filteredProducts = useMemo(() => {
+    const term = deferredSearch.trim().toLowerCase();
+    const source = products?.products ?? [];
+    if (!term) return source;
+    return source.filter((product) =>
+      product.name.toLowerCase().includes(term) ||
+      product.barcode?.toLowerCase().includes(term)
+    );
+  }, [deferredSearch, products?.products]);
 
   const bulkDeleteProducts = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -56,27 +64,133 @@ export default function ProductsPage() {
     },
   });
 
-  const handleSelectAll = (checked: boolean) => {
+  const handleSelectAll = useCallback((checked: boolean) => {
     if (checked) {
-      setSelectedProducts(filteredProducts.map(p => p.id));
-    } else {
-      setSelectedProducts([]);
+      setSelectedProducts(filteredProducts.map((p) => p.id));
+      return;
     }
-  };
+    setSelectedProducts([]);
+  }, [filteredProducts]);
 
-  const handleSelectProduct = (productId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedProducts(prev => [...prev, productId]);
-    } else {
-      setSelectedProducts(prev => prev.filter(id => id !== productId));
-    }
-  };
+  const handleSelectProduct = useCallback((productId: string, checked: boolean) => {
+    setSelectedProducts((prev) => {
+      if (checked) {
+        return prev.includes(productId) ? prev : [...prev, productId];
+      }
+      return prev.filter((id) => id !== productId);
+    });
+  }, []);
 
   const handleBulkDelete = () => {
     if (confirm(`Are you sure you want to delete ${selectedProducts.length} product(s)?`)) {
       bulkDeleteProducts.mutate(selectedProducts);
     }
   };
+
+  const columns = useMemo(() => {
+    const allSelected = filteredProducts.length > 0 && selectedProducts.length === filteredProducts.length;
+
+    return [
+      {
+        key: 'select',
+        header: (
+          <input
+            type="checkbox"
+            aria-label="Select all products"
+            checked={allSelected}
+            onChange={(e) => handleSelectAll(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+        ),
+        width: '56px',
+        render: (product: Product) => (
+          <input
+            type="checkbox"
+            aria-label={`Select ${product.name}`}
+            checked={selectedProducts.includes(product.id)}
+            onChange={(e) => handleSelectProduct(product.id, e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+        ),
+      },
+      {
+        key: 'name',
+        header: 'Name',
+        width: '1.2fr',
+        render: (product: Product) => (
+          <div className="font-medium">{product.name}</div>
+        ),
+      },
+      {
+        key: 'barcode',
+        header: 'Barcode',
+        width: '1fr',
+        render: (product: Product) => product.barcode || '-',
+      },
+      {
+        key: 'quantity',
+        header: 'Quantity',
+        width: '0.8fr',
+        render: (product: Product) => (
+          <Badge variant={product.quantity < 10 ? 'destructive' : 'success'}>
+            {product.quantity}
+          </Badge>
+        ),
+      },
+      {
+        key: 'unit_price',
+        header: 'Unit Price',
+        width: '1fr',
+        render: (product: Product) => formatCurrency(product.unit_price),
+      },
+      {
+        key: 'unit',
+        header: 'Unit',
+        width: '0.8fr',
+        render: (product: Product) => product.unit_of_measure || '-',
+      },
+      {
+        key: 'expiry_date',
+        header: 'Expiry Date',
+        width: '1fr',
+        render: (product: Product) => product.expiry_date ? formatDate(product.expiry_date) : '-',
+      },
+      {
+        key: 'actions',
+        header: 'Actions',
+        width: '170px',
+        render: (product: Product) => (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setImagesProduct(product)}
+            >
+              <ImageIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditingProduct(product)}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (confirm(`Delete ${product.name}?`)) {
+                  deleteProduct.mutate(product.id);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ];
+  }, [deleteProduct, filteredProducts.length, handleSelectAll, handleSelectProduct, selectedProducts, setEditingProduct, setImagesProduct]);
 
   return (
     <div className="space-y-6 p-6">
@@ -185,82 +299,13 @@ export default function ProductsPage() {
               No products found. Add your first product to get started.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300"
-                    />
-                  </TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Unit Price</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Expiry Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={(e) => handleSelectProduct(product.id, e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>{product.barcode || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={product.quantity < 10 ? 'destructive' : 'success'}>
-                        {product.quantity}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatCurrency(product.unit_price)}</TableCell>
-                    <TableCell>{product.unit_of_measure || '-'}</TableCell>
-                    <TableCell>
-                      {product.expiry_date ? formatDate(product.expiry_date) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setImagesProduct(product)}
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingProduct(product)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete this product?')) {
-                              deleteProduct.mutate(product.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <VirtualizedTable
+              data={filteredProducts}
+              columns={columns}
+              rowHeight={68}
+              overscan={8}
+              height={560}
+            />
           )}
         </CardContent>
       </Card>
@@ -607,14 +652,29 @@ function ProductImagesDialog({ open, onOpenChange, product }: {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('alt_text', product?.name || '');
-
-      const response = await api.post(`/products/${product!.id}/images`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const presignResp = await api.post(`/products/${product!.id}/images/presign`, {
+        filename: file.name,
+        size: file.size,
+        content_type: file.type,
       });
-      return response.data;
+      const presign = presignResp.data as { upload_url: string; object_key: string };
+
+      const putResp = await fetch(presign.upload_url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+      if (!putResp.ok) {
+        throw new Error('Failed to upload to storage');
+      }
+
+      const finalizeResp = await api.post(`/products/${product!.id}/images/finalize`, {
+        object_key: presign.object_key,
+        alt_text: product?.name || '',
+      });
+      return finalizeResp.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-images', product?.id] });

@@ -13,7 +13,7 @@ interface PerformanceMetric {
 
 class PerformanceMonitor {
   private metrics: PerformanceMetric[] = [];
-  private timers: Map<string, number> = new Map();
+  private timers: Map<string, number | Record<string, unknown>> = new Map();
 
   /**
    * Start timing an operation
@@ -21,7 +21,7 @@ class PerformanceMonitor {
   startTimer(name: string, metadata?: Record<string, unknown>) {
     this.timers.set(name, performance.now());
     if (metadata) {
-      this.timers.set(`${name}_metadata`, metadata as unknown);
+      this.timers.set(`${name}_metadata`, metadata);
     }
   }
 
@@ -30,7 +30,7 @@ class PerformanceMonitor {
    */
   endTimer(name: string): number | null {
     const startTime = this.timers.get(name);
-    if (!startTime) {
+    if (typeof startTime !== 'number') {
       console.warn(`Timer "${name}" was not started`);
       return null;
     }

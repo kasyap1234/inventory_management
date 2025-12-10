@@ -2,16 +2,27 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, Warehouse, ShoppingCart, FileText, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Package, Warehouse, ShoppingCart, FileText, DollarSign, AlertTriangle } from 'lucide-react';
 import { analyticsService, invoiceService, type AnalyticsDashboard, type LowStockItem } from '@/lib/services';
 import { formatCurrency } from '@/lib/utils';
-import { format, formatDistance } from 'date-fns';
+import { format } from 'date-fns';
 import { DashboardSkeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useMemo, useState, useEffect } from 'react';
-import Link from 'next/link';
-import { SalesTrendChart } from '@/components/charts/SalesTrendChart';
+import dynamic from 'next/dynamic';
+
+const SalesTrendChart = dynamic(
+  () => import('@/components/charts/SalesTrendChart').then((mod) => mod.SalesTrendChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+        Loading chart...
+      </div>
+    ),
+  }
+);
 
 type InvoiceSummary = {
   id: string;

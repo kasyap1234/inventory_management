@@ -25,7 +25,7 @@ function CallbackContent() {
 
         if (accessToken && refreshToken) {
             // Successful login
-            tokenStorage.setTokens(accessToken, refreshToken);
+            tokenStorage.setTokens();
             csrfTokenManager.clearToken();
             // Invalidate user query to fetch fresh data
             queryClient.invalidateQueries({ queryKey: ['user'] });

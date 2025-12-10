@@ -180,8 +180,8 @@ func (h *ProductHandlers) ListProducts(c echo.Context) error {
 	}
 
 	// Legacy offset-based pagination
-	limit := 10 // default
-	offset := 0 // default
+	limit := 10      // default
+	offset := 0      // default
 	maxLimit := 1000 // Maximum items per page
 
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
@@ -638,6 +638,13 @@ func (h *ProductHandlers) GetProductImages(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve product images")
 	}
 
+	// Attach signed URLs for safer direct access
+	for _, image := range images {
+		if url, err := h.productService.GetProductImageURL(ctx, tenantID, image.ID, 24*time.Hour); err == nil {
+			image.ImageURL = url
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"images":     images,
 		"count":      len(images),
@@ -699,6 +706,74 @@ func (h *ProductHandlers) DeleteProductImage(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Image deleted successfully",
+	})
+}
+
+// PresignProductImageUpload handles POST /products/:id/images/presign
+func (h *ProductHandlers) PresignProductImageUpload(c echo.Context) error {
+	ctx := c.Request().Context()
+	productID, err := h.validateUUID(c.Param("id"))
+	if err != nil {
+		return err
+	}
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var req struct {
+		Filename    string `json:"filename"`
+		Size        int64  `json:"size"`
+		ContentType string `json:"content_type"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request payload")
+	}
+
+	resp, err := h.productService.GeneratePresignedProductImageUpload(ctx, tenantID, productID, req.Filename, req.Size, req.ContentType)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	return c.JSON(http.StatusCreated, resp)
+}
+
+// FinalizeProductImageUpload handles POST /products/:id/images/finalize
+func (h *ProductHandlers) FinalizeProductImageUpload(c echo.Context) error {
+	ctx := c.Request().Context()
+	productID, err := h.validateUUID(c.Param("id"))
+	if err != nil {
+		return err
+	}
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	var req struct {
+		ObjectKey string  `json:"object_key"`
+		AltText   *string `json:"alt_text"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request payload")
+	}
+	if strings.TrimSpace(req.ObjectKey) == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "object_key is required")
+	}
+
+	image, err := h.productService.FinalizePresignedProductImageUpload(ctx, tenantID, productID, req.ObjectKey, req.AltText)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Return a fresh signed URL for immediate rendering
+	url, _ := h.productService.GetProductImageURL(ctx, tenantID, image.ID, 24*time.Hour)
+	if url != "" {
+		image.ImageURL = url
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"image":   image,
+		"message": "Image uploaded and processed",
 	})
 }
 

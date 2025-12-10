@@ -38,7 +38,10 @@ export function ExportButton({
           columns,
           data,
         },
-        api
+        {
+          post: (url, payload, config) =>
+            api.post<Blob>(url, payload, config as any),
+        }
       );
       
       toast.success(`Exported ${data.length} records as ${format.toUpperCase()}`);

@@ -38,7 +38,7 @@ export default function MFAPage() {
     },
     onSuccess: (data) => {
       // Store the JWT tokens
-      tokenStorage.setTokens(data.access_token, data.refresh_token);
+      tokenStorage.setTokens();
       // Clear temp token
       localStorage.removeItem('temp_token');
       // Redirect to dashboard

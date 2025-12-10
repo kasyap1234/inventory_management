@@ -28,20 +28,20 @@ type AnalyticsService struct {
 
 // AnalyticsData represents cached analytics
 type AnalyticsData struct {
-	TenantID           uuid.UUID
-	TotalSales         float64
-	TotalStockValue    float64
-	GSTCollected       float64
-	OrderCount         int
-	LowStockItemsCount int
-	LastUpdated        time.Time
+	TenantID           uuid.UUID `json:"tenant_id"`
+	TotalSales         float64   `json:"total_sales"`
+	TotalStockValue    float64   `json:"total_stock_value"`
+	GSTCollected       float64   `json:"gst_collected"`
+	OrderCount         int       `json:"order_count"`
+	LowStockItemsCount int       `json:"low_stock_items_count"`
+	LastUpdated        time.Time `json:"last_updated"`
 }
 
 // SalesTrend represents sales data over time
 type SalesTrend struct {
-	Date        time.Time
-	SalesAmount float64
-	OrderCount  int
+	Date        time.Time `json:"date"`
+	SalesAmount float64   `json:"sales_amount"`
+	OrderCount  int       `json:"order_count"`
 }
 
 // SearchAnalytics represents search usage analytics
@@ -143,6 +143,10 @@ func (a *AnalyticsService) CalculateTenantAnalytics(ctx context.Context, tenantI
 }
 
 func (a *AnalyticsService) GetSalesTrends(ctx context.Context, tenantID uuid.UUID, startDate, endDate time.Time) ([]SalesTrend, error) {
+	// Normalize the range to full days to keep cache keys stable
+	startDate = time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
+	endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 23, 59, 59, 999000000, time.UTC)
+
 	cacheKey := a.salesTrendsCacheKey(tenantID, startDate, endDate)
 	var cached []SalesTrend
 	if found, err := a.getCachedJSON(ctx, cacheKey, &cached); err != nil {
@@ -151,29 +155,34 @@ func (a *AnalyticsService) GetSalesTrends(ctx context.Context, tenantID uuid.UUI
 		return cached, nil
 	}
 
-	orders, err := a.orderRepo.GetOrdersByTenantAndDateRange(ctx, tenantID, startDate, endDate)
+	aggregates, err := a.orderRepo.GetSalesTrendsAggregates(ctx, tenantID, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
 
-	trends := make(map[string]*SalesTrend)
-	for _, order := range orders {
-		dateStr := order.OrderDate.Format("2006-01-02")
-		if trends[dateStr] == nil {
-			trends[dateStr] = &SalesTrend{Date: order.OrderDate}
+	trendByDate := make(map[string]SalesTrend)
+	for _, agg := range aggregates {
+		key := agg.Date.Format("2006-01-02")
+		trendByDate[key] = SalesTrend{
+			Date:        agg.Date,
+			SalesAmount: agg.SalesAmount,
+			OrderCount:  agg.OrderCount,
 		}
-		amount, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
-		if err != nil {
-			log.Printf("WARN: overflow computing sales trend for order %s: %v", order.ID, err)
-		} else {
-			trends[dateStr].SalesAmount += amount
-		}
-		trends[dateStr].OrderCount++
 	}
 
 	var result []SalesTrend
-	for _, trend := range trends {
-		result = append(result, *trend)
+	for day := startDate; !day.After(endDate); day = day.AddDate(0, 0, 1) {
+		key := day.Format("2006-01-02")
+		if trend, ok := trendByDate[key]; ok {
+			trend.Date = day
+			result = append(result, trend)
+			continue
+		}
+		result = append(result, SalesTrend{
+			Date:        day,
+			SalesAmount: 0,
+			OrderCount:  0,
+		})
 	}
 
 	a.setCachedJSON(ctx, cacheKey, result, salesTrendCacheTTL)

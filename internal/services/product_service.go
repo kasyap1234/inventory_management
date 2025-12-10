@@ -40,6 +40,8 @@ type ProductService interface {
 	GetProductImages(ctx context.Context, tenantID, productID uuid.UUID) ([]*models.ProductImage, error)
 	GetProductImageURL(ctx context.Context, tenantID, imageID uuid.UUID, expiry time.Duration) (string, error)
 	DeleteProductImage(ctx context.Context, tenantID, imageID uuid.UUID) error
+	GeneratePresignedProductImageUpload(ctx context.Context, tenantID, productID uuid.UUID, filename string, size int64, contentType string) (*PresignedUploadResponse, error)
+	FinalizePresignedProductImageUpload(ctx context.Context, tenantID, productID uuid.UUID, objectKey string, altText *string) (*models.ProductImage, error)
 
 	// Bulk operations
 	BulkUpdateProducts(ctx context.Context, tenantID uuid.UUID, bulkUpdate *models.ProductBulkUpdate) (*models.BulkOperationResult, error)
@@ -55,6 +57,14 @@ type productService struct {
 	productImageRepo repositories.ProductImageRepository
 	minioService     MinioService
 	cacheService     caching.CacheService
+}
+
+// PresignedUploadResponse encapsulates signed URLs for direct-to-MinIO uploads.
+type PresignedUploadResponse struct {
+	UploadURL        string `json:"upload_url"`
+	DownloadURL      string `json:"download_url"`
+	ObjectKey        string `json:"object_key"`
+	ExpiresInSeconds int64  `json:"expires_in_seconds"`
 }
 
 func NewProductService(productRepo repositories.ProductRepository, inventoryRepo repositories.InventoryRepository, categoryRepo repositories.CategoryRepository, productImageRepo repositories.ProductImageRepository, minioService MinioService, cacheService caching.CacheService) ProductService {
@@ -425,6 +435,7 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	// Generate tenant-isolated key for MinIO
 	fileExt := filepath.Ext(filename)
 	baseName := strings.TrimSuffix(filename, fileExt)
+	contentType := detectContentType(fileExt)
 
 	// Set default bucket for product images
 	bucketName := "product-images"
@@ -444,7 +455,7 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 		optimizedImage = imageData
 	}
 
-	err = s.minioService.UploadImage(ctx, bucketName, originalKey, bytes.NewReader(optimizedImage), int64(len(optimizedImage)))
+	err = s.minioService.UploadObject(ctx, bucketName, originalKey, bytes.NewReader(optimizedImage), int64(len(optimizedImage)), contentType)
 	if err != nil {
 		return fmt.Errorf("failed to upload original image: %w", err)
 	}
@@ -455,7 +466,7 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	if err != nil {
 		log.Printf("Warning: Thumbnail generation failed: %v\n", err)
 	} else {
-		err = s.minioService.UploadImage(ctx, bucketName, thumbnailKey, bytes.NewReader(thumbnail), int64(len(thumbnail)))
+		err = s.minioService.UploadObject(ctx, bucketName, thumbnailKey, bytes.NewReader(thumbnail), int64(len(thumbnail)), contentType)
 		if err != nil {
 			log.Printf("Warning: Failed to upload thumbnail: %v\n", err)
 		}
@@ -467,7 +478,7 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	if err != nil {
 		log.Printf("Warning: Medium image generation failed: %v\n", err)
 	} else {
-		err = s.minioService.UploadImage(ctx, bucketName, mediumKey, bytes.NewReader(medium), int64(len(medium)))
+		err = s.minioService.UploadObject(ctx, bucketName, mediumKey, bytes.NewReader(medium), int64(len(medium)), contentType)
 		if err != nil {
 			log.Printf("Warning: Failed to upload medium image: %v\n", err)
 		}
@@ -483,6 +494,125 @@ func (s *productService) UploadProductImage(ctx context.Context, tenantID, produ
 	}
 
 	return s.productImageRepo.Create(ctx, image)
+}
+
+// GeneratePresignedProductImageUpload returns signed URLs for direct uploads to storage.
+func (s *productService) GeneratePresignedProductImageUpload(ctx context.Context, tenantID, productID uuid.UUID, filename string, size int64, contentType string) (*PresignedUploadResponse, error) {
+	if filename == "" {
+		return nil, errors.New("filename is required")
+	}
+	if size <= 0 || size > 10*1024*1024 {
+		return nil, errors.New("file size must be between 1 byte and 10MB")
+	}
+
+	// Validate product exists to prevent orphaned uploads
+	if _, err := s.productRepo.GetByID(ctx, tenantID, productID); err != nil {
+		return nil, fmt.Errorf("product not found: %w", err)
+	}
+
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/jpg":  true,
+		"image/png":  true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
+
+	fileExt := filepath.Ext(filename)
+	if contentType == "" {
+		contentType = detectContentType(fileExt)
+	}
+	if !allowedTypes[strings.ToLower(contentType)] {
+		return nil, errors.New("unsupported content type for product images")
+	}
+
+	bucketName := "product-images"
+	if err := s.minioService.EnsureBucketExists(ctx, bucketName); err != nil {
+		return nil, fmt.Errorf("failed to ensure bucket: %w", err)
+	}
+
+	objectKey := fmt.Sprintf("%s/%s/%s%s", tenantID.String(), productID.String(), uuid.New().String(), fileExt)
+	uploadURL, err := s.minioService.GetPresignedPutURL(ctx, bucketName, objectKey, 15*time.Minute, contentType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create upload URL: %w", err)
+	}
+	downloadURL, err := s.minioService.GetPresignedURL(bucketName, objectKey, 15*time.Minute)
+	if err != nil {
+		downloadURL = ""
+	}
+
+	return &PresignedUploadResponse{
+		UploadURL:        uploadURL,
+		DownloadURL:      downloadURL,
+		ObjectKey:        objectKey,
+		ExpiresInSeconds: int64((15 * time.Minute) / time.Second),
+	}, nil
+}
+
+// FinalizePresignedProductImageUpload validates an uploaded object, generates variants, and stores metadata.
+func (s *productService) FinalizePresignedProductImageUpload(ctx context.Context, tenantID, productID uuid.UUID, objectKey string, altText *string) (*models.ProductImage, error) {
+	if strings.TrimSpace(objectKey) == "" {
+		return nil, errors.New("object_key is required")
+	}
+
+	if !strings.HasPrefix(objectKey, fmt.Sprintf("%s/%s/", tenantID.String(), productID.String())) {
+		return nil, errors.New("object_key does not match tenant/product")
+	}
+
+	bucketName := "product-images"
+	data, contentType, err := s.minioService.FetchObject(ctx, bucketName, objectKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read uploaded object: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, errors.New("uploaded object is empty")
+	}
+	fileExt := filepath.Ext(objectKey)
+	if contentType == "" {
+		contentType = detectContentType(fileExt)
+	}
+
+	// Ensure bucket exists (idempotent)
+	if err := s.minioService.EnsureBucketExists(ctx, bucketName); err != nil {
+		return nil, fmt.Errorf("failed to ensure bucket exists: %w", err)
+	}
+
+	// Reuse optimize pipeline to normalize uploads and generate variants
+	baseName := strings.TrimSuffix(objectKey, fileExt)
+	baseName = filepath.Base(baseName)
+	dirPrefix := fmt.Sprintf("%s/%s/", tenantID.String(), productID.String())
+
+	optimizedImage, err := s.optimizeImage(data, 1920, 1920, 85)
+	if err != nil {
+		optimizedImage = data
+	}
+	if err := s.minioService.UploadObject(ctx, bucketName, objectKey, bytes.NewReader(optimizedImage), int64(len(optimizedImage)), contentType); err != nil {
+		return nil, fmt.Errorf("failed to write optimized original: %w", err)
+	}
+
+	thumbnailKey := fmt.Sprintf("%s%s_thumb%s", dirPrefix, baseName, fileExt)
+	if thumb, err := s.optimizeImage(data, 300, 300, 80); err == nil {
+		_ = s.minioService.UploadObject(ctx, bucketName, thumbnailKey, bytes.NewReader(thumb), int64(len(thumb)), contentType)
+	}
+
+	mediumKey := fmt.Sprintf("%s%s_medium%s", dirPrefix, baseName, fileExt)
+	if medium, err := s.optimizeImage(data, 800, 800, 82); err == nil {
+		_ = s.minioService.UploadObject(ctx, bucketName, mediumKey, bytes.NewReader(medium), int64(len(medium)), contentType)
+	}
+
+	image := &models.ProductImage{
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		ProductID: productID,
+		ImageURL:  objectKey,
+		AltText:   altText,
+	}
+
+	if err := s.productImageRepo.Create(ctx, image); err != nil {
+		return nil, fmt.Errorf("failed to persist image metadata: %w", err)
+	}
+
+	return image, nil
 }
 
 // optimizeImage resizes and optimizes an image using basic Go image processing
@@ -537,6 +667,19 @@ func (s *productService) optimizeImage(imageData []byte, maxWidth, maxHeight int
 	}
 
 	return buf.Bytes(), nil
+}
+
+func detectContentType(fileExt string) string {
+	switch strings.ToLower(fileExt) {
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "image/jpeg"
+	}
 }
 
 // GetProductImages retrieves all images for a product
@@ -742,7 +885,7 @@ func (s *productService) BulkUpdatePrices(ctx context.Context, tenantID uuid.UUI
 	}
 
 	return updatedCount, nil
-}// BulkCreateProducts creates multiple products in bulk
+} // BulkCreateProducts creates multiple products in bulk
 func (s *productService) BulkCreateProducts(ctx context.Context, tenantID uuid.UUID, bulkCreate *models.ProductBulkCreate) (*models.BulkOperationResult, error) {
 	// Set defaults
 	if bulkCreate.ValidationMode == "" {
