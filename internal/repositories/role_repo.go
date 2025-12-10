@@ -23,6 +23,8 @@ type RoleRepository interface {
 	RemoveUserFromRole(ctx context.Context, tenantID uuid.UUID, userID, roleID uuid.UUID) error
 	GetUserRoles(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) ([]*models.Role, error)
 	GetRoleUsers(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) ([]*models.User, error)
+	// GetUserMaxPriority returns the highest priority role for a user (for delegation checks)
+	GetUserMaxPriority(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) (int, error)
 }
 
 // roleRepo implements RoleRepository
@@ -42,8 +44,8 @@ func (r *roleRepo) Create(ctx context.Context, role *models.Role) error {
 	}
 
 	query := `
-		INSERT INTO roles (id, tenant_id, name, description, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`
+		INSERT INTO roles (id, tenant_id, name, description, is_active, is_system_role, priority, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`
 
 	_, err := r.db.Exec(ctx, query,
 		role.ID,
@@ -51,6 +53,8 @@ func (r *roleRepo) Create(ctx context.Context, role *models.Role) error {
 		role.Name,
 		role.Description,
 		role.IsActive,
+		role.IsSystemRole,
+		role.Priority,
 	)
 
 	if err != nil {
@@ -92,7 +96,7 @@ func (r *roleRepo) Update(ctx context.Context, role *models.Role) error {
 // GetByID retrieves a role by ID
 func (r *roleRepo) GetByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*models.Role, error) {
 	query := `
-		SELECT id, tenant_id, name, description, is_active, created_at, updated_at
+		SELECT id, tenant_id, name, description, is_active, COALESCE(is_system_role, false), COALESCE(priority, 0), created_at, updated_at
 		FROM roles
 		WHERE tenant_id = $1 AND id = $2`
 
@@ -103,6 +107,8 @@ func (r *roleRepo) GetByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID
 		&role.Name,
 		&role.Description,
 		&role.IsActive,
+		&role.IsSystemRole,
+		&role.Priority,
 		&role.CreatedAt,
 		&role.UpdatedAt,
 	)
@@ -187,10 +193,24 @@ func (r *roleRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*models.Role
 
 // Delete deletes a role
 func (r *roleRepo) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
-	// First check if role has any users assigned
+	// First check if this is a system role (cannot be deleted)
+	var isSystemRole bool
+	systemCheckQuery := `SELECT COALESCE(is_system_role, false) FROM roles WHERE tenant_id = $1 AND id = $2`
+	err := r.db.QueryRow(ctx, systemCheckQuery, tenantID, id).Scan(&isSystemRole)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("role not found")
+		}
+		return fmt.Errorf("failed to check role: %w", err)
+	}
+	if isSystemRole {
+		return fmt.Errorf("cannot delete system role")
+	}
+
+	// Check if role has any users assigned
 	var userCount int
 	countQuery := `SELECT COUNT(*) FROM user_roles WHERE role_id = $1`
-	err := r.db.QueryRow(ctx, countQuery, id).Scan(&userCount)
+	err = r.db.QueryRow(ctx, countQuery, id).Scan(&userCount)
 	if err != nil {
 		return fmt.Errorf("failed to check role usage: %w", err)
 	}
@@ -336,4 +356,21 @@ func (r *roleRepo) GetRoleUsers(ctx context.Context, tenantID uuid.UUID, roleID 
 	}
 
 	return users, nil
+}
+
+// GetUserMaxPriority returns the highest priority role for a user (for delegation checks)
+func (r *roleRepo) GetUserMaxPriority(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) (int, error) {
+	query := `
+		SELECT COALESCE(MAX(r.priority), 0)
+		FROM roles r
+		JOIN user_roles ur ON r.id = ur.role_id
+		WHERE ur.user_id = $1 AND ur.tenant_id = $2 AND ur.is_active = true AND r.is_active = true`
+
+	var maxPriority int
+	err := r.db.QueryRow(ctx, query, userID, tenantID).Scan(&maxPriority)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user max priority: %w", err)
+	}
+
+	return maxPriority, nil
 }

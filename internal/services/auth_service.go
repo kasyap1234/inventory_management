@@ -761,17 +761,21 @@ func (s *authService) Signup(ctx context.Context, email, password, firstName, la
 		return nil, err
 	}
 
+	// Determine if this is a platform admin (super admin)
+	isPlatformAdmin := superAdminEmail != "" && strings.EqualFold(email, superAdminEmail)
+
 	// Create user
 	user := &models.User{
-		ID:           userID,
-		TenantID:     tenant,
-		Email:        email,
-		PasswordHash: hashedPassword,
-		FirstName:    firstName,
-		LastName:     lastName,
-		Status:       "pending_verification",
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		ID:              userID,
+		TenantID:        tenant,
+		Email:           email,
+		PasswordHash:    hashedPassword,
+		FirstName:       firstName,
+		LastName:        lastName,
+		Status:          "pending_verification",
+		IsPlatformAdmin: isPlatformAdmin,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -1372,15 +1376,16 @@ func (s *authService) SeedSuperAdmin(ctx context.Context, email, password string
 		}
 
 		user = &models.User{
-			ID:           uuid.New(),
-			TenantID:     tenantID,
-			Email:        email,
-			PasswordHash: hashedPassword,
-			FirstName:    "Super",
-			LastName:     "Admin",
-			Status:       "active",
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			ID:              uuid.New(),
+			TenantID:        tenantID,
+			Email:           email,
+			PasswordHash:    hashedPassword,
+			FirstName:       "Super",
+			LastName:        "Admin",
+			Status:          "active",
+			IsPlatformAdmin: true, // Mark as platform admin
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		}
 
 		if err := s.userRepo.Create(ctx, user); err != nil {
@@ -1396,8 +1401,13 @@ func (s *authService) SeedSuperAdmin(ctx context.Context, email, password string
 		if err := s.userRepo.UpdatePassword(ctx, tenantID, user.ID, hashedPassword); err != nil {
 			return fmt.Errorf("failed to update super admin password: %v", err)
 		}
+		// Ensure user is marked as platform admin
+		if err := s.userRepo.SetPlatformAdmin(ctx, user.ID, true); err != nil {
+			return fmt.Errorf("failed to set platform admin flag: %v", err)
+		}
 		log.Printf("Updated super admin password for: %s", email)
 	}
+
 
 	// 4. Assign super_admin role
 	// Check if already assigned

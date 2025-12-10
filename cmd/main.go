@@ -266,6 +266,9 @@ func main() {
 	// Create user service
 	userService := services.NewUserService(userRepo)
 
+	// Platform admin middleware
+	platformAdminMiddleware := middleware.NewPlatformAdminMiddleware(userRepo)
+
 	// Create auth service
 	authService := services.NewAuthService(
 		cacheSvc,
@@ -298,8 +301,17 @@ func main() {
 		frontendURL,
 	)
 
+	// Create role delegation service
+	roleDelegationService := services.NewRoleDelegationService(roleRepo, userRepo)
+
 	// Create role management service
-	roleManagementService := services.NewRoleManagementService(roleRepo, permissionRepo, logger)
+	roleManagementService := services.NewRoleManagementService(roleRepo, permissionRepo, roleDelegationService, logger)
+
+	// Create RBAC template service (for tenant creation)
+	rbacTemplateService := services.NewRBACTemplateService(roleRepo, permissionRepo, rolePermissionRepo)
+	if err := rbacTemplateService.LoadTemplates("config/role_templates.yaml"); err != nil {
+		log.Fatalf("Failed to load role templates: %v", err)
+	}
 
 	// Create product service
 	productSvc := services.NewProductService(productRepo, inventoryRepo, categoryRepo, productImageRepo, minioSvc, cacheSvc)
@@ -321,7 +333,7 @@ func main() {
 	productHandlers := handlers.NewProductHandlers(productSvc, rbacMiddleware)
 
 	// Create tenant service
-	tenantService := services.NewTenantService(tenantRepo, invitationService, roleRepo, permissionRepo, rolePermissionRepo)
+	tenantService := services.NewTenantService(tenantRepo, invitationService, roleRepo, permissionRepo, rolePermissionRepo, rbacTemplateService)
 
 	// Subdomain middleware
 	subdomainMiddleware := middleware.NewSubdomainMiddleware(tenantService)
@@ -716,17 +728,18 @@ func main() {
 	protected.DELETE("/users/:id", userHandlers.DeleteUser, rbacMiddleware.RequirePermission("user.delete"))
 
 	// Invitation routes (protected)
-	protected.POST("/invitations", invitationHandlers.CreateInvitation, rbacMiddleware.RequirePermission("invitation.create"))
-	protected.GET("/invitations", invitationHandlers.ListInvitations, rbacMiddleware.RequirePermission("invitation.list"))
-	protected.DELETE("/invitations/:id", invitationHandlers.RevokeInvitation, rbacMiddleware.RequirePermission("invitation.revoke"))
+	// Note: user.invite permission allows sending invitations, user.create allows direct user creation
+	protected.POST("/invitations", invitationHandlers.CreateInvitation, rbacMiddleware.RequirePermission("user.invite"))
+	protected.GET("/invitations", invitationHandlers.ListInvitations, rbacMiddleware.RequirePermission("user.list"))
+	protected.DELETE("/invitations/:id", invitationHandlers.RevokeInvitation, rbacMiddleware.RequirePermission("user.invite"))
 
-	// Tenant routes (restricted to system admins)
-	// SECURITY: These routes manage the multi-tenant system itself and must be restricted
-	protected.GET("/tenants", tenantHandlers.ListTenants, rbacMiddleware.RequirePermission("tenant.list||system.admin"))
-	protected.POST("/tenants", tenantHandlers.CreateTenant, rbacMiddleware.RequirePermission("tenant.create||system.admin"))
-	protected.GET("/tenants/:id", tenantHandlers.GetTenant, rbacMiddleware.RequirePermission("tenant.read||system.admin"))
-	protected.PUT("/tenants/:id", tenantHandlers.UpdateTenant, rbacMiddleware.RequirePermission("tenant.update||system.admin"))
-	protected.DELETE("/tenants/:id", tenantHandlers.DeleteTenant, rbacMiddleware.RequirePermission("tenant.delete||system.admin"))
+	// Tenant routes (restricted to platform admins)
+	// SECURITY: These routes manage the multi-tenant system itself and must be restricted to platform super admins
+	protected.GET("/tenants", tenantHandlers.ListTenants, platformAdminMiddleware.RequirePlatformAdmin())
+	protected.POST("/tenants", tenantHandlers.CreateTenant, platformAdminMiddleware.RequirePlatformAdmin())
+	protected.GET("/tenants/:id", tenantHandlers.GetTenant, platformAdminMiddleware.RequirePlatformAdmin())
+	protected.PUT("/tenants/:id", tenantHandlers.UpdateTenant, platformAdminMiddleware.RequirePlatformAdmin())
+	protected.DELETE("/tenants/:id", tenantHandlers.DeleteTenant, platformAdminMiddleware.RequirePlatformAdmin())
 	// Tenant settings routes (accessible by tenant admins)
 	protected.GET("/tenant/settings", tenantHandlers.GetTenantSettings)
 	protected.PUT("/tenant/settings", tenantHandlers.UpdateTenantSettings, rbacMiddleware.RequirePermission("tenant.manage_settings"))
@@ -972,21 +985,23 @@ func main() {
 	protected.POST("/alert-rules/:id/test", alertRuleHandlers.TestAlertRule)
 
 	// Role and permission management routes
-	protected.GET("/roles", roleHandlers.ListRoles)
-	protected.POST("/roles", roleHandlers.CreateRole)
-	protected.GET("/roles/:id", roleHandlers.GetRole)
-	protected.PUT("/roles/:id", roleHandlers.UpdateRole)
-	protected.DELETE("/roles/:id", roleHandlers.DeleteRole)
-	protected.GET("/roles/:id/permissions", roleHandlers.GetRolePermissions)
-	protected.POST("/roles/:id/permissions", roleHandlers.AssignPermissionsToRole)
-	protected.DELETE("/roles/:id/permissions/:permissionId", roleHandlers.RemovePermissionFromRole)
-	protected.GET("/roles/:id/users", roleHandlers.GetRoleUsers)
-	protected.GET("/permissions", roleHandlers.ListPermissions)
+	// Require role management permissions - tenant admins can manage roles
+	protected.GET("/roles", roleHandlers.ListRoles, rbacMiddleware.RequirePermission("role.list"))
+	protected.POST("/roles", roleHandlers.CreateRole, rbacMiddleware.RequirePermission("role.create"))
+	protected.GET("/roles/:id", roleHandlers.GetRole, rbacMiddleware.RequirePermission("role.read"))
+	protected.PUT("/roles/:id", roleHandlers.UpdateRole, rbacMiddleware.RequirePermission("role.update"))
+	protected.DELETE("/roles/:id", roleHandlers.DeleteRole, rbacMiddleware.RequirePermission("role.delete"))
+	protected.GET("/roles/:id/permissions", roleHandlers.GetRolePermissions, rbacMiddleware.RequirePermission("role.read"))
+	protected.POST("/roles/:id/permissions", roleHandlers.AssignPermissionsToRole, rbacMiddleware.RequirePermission("role.manage_permissions"))
+	protected.DELETE("/roles/:id/permissions/:permissionId", roleHandlers.RemovePermissionFromRole, rbacMiddleware.RequirePermission("role.manage_permissions"))
+	protected.GET("/roles/:id/users", roleHandlers.GetRoleUsers, rbacMiddleware.RequirePermission("role.read"))
+	protected.GET("/permissions", roleHandlers.ListPermissions, rbacMiddleware.RequirePermission("role.read"))
 
 	// User role management routes
-	protected.GET("/users/:id/roles", roleHandlers.GetUserRoles)
-	protected.POST("/users/:id/roles", roleHandlers.AssignRolesToUser)
-	protected.DELETE("/users/:id/roles/:roleId", roleHandlers.RemoveRoleFromUser)
+	// Require user role management permissions
+	protected.GET("/users/:id/roles", roleHandlers.GetUserRoles, rbacMiddleware.RequirePermission("user.read"))
+	protected.POST("/users/:id/roles", roleHandlers.AssignRolesToUser, rbacMiddleware.RequirePermission("user.manage_roles"))
+	protected.DELETE("/users/:id/roles/:roleId", roleHandlers.RemoveRoleFromUser, rbacMiddleware.RequirePermission("user.manage_roles"))
 
 	// Job management routes
 	protected.GET("/jobs", jobHandlers.ListJobs)

@@ -86,11 +86,17 @@ func (s *InvitationIntegrationTestSuite) SetupSuite() {
 		"http://localhost:3000",
 	)
 
+	roleDelegationService := services.NewRoleDelegationService(s.roleRepo, s.userRepo)
+
 	s.roleService = services.NewRoleManagementService(
 		s.roleRepo,
 		s.permissionRepo,
+		roleDelegationService,
 		s.logger,
 	)
+
+	// Create usage RBAC template service (empty config is fine for these tests as we manually create roles)
+	rbacTemplateService := services.NewRBACTemplateService(s.roleRepo, s.permissionRepo, s.rolePermissionRepo)
 
 	s.tenantService = services.NewTenantService(
 		s.tenantRepo,
@@ -98,6 +104,7 @@ func (s *InvitationIntegrationTestSuite) SetupSuite() {
 		s.roleRepo,
 		s.permissionRepo,
 		s.rolePermissionRepo,
+		rbacTemplateService,
 	)
 }
 

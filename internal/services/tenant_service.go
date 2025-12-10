@@ -35,12 +35,18 @@ type RolePermissionAssigner interface {
 	Create(ctx context.Context, tenantID uuid.UUID, rolePermission *models.RolePermission) error
 }
 
+// RoleTemplateApplier abstracts applying role templates
+type RoleTemplateApplier interface {
+	ApplyTemplateToTenant(ctx context.Context, tenantID uuid.UUID, templateName string) error
+}
+
 type tenantService struct {
 	tenantRepo             repositories.TenantRepository
 	invitationService      InvitationService
 	roleRepo               repositories.RoleRepository
 	permissionLister       PermissionLister
 	rolePermissionAssigner RolePermissionAssigner
+	roleTemplateApplier    RoleTemplateApplier
 }
 
 func NewTenantService(
@@ -49,6 +55,7 @@ func NewTenantService(
 	roleRepo repositories.RoleRepository,
 	permissionLister PermissionLister,
 	rolePermissionAssigner RolePermissionAssigner,
+	roleTemplateApplier RoleTemplateApplier,
 ) TenantService {
 	return &tenantService{
 		tenantRepo:             tenantRepo,
@@ -56,6 +63,7 @@ func NewTenantService(
 		roleRepo:               roleRepo,
 		permissionLister:       permissionLister,
 		rolePermissionAssigner: rolePermissionAssigner,
+		roleTemplateApplier:    roleTemplateApplier,
 	}
 }
 
@@ -109,38 +117,20 @@ func (s *tenantService) Create(ctx context.Context, req *CreateTenantRequest) (*
 		return origErr
 	}
 
-	// Seed default roles for the new tenant
-	defaultRoles := []struct {
-		Name        string
-		Description string
-	}{
-		{"admin", "Tenant Administrator with full access"},
-		{"user", "Standard user with basic access"},
-	}
-
-	for _, role := range defaultRoles {
-		desc := role.Description
-		newRole := &models.Role{
-			ID:          uuid.New(),
-			TenantID:    tenant.ID,
-			Name:        role.Name,
-			Description: &desc,
-			IsActive:    true,
-		}
-		if err := s.roleRepo.Create(ctx, newRole); err != nil {
-			// Log but continue - role might already exist from a trigger
-			fmt.Printf("Warning: failed to create role %s for tenant %s: %v\n", role.Name, tenant.ID, err)
+	// Apply comprehensive role templates from config
+	// This ensures all standard roles (admin, manager, user, etc.) are available immediately
+	roleTemplates := []string{"admin", "manager", "user", "viewer", "inventory_manager", "sales", "analyst"}
+	for _, template := range roleTemplates {
+		if err := s.roleTemplateApplier.ApplyTemplateToTenant(ctx, tenant.ID, template); err != nil {
+			// Log warning but don't fail the whole creation - getting partial roles is better than none
+			fmt.Printf("Warning: failed to apply role template %s for tenant %s: %v\n", template, tenant.ID, err)
 		}
 	}
 
-	// Fetch admin role and seed full permissions so admins have complete access
+	// Verify admin role exists (it should have been created by the template)
 	adminRole, err := s.roleRepo.GetByName(ctx, tenant.ID, "admin")
 	if err != nil {
 		return nil, rollbackOnError(fmt.Errorf("tenant created but failed to find admin role: %w", err))
-	}
-
-	if err := s.seedAdminPermissions(ctx, tenant.ID, adminRole.ID); err != nil {
-		return nil, rollbackOnError(fmt.Errorf("tenant created but failed to seed admin permissions: %w", err))
 	}
 
 	// If admin email is provided, create an invitation for the admin

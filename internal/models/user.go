@@ -15,6 +15,7 @@ type User struct {
 	FirstName        string    `json:"first_name" db:"first_name"`
 	LastName         string    `json:"last_name" db:"last_name"`
 	Status           string    `json:"status" db:"status"`
+	IsPlatformAdmin  bool      `json:"is_platform_admin" db:"is_platform_admin"` // Super admin for tenant management
 	TwoFactorSecret  string    `json:"two_factor_secret,omitempty" db:"two_factor_secret"`
 	TwoFactorEnabled bool      `json:"two_factor_enabled" db:"two_factor_enabled"`
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`

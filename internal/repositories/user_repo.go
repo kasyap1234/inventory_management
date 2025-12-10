@@ -27,6 +27,10 @@ type UserRepository interface {
 	ListByStatus(ctx context.Context, tenantID uuid.UUID, status string, limit, offset int) ([]*models.User, error)
 	// IsFirstUserInTenant atomically checks if a user is the first user in a tenant using FOR UPDATE SKIP LOCKED
 	IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) (bool, error)
+	// IsPlatformAdmin checks if a user is a platform admin (super admin)
+	IsPlatformAdmin(ctx context.Context, userID uuid.UUID) (bool, error)
+	// SetPlatformAdmin sets the platform admin flag for a user
+	SetPlatformAdmin(ctx context.Context, userID uuid.UUID, isPlatformAdmin bool) error
 }
 
 type userRepo struct {
@@ -39,10 +43,10 @@ func NewUserRepo(db *pgxpool.Pool) UserRepository {
 
 func (r *userRepo) Create(ctx context.Context, user *models.User) error {
 	query := `
-	INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, status, two_factor_secret, two_factor_enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+	INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, status, is_platform_admin, two_factor_secret, two_factor_enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
 	`
-	_, err := r.db.Exec(ctx, query, user.ID, user.TenantID, user.Email, user.PasswordHash, user.FirstName, user.LastName, user.Status, user.TwoFactorSecret, user.TwoFactorEnabled)
+	_, err := r.db.Exec(ctx, query, user.ID, user.TenantID, user.Email, user.PasswordHash, user.FirstName, user.LastName, user.Status, user.IsPlatformAdmin, user.TwoFactorSecret, user.TwoFactorEnabled)
 	return err
 }
 
@@ -147,13 +151,13 @@ func (r *userRepo) GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (u
 func (r *userRepo) GetByEmailGlobal(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
 	query := `
-		SELECT id, tenant_id, email, google_id, password_hash, first_name, last_name, status, created_at, updated_at
+		SELECT id, tenant_id, email, google_id, password_hash, first_name, last_name, status, is_platform_admin, created_at, updated_at
 		FROM users
 		WHERE email = $1
 		LIMIT 1
 	`
 	var tenantID string
-	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &tenantID, &user.Email, &user.GoogleID, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &tenantID, &user.Email, &user.GoogleID, &user.PasswordHash, &user.FirstName, &user.LastName, &user.Status, &user.IsPlatformAdmin, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -289,4 +293,22 @@ func (r *userRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) 
 
 	// If there's only 1 user (the current one), this is the first user
 	return count <= 1, nil
+}
+
+// IsPlatformAdmin checks if a user is a platform admin (super admin)
+func (r *userRepo) IsPlatformAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	var isPlatformAdmin bool
+	query := `SELECT COALESCE(is_platform_admin, false) FROM users WHERE id = $1`
+	err := r.db.QueryRow(ctx, query, userID).Scan(&isPlatformAdmin)
+	if err != nil {
+		return false, err
+	}
+	return isPlatformAdmin, nil
+}
+
+// SetPlatformAdmin sets the platform admin flag for a user
+func (r *userRepo) SetPlatformAdmin(ctx context.Context, userID uuid.UUID, isPlatformAdmin bool) error {
+	query := `UPDATE users SET is_platform_admin = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, isPlatformAdmin, userID)
+	return err
 }

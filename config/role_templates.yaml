@@ -1,16 +1,47 @@
 # RBAC Role Templates
 # Define role templates with permissions that can be applied to tenants
+# Role hierarchy: Platform Admin > Tenant Admin > Manager > Member
 
 roles:
-  # Admin role with full system access
-  admin:
-    description: "Administrator with full access to all resources"
+  # Platform Admin (super_admin) - Full system access across all tenants
+  # Note: This role is typically created at system level, not tenant level
+  super_admin:
+    description: "Platform administrator with full system access across all tenants"
     permissions:
-      - "*"  # Wildcard: all permissions
+      - "*"  # Wildcard: all permissions including system.admin
 
-  # Manager role with operational permissions
+  # Tenant Admin - Full access within tenant scope
+  admin:
+    description: "Tenant administrator with full access to all tenant resources and user/role management"
+    permissions:
+      # User management - can invite and add users
+      - "user.*"
+      # Role management - can create roles and assign permissions
+      - "role.*"
+      # Full access to all business resources
+      - "product.*"
+      - "inventory.*"
+      - "order.*"
+      - "invoice.*"
+      - "warehouse.*"
+      - "supplier.*"
+      - "distributor.*"
+      - "batch.*"
+      - "category.*"
+      # Analytics and reports
+      - "analytics.*"
+      - "reports.*"
+      - "audit.read"
+      # Billing and subscription management
+      - "billing.*"
+      - "subscription.*"
+      # Tenant settings
+      - "tenant.manage_settings"
+      # Not included: system.admin, tenant.create, tenant.delete (platform admin only)
+
+  # Manager - Operational permissions without admin capabilities
   manager:
-    description: "Manager with operational permissions for business resources"
+    description: "Manager with operational permissions for business resources, no user/role management"
     permissions:
       # Full access to core business resources
       - "product.*"
@@ -22,45 +53,64 @@ roles:
       - "distributor.*"
       - "batch.*"
       - "category.*"
-      # Read-only access to analytics and audit
+      # Read access to analytics and reports
       - "analytics.read"
+      - "analytics.dashboard"
+      - "reports.read"
       - "audit.read"
+      # User viewing (but not management)
+      - "user.list"
+      - "user.read"
+      # Not included: user.create, user.invite, user.manage_roles, role.*, billing.*, subscription.*
 
-  # User role with basic operational permissions
+  # Member/User - Basic operational permissions with limited create access
   user:
-    description: "Regular user with basic operational permissions"
+    description: "Regular user with basic operational permissions and limited create access"
     permissions:
-      # Product management
+      # Product management - read and limited create/update
       - "product.list"
       - "product.read"
       - "product.create"
       - "product.update"
-      # Inventory management
+      # Inventory management - read and limited create/update
       - "inventory.list"
       - "inventory.read"
       - "inventory.create"
       - "inventory.update"
-      # Order management
+      # Order management - read and create, limited update
       - "order.list"
       - "order.read"
       - "order.create"
       - "order.update"
-      # Warehouse access
+      # Warehouse access - read only
       - "warehouse.list"
       - "warehouse.read"
-      # Supplier and distributor read access
+      # Supplier and distributor - read only
       - "supplier.list"
       - "supplier.read"
       - "distributor.list"
       - "distributor.read"
+      # Category - read only
+      - "category.list"
+      - "category.read"
+      # Batch - read only
+      - "batch.list"
+      - "batch.read"
+      # Invoice - read only
+      - "invoice.list"
+      - "invoice.read"
+      # Not included: delete operations, user management, role management, billing, analytics
 
   # Viewer role with read-only access
   viewer:
-    description: "Read-only access to most resources"
+    description: "Read-only access to most resources, no create/update/delete"
     permissions:
       # Wildcard patterns for all list and read operations
       - "*.list"
       - "*.read"
+      # Analytics read access
+      - "analytics.read"
+      - "reports.read"
 
   # Inventory Manager - specialized role
   inventory_manager:
@@ -103,11 +153,42 @@ permission_groups:
       - "warehouse.*"
       - "batch.*"
   
-  financial:
-    description: "Financial operations - orders and invoices"
+  purchasing:
+    description: "Purchasing operations - orders and receiving"
+    permissions:
+      - "order.*"
+      - "supplier.*"
+      - "order.receive"
+      - "order.approve"
+  
+  sales:
+    description: "Sales operations - orders and invoices"
     permissions:
       - "order.*"
       - "invoice.*"
+      - "order.ship"
+      - "order.deliver"
+  
+  financial:
+    description: "Financial operations - orders, invoices, and billing"
+    permissions:
+      - "order.*"
+      - "invoice.*"
+      - "billing.read"
+      - "subscription.read"
+  
+  user_management:
+    description: "User and role management"
+    permissions:
+      - "user.*"
+      - "role.*"
+  
+  reports_analytics:
+    description: "Reports and analytics access"
+    permissions:
+      - "reports.*"
+      - "analytics.*"
+      - "audit.read"
   
   read_only:
     description: "Read-only access to all resources"

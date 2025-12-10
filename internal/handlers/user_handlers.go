@@ -187,17 +187,21 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 	}
 
 	// Handle Role/Permission Assignment
+	// SECURITY: Check permissions before allowing role/permission assignment
 	if len(req.Permissions) > 0 {
-		// 1. Create a custom role for this user
-		roleName := fmt.Sprintf("custom_role_%s_%d", req.Email, 12345) // Simple unique name
-		// Better unique name using timestamp would require time import, keeping it simple for now or adding time import if needed.
-		// Actually, let's just use a UUID suffix or similar if possible, or just timestamp.
-		// I'll assume time is imported or I'll add it.
-		// Wait, I can't easily add imports with multi_replace if they are far away.
-		// I'll use a hardcoded suffix for now or rely on something else.
-		// Actually, I'll just use "custom_" + uuid.New().String()
-		roleName = fmt.Sprintf("custom_%s", uuid.New().String())
+		// Creating custom role with permissions requires role.create and role.manage_permissions
+		err := h.rbacMiddleware.RequirePermission("role.create")(func(c echo.Context) error { return nil })(c)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to create roles")
+		}
 
+		err = h.rbacMiddleware.RequirePermission("role.manage_permissions")(func(c echo.Context) error { return nil })(c)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to assign permissions to roles")
+		}
+
+		// 1. Create a custom role for this user
+		roleName := fmt.Sprintf("custom_%s", uuid.New().String())
 		roleDesc := fmt.Sprintf("Custom role for %s", req.Email)
 		role := &models.Role{
 			Name:        roleName,
@@ -205,8 +209,6 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 			IsActive:    true,
 		}
 		if err := h.roleService.CreateRole(ctx, tenantID, role); err != nil {
-			// Log error but don't fail user creation? Or fail?
-			// Better to fail or warn.
 			return echo.NewHTTPError(http.StatusInternalServerError, "User created but failed to create custom role: "+err.Error())
 		}
 
@@ -235,13 +237,23 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 			}
 		}
 
-		// 4. Assign the new role to the user
+		// 4. Assign the new role to the user (requires user.manage_roles)
+		err = h.rbacMiddleware.RequirePermission("user.manage_roles")(func(c echo.Context) error { return nil })(c)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to assign roles to users")
+		}
+
 		if err := h.roleService.AssignUserToRole(ctx, tenantID, userID, role.ID); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign custom role to user")
 		}
 
 	} else if req.RoleID != nil {
-		// Assign specific role
+		// Assign specific role - requires user.manage_roles permission
+		err := h.rbacMiddleware.RequirePermission("user.manage_roles")(func(c echo.Context) error { return nil })(c)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to assign roles to users")
+		}
+
 		roleID, err := uuid.Parse(*req.RoleID)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "Invalid Role ID")
@@ -250,12 +262,18 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign role to user")
 		}
 	} else {
-		// Assign default 'user' role
-		// We need to find the role named 'user' (or 'viewer'/'operator' based on seeds?)
-		// The seeds created 'admin', 'manager', 'operator', 'viewer'.
-		// 'user' role was mentioned in auth_service.go but seeds use specific names.
-		// Let's try to find 'operator' as a safe default if 'user' doesn't exist.
-		// Or better, let's look for 'user' first as auth_service creates it.
+		// Assign default 'user' role - requires user.manage_roles permission
+		err := h.rbacMiddleware.RequirePermission("user.manage_roles")(func(c echo.Context) error { return nil })(c)
+		if err != nil {
+			// If user doesn't have manage_roles permission, skip role assignment
+			// The user will be created without a role (admin can assign later)
+			return c.JSON(http.StatusCreated, map[string]interface{}{
+				"user":    user,
+				"message": "User created without role assignment. Assign role manually if needed.",
+			})
+		}
+
+		// Find default 'user' role
 		roles, err := h.roleService.ListRoles(ctx, tenantID)
 		if err == nil {
 			var defaultRoleID uuid.UUID
@@ -265,7 +283,7 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 					break
 				}
 			}
-			// If 'user' not found, try 'viewer'
+			// If 'user' not found, try 'viewer' as fallback
 			if defaultRoleID == uuid.Nil {
 				for _, r := range roles {
 					if r.Name == "viewer" {
@@ -276,7 +294,10 @@ func (h *UserHandlers) CreateUser(c echo.Context) error {
 			}
 
 			if defaultRoleID != uuid.Nil {
-				h.roleService.AssignUserToRole(ctx, tenantID, userID, defaultRoleID)
+				if err := h.roleService.AssignUserToRole(ctx, tenantID, userID, defaultRoleID); err != nil {
+					// Log error but don't fail user creation
+					// User is created, role assignment can be done manually
+				}
 			}
 		}
 	}

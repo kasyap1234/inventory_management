@@ -30,17 +30,17 @@ func TestProductRepository(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		product := &models.Product{
-			ID:             uuid.New(),
-			TenantID:       tenantID,
-			CategoryID:     &categoryID,
-			Name:           "Test Fertilizer",
-			BatchNumber:    stringPtr("BATCH001"),
-			ExpiryDate:     timePtr(time.Now().Add(365 * 24 * time.Hour)),
-			Quantity:       500,
-			UnitPrice:      15.99,
-			Barcode:        stringPtr("123456789012"),
-			UnitOfMeasure:  stringPtr("kg"),
-			Description:    stringPtr("High-quality fertilizer"),
+			ID:            uuid.New(),
+			TenantID:      tenantID,
+			CategoryID:    &categoryID,
+			Name:          "Test Fertilizer",
+			BatchNumber:   stringPtr("BATCH001"),
+			ExpiryDate:    timePtr(time.Now().Add(365 * 24 * time.Hour)),
+			Quantity:      500,
+			UnitPrice:     15.99,
+			Barcode:       stringPtr("123456789012"),
+			UnitOfMeasure: stringPtr("kg"),
+			Description:   stringPtr("High-quality fertilizer"),
 		}
 
 		err := repo.Create(context.Background(), product)
@@ -57,12 +57,12 @@ func TestProductRepository(t *testing.T) {
 		// Create product first
 		productID := uuid.New()
 		product := &models.Product{
-			ID:             productID,
-			TenantID:       tenantID,
-			CategoryID:     &categoryID,
-			Name:           "Pesticide X",
-			Quantity:       100,
-			UnitPrice:      25.50,
+			ID:         productID,
+			TenantID:   tenantID,
+			CategoryID: &categoryID,
+			Name:       "Pesticide X",
+			Quantity:   100,
+			UnitPrice:  25.50,
 		}
 		err := repo.Create(context.Background(), product)
 		require.NoError(t, err)
@@ -81,13 +81,13 @@ func TestProductRepository(t *testing.T) {
 	t.Run("GetByBarcode", func(t *testing.T) {
 		barcode := "987654321098"
 		product := &models.Product{
-			ID:             uuid.New(),
-			TenantID:       tenantID,
-			CategoryID:     &categoryID,
-			Name:           "Seed Y",
-			Barcode:        &barcode,
-			Quantity:       1000,
-			UnitPrice:      5.99,
+			ID:         uuid.New(),
+			TenantID:   tenantID,
+			CategoryID: &categoryID,
+			Name:       "Seed Y",
+			Barcode:    &barcode,
+			Quantity:   1000,
+			UnitPrice:  5.99,
 		}
 		err := repo.Create(context.Background(), product)
 		require.NoError(t, err)
@@ -105,11 +105,11 @@ func TestProductRepository(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		// Ensure at least one product exists
 		product := &models.Product{
-			ID:             uuid.New(),
-			TenantID:       tenantID,
-			Name:           "List Test Item",
-			Quantity:       50,
-			UnitPrice:      12.99,
+			ID:        uuid.New(),
+			TenantID:  tenantID,
+			Name:      "List Test Item",
+			Quantity:  50,
+			UnitPrice: 12.99,
 		}
 		err := repo.Create(context.Background(), product)
 		require.NoError(t, err)
@@ -128,11 +128,11 @@ func TestProductRepository(t *testing.T) {
 
 	t.Run("Update", func(t *testing.T) {
 		product := &models.Product{
-			ID:             uuid.New(),
-			TenantID:       tenantID,
-			Name:           "Update Test Item",
-			Quantity:       200,
-			UnitPrice:      8.99,
+			ID:        uuid.New(),
+			TenantID:  tenantID,
+			Name:      "Update Test Item",
+			Quantity:  200,
+			UnitPrice: 8.99,
 		}
 		err := repo.Create(context.Background(), product)
 		require.NoError(t, err)
@@ -155,11 +155,11 @@ func TestProductRepository(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		product := &models.Product{
-			ID:             uuid.New(),
-			TenantID:       tenantID,
-			Name:           "Delete Test Item",
-			Quantity:       30,
-			UnitPrice:      5.49,
+			ID:        uuid.New(),
+			TenantID:  tenantID,
+			Name:      "Delete Test Item",
+			Quantity:  30,
+			UnitPrice: 5.49,
 		}
 		err := repo.Create(context.Background(), product)
 		require.NoError(t, err)
@@ -186,12 +186,12 @@ func TestProductRepository(t *testing.T) {
 		require.NoError(t, err)
 
 		product2 := &models.Product{
-			ID:             uuid.New(),
-			TenantID:       tenantID,
-			Name:           "Fertilizer Mix",
-			Quantity:       50,
-			UnitPrice:      20.00,
-			Barcode:        stringPtr("111111111"),
+			ID:        uuid.New(),
+			TenantID:  tenantID,
+			Name:      "Fertilizer Mix",
+			Quantity:  50,
+			UnitPrice: 20.00,
+			Barcode:   stringPtr("111111111"),
 		}
 		err = repo.Create(context.Background(), product2)
 		require.NoError(t, err)

@@ -53,6 +53,7 @@ type PermissionService interface{ // implements middleware contract without impo
 type roleManagementService struct {
 	roleRepo       repositories.RoleRepository
 	permissionRepo repositories.PermissionRepository
+	delegationSvc  RoleDelegationService
 	logger         *common.StructuredLogger
 }
 
@@ -60,11 +61,13 @@ type roleManagementService struct {
 func NewRoleManagementService(
 	roleRepo repositories.RoleRepository,
 	permissionRepo repositories.PermissionRepository,
+	delegationSvc RoleDelegationService,
 	logger *common.StructuredLogger,
 ) RoleManagementService {
 	return &roleManagementService{
 		roleRepo:       roleRepo,
 		permissionRepo: permissionRepo,
+		delegationSvc:  delegationSvc,
 		logger:         logger,
 	}
 }
@@ -162,6 +165,21 @@ func (s *roleManagementService) UpdateRole(ctx context.Context, tenantID uuid.UU
 		})
 	}
 
+	// Check delegation permission
+	// The actor must have higher priority than the role being modified
+	actorID, ok := common.GetUserIDFromContext(ctx)
+	if ok {
+		canModify, err := s.delegationSvc.CanModifyRole(ctx, actorID, tenantID, role.ID)
+		if err != nil {
+			return err
+		}
+		if !canModify {
+			return common.CreateValidationError("update_role", map[string]interface{}{
+				"permission": "You do not have permission to modify this role (insufficient priority or system role)",
+			})
+		}
+	}
+
 	// Update role
 	if err := s.roleRepo.Update(ctx, role); err != nil {
 		s.logger.ErrorWithContext(ctx, "Failed to update role", err, map[string]interface{}{
@@ -222,6 +240,20 @@ func (s *roleManagementService) DeleteRole(ctx context.Context, tenantID uuid.UU
 	}
 	if existing == nil {
 		return common.CreateDatabaseError("delete_role", fmt.Errorf("role not found"))
+	}
+
+	// Check delegation permission
+	actorID, ok := common.GetUserIDFromContext(ctx)
+	if ok {
+		canModify, err := s.delegationSvc.CanModifyRole(ctx, actorID, tenantID, id)
+		if err != nil {
+			return err
+		}
+		if !canModify {
+			return common.CreateValidationError("delete_role", map[string]interface{}{
+				"permission": "You do not have permission to delete this role (insufficient priority or system role)",
+			})
+		}
 	}
 
 	// Delete role
@@ -336,6 +368,22 @@ func (s *roleManagementService) ListAvailablePermissions(ctx context.Context) ([
 
 // AssignUserToRole assigns a user to a role
 func (s *roleManagementService) AssignUserToRole(ctx context.Context, tenantID uuid.UUID, userID, roleID uuid.UUID) error {
+	// Check delegation permission
+	// The actor (assigner) must have higher priority than the role being assigned
+	actorID, ok := common.GetUserIDFromContext(ctx)
+	if ok {
+		// Only check if we can identify the actor (might be system call otherwise)
+		canAssign, err := s.delegationSvc.CanAssignRole(ctx, actorID, tenantID, roleID)
+		if err != nil {
+			return err
+		}
+		if !canAssign {
+			return common.CreateValidationError("assign_user_to_role", map[string]interface{}{
+				"permission": "You do not have permission to assign this role (insufficient priority)",
+			})
+		}
+	}
+
 	// Validate role assignment
 	if err := s.ValidateRoleAssignment(ctx, tenantID, userID, roleID); err != nil {
 		return err
@@ -419,6 +467,20 @@ func (s *roleManagementService) GetRoleUsers(ctx context.Context, tenantID uuid.
 
 // BulkAssignUsersToRole assigns multiple users to a role
 func (s *roleManagementService) BulkAssignUsersToRole(ctx context.Context, tenantID uuid.UUID, userIDs []uuid.UUID, roleID uuid.UUID) error {
+	// Check delegation permission
+	actorID, ok := common.GetUserIDFromContext(ctx)
+	if ok {
+		canAssign, err := s.delegationSvc.CanAssignRole(ctx, actorID, tenantID, roleID)
+		if err != nil {
+			return err
+		}
+		if !canAssign {
+			return common.CreateValidationError("bulk_assign_users", map[string]interface{}{
+				"permission": "You do not have permission to assign this role (insufficient priority)",
+			})
+		}
+	}
+
 	successCount := 0
 	errorCount := 0
 
@@ -452,6 +514,20 @@ func (s *roleManagementService) BulkAssignUsersToRole(ctx context.Context, tenan
 
 // BulkRemoveUsersFromRole removes multiple users from a role
 func (s *roleManagementService) BulkRemoveUsersFromRole(ctx context.Context, tenantID uuid.UUID, userIDs []uuid.UUID, roleID uuid.UUID) error {
+	// Check delegation permission (same rule as assignment - need higher/equal priority to manage membership)
+	actorID, ok := common.GetUserIDFromContext(ctx)
+	if ok {
+		canManage, err := s.delegationSvc.CanAssignRole(ctx, actorID, tenantID, roleID)
+		if err != nil {
+			return err
+		}
+		if !canManage {
+			return common.CreateValidationError("bulk_remove_users", map[string]interface{}{
+				"permission": "You do not have permission to manage this role's membership (insufficient priority)",
+			})
+		}
+	}
+
 	successCount := 0
 	errorCount := 0
 

@@ -12,6 +12,7 @@ type Role struct {
 	Name         string     `json:"name" db:"name"`
 	Description  *string    `json:"description,omitempty" db:"description"`
 	IsActive     bool       `json:"is_active" db:"is_active"`
+	IsSystemRole bool       `json:"is_system_role" db:"is_system_role"`           // Cannot be deleted by tenant admin
 	ParentRoleID *uuid.UUID `json:"parent_role_id,omitempty" db:"parent_role_id"` // For role hierarchy inheritance
 	Priority     int        `json:"priority" db:"priority"`                       // Higher priority takes precedence in permission conflicts
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
