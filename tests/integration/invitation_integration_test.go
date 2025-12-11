@@ -76,6 +76,9 @@ func (s *InvitationIntegrationTestSuite) SetupSuite() {
 	mockNotificationService := &MockNotificationService{}
 	mockAuthService := &MockAuthService{}
 
+	// Create role delegation service first
+	roleDelegationService := services.NewRoleDelegationService(s.roleRepo, s.userRepo)
+
 	s.invitationService = services.NewInvitationService(
 		s.invitationRepo,
 		s.userRepo,
@@ -84,9 +87,8 @@ func (s *InvitationIntegrationTestSuite) SetupSuite() {
 		mockNotificationService,
 		mockAuthService,
 		"http://localhost:3000",
+		roleDelegationService,
 	)
-
-	roleDelegationService := services.NewRoleDelegationService(s.roleRepo, s.userRepo)
 
 	s.roleService = services.NewRoleManagementService(
 		s.roleRepo,
@@ -143,19 +145,20 @@ func (s *InvitationIntegrationTestSuite) TestInvitationFlow() {
 	})
 	require.NoError(s.T(), err)
 
-	// 2.5. Create an admin user who will send the invitation
+	// 2.5. Create an admin user who will send the invitation (with platform admin status to bypass checks)
 	adminUserID := uuid.New()
 	now := time.Now()
 	err = s.userRepo.Create(s.ctx, &models.User{
-		ID:           adminUserID,
-		TenantID:     tenantID,
-		Email:        "admin@test.com",
-		FirstName:    "Admin",
-		LastName:     "User",
-		PasswordHash: "hashedpassword",
-		Status:       "active",
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:              adminUserID,
+		TenantID:        tenantID,
+		Email:           "admin@test.com",
+		FirstName:       "Admin",
+		LastName:        "User",
+		PasswordHash:    "hashedpassword",
+		Status:          "active",
+		IsPlatformAdmin: true, // Platform admin can assign any role
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	})
 	require.NoError(s.T(), err)
 

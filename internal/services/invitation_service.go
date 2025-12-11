@@ -31,6 +31,7 @@ type invitationService struct {
 	tenantRepo          repositories.TenantRepository
 	notificationService NotificationService
 	authService         AuthService
+	delegationService   RoleDelegationService // Optional: validates role assignment permissions
 	frontendBaseURL     string
 }
 
@@ -42,6 +43,7 @@ func NewInvitationService(
 	notificationService NotificationService,
 	authService AuthService,
 	frontendBaseURL string,
+	delegationService RoleDelegationService,
 ) InvitationService {
 	return &invitationService{
 		invitationRepo:      invitationRepo,
@@ -51,6 +53,7 @@ func NewInvitationService(
 		notificationService: notificationService,
 		authService:         authService,
 		frontendBaseURL:     frontendBaseURL,
+		delegationService:   delegationService,
 	}
 }
 
@@ -68,6 +71,17 @@ type AcceptInvitationRequest struct {
 }
 
 func (s *invitationService) CreateInvitation(ctx context.Context, req *CreateInvitationRequest, invitedBy uuid.UUID) (*models.Invitation, error) {
+	// Validate that inviter can assign this role (prevent privilege escalation)
+	if s.delegationService != nil {
+		canAssign, err := s.delegationService.CanAssignRole(ctx, invitedBy, req.TenantID, req.RoleID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate role assignment: %w", err)
+		}
+		if !canAssign {
+			return nil, errors.New("you do not have permission to invite users with this role")
+		}
+	}
+
 	// Check if user already exists in the tenant
 	existingUser, err := s.userRepo.GetByEmail(ctx, req.TenantID, req.Email)
 	if err == nil && existingUser != nil {

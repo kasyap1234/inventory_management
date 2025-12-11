@@ -290,6 +290,9 @@ func main() {
 		log.Printf("WARNING: Failed to seed super admin: %v", err)
 	}
 
+	// Create role delegation service (must be created before invitation service)
+	roleDelegationService := services.NewRoleDelegationService(roleRepo, userRepo)
+
 	// Create invitation service
 	invitationService := services.NewInvitationService(
 		invitationRepo,
@@ -299,10 +302,8 @@ func main() {
 		notificationService,
 		authService,
 		frontendURL,
+		roleDelegationService, // Validates role assignment permissions
 	)
-
-	// Create role delegation service
-	roleDelegationService := services.NewRoleDelegationService(roleRepo, userRepo)
 
 	// Create role management service
 	roleManagementService := services.NewRoleManagementService(roleRepo, permissionRepo, roleDelegationService, logger)
