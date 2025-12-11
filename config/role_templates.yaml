@@ -10,34 +10,13 @@ roles:
     permissions:
       - "*"  # Wildcard: all permissions including system.admin
 
-  # Tenant Admin - Full access within tenant scope
+  # Tenant Admin - Full access within tenant scope (all permissions except platform-level)
   admin:
-    description: "Tenant administrator with full access to all tenant resources and user/role management"
+    description: "Tenant administrator with full access to all tenant resources"
     permissions:
-      # User management - can invite and add users
-      - "user.*"
-      # Role management - can create roles and assign permissions
-      - "role.*"
-      # Full access to all business resources
-      - "product.*"
-      - "inventory.*"
-      - "order.*"
-      - "invoice.*"
-      - "warehouse.*"
-      - "supplier.*"
-      - "distributor.*"
-      - "batch.*"
-      - "category.*"
-      # Analytics and reports
-      - "analytics.*"
-      - "reports.*"
-      - "audit.read"
-      # Billing and subscription management
-      - "billing.*"
-      - "subscription.*"
-      # Tenant settings
-      - "tenant.manage_settings"
-      # Not included: system.admin, tenant.create, tenant.delete (platform admin only)
+      - "*"  # All permissions within tenant scope
+      # Note: system.admin, tenant.create, tenant.delete are enforced at platform level
+      # via IsPlatformAdmin check, so wildcard here is safe for tenant admins
 
   # Manager - Operational permissions without admin capabilities
   manager:

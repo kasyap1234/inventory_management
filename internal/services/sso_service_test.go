@@ -75,6 +75,12 @@ func (m *mockUserRepo) ListByStatus(ctx context.Context, tenantID uuid.UUID, sta
 func (m *mockUserRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UUID) (bool, error) {
 	return false, nil
 }
+func (m *mockUserRepo) IsPlatformAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	return false, nil
+}
+func (m *mockUserRepo) SetPlatformAdmin(ctx context.Context, userID uuid.UUID, isPlatformAdmin bool) error {
+	return nil
+}
 
 func TestGetAuthURLBuildsOIDCUrl(t *testing.T) {
 	tenantID := uuid.New()

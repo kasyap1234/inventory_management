@@ -35,7 +35,7 @@ func TestRBACTemplateService_GetTemplate(t *testing.T) {
 	adminTemplate, err := service.GetTemplate("admin")
 	assert.NoError(t, err)
 	assert.NotNil(t, adminTemplate)
-	assert.Contains(t, adminTemplate.Permissions, "*")
+	assert.Contains(t, adminTemplate.Permissions, "*") // Admin now has full permissions within tenant
 
 	// Test getting manager template
 	managerTemplate, err := service.GetTemplate("manager")

@@ -137,6 +137,15 @@ func (m *MockRolePermissionAssigner) Create(ctx context.Context, tenantID uuid.U
 	return args.Error(0)
 }
 
+type MockRoleTemplateApplier struct {
+	mock.Mock
+}
+
+func (m *MockRoleTemplateApplier) ApplyTemplateToTenant(ctx context.Context, tenantID uuid.UUID, templateName string) error {
+	args := m.Called(ctx, tenantID, templateName)
+	return args.Error(0)
+}
+
 type MockRoleRepository struct {
 	mock.Mock
 }
@@ -206,6 +215,11 @@ func (m *MockRoleRepository) GetRoleUsers(ctx context.Context, tenantID, roleID 
 	return args.Get(0).([]*models.User), args.Error(1)
 }
 
+func (m *MockRoleRepository) GetUserMaxPriority(ctx context.Context, tenantID, userID uuid.UUID) (int, error) {
+	args := m.Called(ctx, tenantID, userID)
+	return args.Int(0), args.Error(1)
+}
+
 type TenantServiceTestSuite struct {
 	suite.Suite
 	mockRepo                 *MockTenantRepository
@@ -213,6 +227,7 @@ type TenantServiceTestSuite struct {
 	mockRoleRepo             *MockRoleRepository
 	mockPermissionLister     *MockPermissionLister
 	mockRolePermissionAssign *MockRolePermissionAssigner
+	mockRoleTemplateApplier  *MockRoleTemplateApplier
 	service                  TenantService
 }
 
@@ -222,6 +237,7 @@ func (suite *TenantServiceTestSuite) SetupTest() {
 	suite.mockRoleRepo = &MockRoleRepository{}
 	suite.mockPermissionLister = &MockPermissionLister{}
 	suite.mockRolePermissionAssign = &MockRolePermissionAssigner{}
+	suite.mockRoleTemplateApplier = &MockRoleTemplateApplier{}
 
 	// Default permissive expectations for permission seeding; individual tests can override.
 	suite.mockRoleRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Role")).Return(nil).Maybe()
@@ -229,8 +245,9 @@ func (suite *TenantServiceTestSuite) SetupTest() {
 	suite.mockRoleRepo.On("GetByName", mock.Anything, mock.Anything, "admin").Return(defaultAdminRole, nil).Maybe()
 	suite.mockPermissionLister.On("ListPermissions", mock.Anything).Return([]*models.Permission{}, nil).Maybe()
 	suite.mockRolePermissionAssign.On("Create", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	suite.mockRoleTemplateApplier.On("ApplyTemplateToTenant", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
-	suite.service = NewTenantService(suite.mockRepo, suite.mockInviteSvc, suite.mockRoleRepo, suite.mockPermissionLister, suite.mockRolePermissionAssign)
+	suite.service = NewTenantService(suite.mockRepo, suite.mockInviteSvc, suite.mockRoleRepo, suite.mockPermissionLister, suite.mockRolePermissionAssign, suite.mockRoleTemplateApplier)
 
 	// Ensure mocks are called
 	suite.mockRepo.Test(suite.T())
@@ -276,16 +293,14 @@ func (suite *TenantServiceTestSuite) TestCreate_Success() {
 	assert.Equal(suite.T(), "active", tenant.Status)
 }
 
-func (suite *TenantServiceTestSuite) TestCreate_SeedsAdminPermissionsAnalyticsAndInvoice() {
+func (suite *TenantServiceTestSuite) TestCreate_AppliesRoleTemplates() {
 	ctx := context.Background()
 	req := &CreateTenantRequest{
-		Name:      "Analytics Tenant",
-		Subdomain: "analytics-tenant",
+		Name:      "Template Tenant",
+		Subdomain: "template-tenant",
 		License:   "LIC999",
 	}
 
-	analyticsPerm := &models.Permission{ID: uuid.New(), Name: "analytics.read"}
-	invoicePerm := &models.Permission{ID: uuid.New(), Name: "invoice.list"}
 	adminRoleID := uuid.New()
 
 	// Reset defaults to assert exact calls for this test
@@ -293,28 +308,25 @@ func (suite *TenantServiceTestSuite) TestCreate_SeedsAdminPermissionsAnalyticsAn
 	suite.mockRolePermissionAssign.ExpectedCalls = nil
 	suite.mockRoleRepo.ExpectedCalls = nil
 	suite.mockRepo.ExpectedCalls = nil
+	suite.mockRoleTemplateApplier.ExpectedCalls = nil
 
 	suite.mockRepo.On("Create", ctx, mock.AnythingOfType("*models.Tenant")).Return(nil)
-	suite.mockRoleRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Role")).Return(nil).Maybe()
-	suite.mockRoleRepo.On("GetByName", mock.Anything, mock.Anything, "admin").Return(&models.Role{ID: adminRoleID, Name: "admin"}, nil).Once()
 
-	suite.mockPermissionLister.On("ListPermissions", ctx).Return([]*models.Permission{analyticsPerm, invoicePerm}, nil).Once()
+	// Verify ApplyTemplateToTenant is called for each standard role template
+	expectedTemplates := []string{"admin", "manager", "user", "viewer", "inventory_manager", "sales", "analyst"}
+	for _, template := range expectedTemplates {
+		suite.mockRoleTemplateApplier.On("ApplyTemplateToTenant", ctx, mock.AnythingOfType("uuid.UUID"), template).Return(nil).Once()
+	}
 
-	var assignedPermissionIDs []uuid.UUID
-	suite.mockRolePermissionAssign.
-		On("Create", ctx, mock.Anything, mock.AnythingOfType("*models.RolePermission")).
-		Return(nil).
-		Times(2).
-		Run(func(args mock.Arguments) {
-			rolePerm := args.Get(2).(*models.RolePermission)
-			assignedPermissionIDs = append(assignedPermissionIDs, rolePerm.PermissionID)
-			assert.Equal(suite.T(), adminRoleID, rolePerm.RoleID)
-		})
+	// After templates are applied, admin role should be verified
+	suite.mockRoleRepo.On("GetByName", ctx, mock.AnythingOfType("uuid.UUID"), "admin").Return(&models.Role{ID: adminRoleID, Name: "admin"}, nil).Once()
 
 	tenant, err := suite.service.Create(ctx, req)
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), tenant)
-	assert.ElementsMatch(suite.T(), []uuid.UUID{analyticsPerm.ID, invoicePerm.ID}, assignedPermissionIDs)
+
+	// Verify all template applications were called
+	suite.mockRoleTemplateApplier.AssertExpectations(suite.T())
 }
 
 func (suite *TenantServiceTestSuite) TestCreate_ValidationEmptyName() {

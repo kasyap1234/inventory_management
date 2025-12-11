@@ -105,6 +105,16 @@ func (m *MockUserRepo) IsFirstUserInTenant(ctx context.Context, tenantID uuid.UU
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockUserRepo) IsPlatformAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	args := m.Called(ctx, userID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockUserRepo) SetPlatformAdmin(ctx context.Context, userID uuid.UUID, isPlatformAdmin bool) error {
+	args := m.Called(ctx, userID, isPlatformAdmin)
+	return args.Error(0)
+}
+
 type MockTenantRepo struct {
 	mock.Mock
 }
@@ -228,6 +238,11 @@ func (m *MockRoleRepo) GetRoleUsers(ctx context.Context, tenantID uuid.UUID, rol
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*models.User), args.Error(1)
+}
+
+func (m *MockRoleRepo) GetUserMaxPriority(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) (int, error) {
+	args := m.Called(ctx, tenantID, userID)
+	return args.Int(0), args.Error(1)
 }
 
 type MockUserRoleRepo struct {
