@@ -78,6 +78,28 @@ func (s *BatchService) GetBatchesByProduct(ctx context.Context, tenantID, produc
 	return s.batchRepo.GetByProductID(ctx, tenantID, productID)
 }
 
+// DeleteBatch deletes a batch and updates the product total quantity
+func (s *BatchService) DeleteBatch(ctx context.Context, tenantID, batchID uuid.UUID) error {
+	// Get batch to retrieve product ID for quantity update
+	batch, err := s.batchRepo.GetByID(ctx, tenantID, batchID)
+	if err != nil {
+		return fmt.Errorf("failed to get batch: %w", err)
+	}
+
+	// Delete the batch
+	if err := s.batchRepo.Delete(ctx, tenantID, batchID); err != nil {
+		return fmt.Errorf("failed to delete batch: %w", err)
+	}
+
+	// Update product total quantity
+	return s.updateProductTotalQuantity(ctx, tenantID, batch.ProductID)
+}
+
+// ListBatches retrieves all batches for a tenant with pagination
+func (s *BatchService) ListBatches(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]models.Batch, error) {
+	return s.batchRepo.List(ctx, tenantID, limit, offset)
+}
+
 // updateProductTotalQuantity recalculates and updates the total quantity for a product
 func (s *BatchService) updateProductTotalQuantity(ctx context.Context, tenantID, productID uuid.UUID) error {
 	total, err := s.batchRepo.GetTotalQuantityByProductID(ctx, tenantID, productID)
@@ -89,3 +111,4 @@ func (s *BatchService) updateProductTotalQuantity(ctx context.Context, tenantID,
 	// For now, let's assume we can use a direct update or we need to add a method to ProductRepo
 	return s.productRepo.UpdateQuantity(ctx, tenantID, productID, total)
 }
+

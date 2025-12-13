@@ -140,3 +140,30 @@ func (r *BatchRepository) GetTotalQuantityByProductID(ctx context.Context, tenan
 	}
 	return total, nil
 }
+
+// List retrieves all batches for a tenant with pagination
+func (r *BatchRepository) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]models.Batch, error) {
+	var batches []models.Batch
+	query := `
+		SELECT id, tenant_id, product_id, batch_number, quantity, expiry_date,
+		       manufacturing_date, location, status, created_at, updated_at
+		FROM batches
+		WHERE tenant_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+	rows, err := r.db.Query(ctx, query, tenantID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var batch models.Batch
+		if err := rows.Scan(&batch.ID, &batch.TenantID, &batch.ProductID, &batch.BatchNumber, &batch.Quantity, &batch.ExpiryDate,
+			&batch.ManufacturingDate, &batch.Location, &batch.Status, &batch.CreatedAt, &batch.UpdatedAt); err != nil {
+			return nil, err
+		}
+		batches = append(batches, batch)
+	}
+	return batches, nil
+}

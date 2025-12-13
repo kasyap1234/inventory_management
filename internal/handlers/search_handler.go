@@ -123,6 +123,18 @@ func (h *SearchHandlers) UnifiedSearch(c echo.Context) error {
 		results = append(results, invoiceResults...)
 	}
 
+	// Search Categories
+	categoryResults, err := h.searchCategories(ctx, tenantID, tsQuery, req.Limit)
+	if err == nil {
+		results = append(results, categoryResults...)
+	}
+
+	// Search Warehouses
+	warehouseResults, err := h.searchWarehouses(ctx, tenantID, tsQuery, req.Limit)
+	if err == nil {
+		results = append(results, warehouseResults...)
+	}
+
 	// Limit total results
 	if len(results) > req.Limit {
 		results = results[:req.Limit]
@@ -317,6 +329,123 @@ func (h *SearchHandlers) searchInvoices(ctx context.Context, tenantID uuid.UUID,
 				"due_date":     dueDate,
 			},
 			Relevance: relevance,
+		})
+	}
+
+	return results, nil
+}
+
+func (h *SearchHandlers) searchCategories(ctx context.Context, tenantID uuid.UUID, query string, limit int) ([]SearchResult, error) {
+	sqlQuery := `
+		SELECT 
+			c.id,
+			c.name,
+			c.description,
+			ts_rank(
+				to_tsvector('english', coalesce(c.name, '') || ' ' || coalesce(c.description, '')),
+				to_tsquery('english', $2)
+			) as relevance
+		FROM categories c
+		WHERE c.tenant_id = $1
+		AND to_tsvector('english', coalesce(c.name, '') || ' ' || coalesce(c.description, ''))
+		@@ to_tsquery('english', $2)
+		ORDER BY relevance DESC
+		LIMIT $3
+	`
+
+	rows, err := h.db.Query(ctx, sqlQuery, tenantID, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := []SearchResult{}
+	for rows.Next() {
+		var (
+			id          uuid.UUID
+			name        string
+			description *string
+			relevance   float64
+		)
+
+		if err := rows.Scan(&id, &name, &description, &relevance); err != nil {
+			continue
+		}
+
+		desc := ""
+		if description != nil {
+			desc = *description
+		}
+
+		results = append(results, SearchResult{
+			ID:          id.String(),
+			Type:        "category",
+			Title:       name,
+			Description: desc,
+			Metadata:    map[string]interface{}{},
+			Relevance:   relevance,
+		})
+	}
+
+	return results, nil
+}
+
+func (h *SearchHandlers) searchWarehouses(ctx context.Context, tenantID uuid.UUID, query string, limit int) ([]SearchResult, error) {
+	sqlQuery := `
+		SELECT 
+			w.id,
+			w.name,
+			w.location,
+			w.capacity,
+			ts_rank(
+				to_tsvector('english', coalesce(w.name, '') || ' ' || coalesce(w.location, '')),
+				to_tsquery('english', $2)
+			) as relevance
+		FROM warehouses w
+		WHERE w.tenant_id = $1
+		AND to_tsvector('english', coalesce(w.name, '') || ' ' || coalesce(w.location, ''))
+		@@ to_tsquery('english', $2)
+		ORDER BY relevance DESC
+		LIMIT $3
+	`
+
+	rows, err := h.db.Query(ctx, sqlQuery, tenantID, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := []SearchResult{}
+	for rows.Next() {
+		var (
+			id        uuid.UUID
+			name      string
+			location  *string
+			capacity  *int
+			relevance float64
+		)
+
+		if err := rows.Scan(&id, &name, &location, &capacity, &relevance); err != nil {
+			continue
+		}
+
+		loc := ""
+		if location != nil {
+			loc = *location
+		}
+
+		metadata := map[string]interface{}{}
+		if capacity != nil {
+			metadata["capacity"] = *capacity
+		}
+
+		results = append(results, SearchResult{
+			ID:          id.String(),
+			Type:        "warehouse",
+			Title:       name,
+			Description: loc,
+			Metadata:    metadata,
+			Relevance:   relevance,
 		})
 	}
 

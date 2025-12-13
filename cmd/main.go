@@ -769,8 +769,10 @@ func main() {
 	// Batch routes - require product permissions for batch operations
 	protected.POST("/products/:productId/batches", batchHandler.CreateBatch, rbacMiddleware.RequirePermission("product.create"))
 	protected.GET("/products/:productId/batches", batchHandler.GetBatchesByProduct, rbacMiddleware.RequirePermission("product.read"))
+	protected.GET("/batches", batchHandler.ListBatches, rbacMiddleware.RequirePermission("product.list"))
 	protected.GET("/batches/:id", batchHandler.GetBatch, rbacMiddleware.RequirePermission("product.read"))
 	protected.PUT("/batches/:id", batchHandler.UpdateBatch, rbacMiddleware.RequirePermission("product.update"))
+	protected.DELETE("/batches/:id", batchHandler.DeleteBatch, rbacMiddleware.RequirePermission("product.delete"))
 
 	// Product image routes - require product permissions
 	protected.POST("/products/:id/images", productHandlers.UploadProductImage, rbacMiddleware.RequirePermission("product.update"))

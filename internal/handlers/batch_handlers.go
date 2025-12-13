@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"agromart2/internal/common"
 	"agromart2/internal/models"
@@ -121,3 +122,55 @@ func (h *BatchHandler) GetBatch(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, batch)
 }
+
+// DeleteBatch handles deleting a batch
+func (h *BatchHandler) DeleteBatch(c echo.Context) error {
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	batchIDStr := c.Param("id")
+	batchID, err := uuid.Parse(batchIDStr)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid batch ID")
+	}
+
+	if err := h.batchService.DeleteBatch(ctx, tenantID, batchID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+// ListBatches handles fetching all batches for a tenant with pagination
+func (h *BatchHandler) ListBatches(c echo.Context) error {
+	ctx := c.Request().Context()
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	// Parse query params for pagination
+	limit := 20 // default
+	offset := 0
+	if l := c.QueryParam("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+	if o := c.QueryParam("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	batches, err := h.batchService.ListBatches(ctx, tenantID, limit, offset)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, batches)
+}
+
