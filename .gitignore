@@ -148,3 +148,15 @@ nohup.out
 repositories.test
 
 # Scripts (if executable)
+
+# Compiled Go binaries
+main
+agromart
+agromart-app
+
+# Temporary/debug session files
+cookies*.txt
+credentials.txt
+csrf.json
+login_response.json
+test_output.txt
