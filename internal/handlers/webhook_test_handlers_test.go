@@ -71,6 +71,32 @@ func (s *stubCacheService) GetString(ctx context.Context, key string) (string, e
 func (s *stubCacheService) Delete(ctx context.Context, key string) error              { return nil }
 func (s *stubCacheService) DeleteByPattern(ctx context.Context, pattern string) error { return nil }
 
+// Combined Analytics caching
+func (s *stubCacheService) GetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID) ([]byte, error) {
+	return nil, nil
+}
+func (s *stubCacheService) SetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID, data []byte, ttl time.Duration) error {
+	return nil
+}
+
+// Product List caching
+func (s *stubCacheService) GetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error) {
+	return nil, nil
+}
+func (s *stubCacheService) SetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int, products []*models.Product, ttl time.Duration) error {
+	return nil
+}
+func (s *stubCacheService) InvalidateProductList(ctx context.Context, tenantID uuid.UUID) error { return nil }
+
+// Order List caching
+func (s *stubCacheService) GetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error) {
+	return nil, nil
+}
+func (s *stubCacheService) SetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int, orders []*models.Order, ttl time.Duration) error {
+	return nil
+}
+func (s *stubCacheService) InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error { return nil }
+
 func makeEchoWithAuthContext() (*echo.Echo, echo.Context, uuid.UUID, uuid.UUID) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/v1/webhooks/test", nil)

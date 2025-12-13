@@ -8,21 +8,25 @@ import (
 	"agromart2/internal/analytics"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type AnalyticsRefreshService struct {
 	analyticsService *analytics.AnalyticsService
+	db               *pgxpool.Pool
 }
 
 type AnalyticsRefreshResult struct {
-	TenantsProcessed int
-	DataUpdated      bool
-	LastRefreshAt    time.Time
+	TenantsProcessed       int
+	DataUpdated            bool
+	MaterializedViewsRefed bool
+	LastRefreshAt          time.Time
 }
 
-func NewAnalyticsRefreshService(analyticsService *analytics.AnalyticsService) *AnalyticsRefreshService {
+func NewAnalyticsRefreshService(analyticsService *analytics.AnalyticsService, db *pgxpool.Pool) *AnalyticsRefreshService {
 	return &AnalyticsRefreshService{
 		analyticsService: analyticsService,
+		db:               db,
 	}
 }
 
@@ -80,6 +84,44 @@ func (a *AnalyticsRefreshService) RefreshStockLevelsDashboard(ctx context.Contex
 	return nil
 }
 
+// RefreshMaterializedViews refreshes the PostgreSQL materialized views for analytics.
+// This should be called periodically (e.g., every 15 minutes) to ensure dashboard
+// analytics are pre-computed and queries are fast.
+func (a *AnalyticsRefreshService) RefreshMaterializedViews(ctx context.Context) error {
+	if a.db == nil {
+		log.Println("Database pool not available, skipping materialized view refresh")
+		return nil
+	}
+
+	log.Println("Refreshing materialized views for analytics...")
+	startTime := time.Now()
+
+	// Use CONCURRENTLY to avoid locking reads during refresh
+	// This requires a UNIQUE index on the materialized view
+	views := []string{
+		"mv_dashboard_analytics",
+		"mv_product_sales",
+	}
+
+	for _, view := range views {
+		query := "REFRESH MATERIALIZED VIEW CONCURRENTLY " + view
+		_, err := a.db.Exec(ctx, query)
+		if err != nil {
+			// If CONCURRENTLY fails (e.g., no unique index), try without it
+			log.Printf("CONCURRENTLY refresh failed for %s, trying regular refresh: %v", view, err)
+			query = "REFRESH MATERIALIZED VIEW " + view
+			_, err = a.db.Exec(ctx, query)
+			if err != nil {
+				log.Printf("Failed to refresh materialized view %s: %v", view, err)
+				// Continue with other views even if one fails
+			}
+		}
+	}
+
+	log.Printf("Materialized views refreshed in %v", time.Since(startTime))
+	return nil
+}
+
 // Scheduled job for analytics refresh
 func (a *AnalyticsRefreshService) ScheduledAnalyticsRefresh(ctx context.Context) error {
 	log.Println("Running scheduled analytics refresh")
@@ -88,6 +130,12 @@ func (a *AnalyticsRefreshService) ScheduledAnalyticsRefresh(ctx context.Context)
 	defer func() {
 		log.Printf("Scheduled analytics refresh completed in %v", time.Since(StartTime))
 	}()
+
+	// Refresh materialized views first for faster queries
+	if err := a.RefreshMaterializedViews(ctx); err != nil {
+		log.Printf("Materialized view refresh had errors: %v", err)
+		// Continue with analytics refresh even if MV refresh fails
+	}
 
 	result, err := a.RefreshAllTenantsAnalytics(ctx)
 	if err != nil {

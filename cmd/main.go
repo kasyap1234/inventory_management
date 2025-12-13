@@ -529,7 +529,7 @@ func main() {
 		tallyExporter,
 		tallyImporter,
 		jobs.NewInventoryAlertService(inventoryRepo, productRepo),
-		jobs.NewAnalyticsRefreshService(analyticsSvc),
+		jobs.NewAnalyticsRefreshService(analyticsSvc, pool),
 		analyticsSvc,
 		orderRepo,
 		invoiceRepo,

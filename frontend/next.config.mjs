@@ -1,10 +1,9 @@
+import withBundleAnalyzer from '@next/bundle-analyzer';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Performance optimizations
   reactStrictMode: true,
-
-  // Enable SWC minification for faster builds
-  // swcMinify: true, // Deprecated: enabled by default
 
   // Optimize images
   images: {
@@ -39,60 +38,6 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
-  },
-
-  // Webpack optimizations
-  webpack: (config, { dev, isServer }) => {
-    // Production optimizations
-    if (!dev && !isServer) {
-      // Enable tree shaking
-      config.optimization = {
-        ...config.optimization,
-        usedExports: true,
-        sideEffects: false,
-
-        // Split chunks for better caching
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            default: false,
-            vendors: false,
-            // Vendor chunk for node_modules
-            vendor: {
-              name: 'vendor',
-              chunks: 'all',
-              test: /node_modules/,
-              priority: 20,
-            },
-            // Common chunk for shared code
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              priority: 10,
-              reuseExistingChunk: true,
-              enforce: true,
-            },
-            // React chunk
-            react: {
-              name: 'react',
-              chunks: 'all',
-              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
-              priority: 30,
-            },
-            // UI libraries chunk
-            ui: {
-              name: 'ui',
-              chunks: 'all',
-              test: /[\\/]node_modules[\\/](@radix-ui|lucide-react)[\\/]/,
-              priority: 25,
-            },
-          },
-        },
-      };
-    }
-
-    return config;
   },
 
   // Headers for caching and security
@@ -144,4 +89,8 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
 };
 
-export default nextConfig;
+const bundleAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
+
+export default bundleAnalyzer(nextConfig);

@@ -115,7 +115,17 @@ func (s *productService) Create(ctx context.Context, tenantID uuid.UUID, product
 		}
 	}
 	product.ID = uuid.New()
-	return s.productRepo.Create(ctx, product)
+	err := s.productRepo.Create(ctx, product)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate product list cache after create
+	if cacheErr := s.cacheService.InvalidateProductList(ctx, tenantID); cacheErr != nil {
+		log.Printf("Failed to invalidate product list cache after create: %v", cacheErr)
+	}
+
+	return nil
 }
 
 func (s *productService) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models.Product, error) {
@@ -197,6 +207,11 @@ func (s *productService) Update(ctx context.Context, tenantID uuid.UUID, product
 		log.Printf("Failed to invalidate cache after update for product %s: %v", product.ID.String(), cacheErr)
 	}
 
+	// Invalidate product list cache after update
+	if cacheErr := s.cacheService.InvalidateProductList(ctx, tenantID); cacheErr != nil {
+		log.Printf("Failed to invalidate product list cache after update: %v", cacheErr)
+	}
+
 	return nil
 }
 
@@ -216,11 +231,37 @@ func (s *productService) Delete(ctx context.Context, tenantID, id uuid.UUID) err
 		log.Printf("Failed to invalidate cache after delete for product %s: %v", id.String(), cacheErr)
 	}
 
+	// Invalidate product list cache after delete
+	if cacheErr := s.cacheService.InvalidateProductList(ctx, tenantID); cacheErr != nil {
+		log.Printf("Failed to invalidate product list cache after delete: %v", cacheErr)
+	}
+
 	return nil
 }
 
+const productListCacheTTL = 2 * time.Minute
+
 func (s *productService) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error) {
-	return s.productRepo.List(ctx, tenantID, limit, offset)
+	// Try to get from cache first
+	cachedProducts, err := s.cacheService.GetProductList(ctx, tenantID, limit, offset)
+	if err != nil {
+		log.Printf("Cache error for product list: %v", err)
+	} else if cachedProducts != nil {
+		return cachedProducts, nil // Cache hit
+	}
+
+	// Cache miss - fetch from database
+	products, err := s.productRepo.List(ctx, tenantID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result with short TTL
+	if cacheErr := s.cacheService.SetProductList(ctx, tenantID, limit, offset, products, productListCacheTTL); cacheErr != nil {
+		log.Printf("Failed to cache product list: %v", cacheErr)
+	}
+
+	return products, nil
 }
 
 // ListWithCursor returns products using cursor-based pagination.

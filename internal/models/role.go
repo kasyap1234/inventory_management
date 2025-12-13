@@ -18,3 +18,27 @@ type Role struct {
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
 }
+
+// CanBeAssignedBy checks if this role can be assigned by a user with the given priority.
+// A user can assign roles with priority equal to or lower than their own.
+func (r *Role) CanBeAssignedBy(assignerPriority int) bool {
+	return assignerPriority >= r.Priority
+}
+
+// CanBeCreatedBy checks if a role with this priority can be created by a user.
+// A user can only create roles with priority strictly lower than their own.
+func (r *Role) CanBeCreatedBy(creatorPriority int) bool {
+	return creatorPriority > r.Priority
+}
+
+// CanBeModifiedBy checks if this role can be modified by a user with the given priority.
+// System roles cannot be modified. Non-system roles require higher priority to modify.
+func (r *Role) CanBeModifiedBy(userPriority int, isPlatformAdmin bool) bool {
+	if isPlatformAdmin {
+		return true
+	}
+	if r.IsSystemRole {
+		return false
+	}
+	return userPriority > r.Priority
+}

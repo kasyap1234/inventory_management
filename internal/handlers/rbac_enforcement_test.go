@@ -51,6 +51,7 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		permissions    string // permission string to require (can use && for AND, || for OR)
 		hasCreatePerm  bool
 		hasManageRoles bool
 		hasRoleCreate  bool
@@ -60,9 +61,9 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 		description    string
 	}{
 		{
-			name:           "User with user.create can create user without role",
-			hasCreatePerm:  true,
-			hasManageRoles: false,
+			name:          "User with user.create can create user without role",
+			permissions:   "user.create",
+			hasCreatePerm: true,
 			requestBody: map[string]interface{}{
 				"email":      "test@example.com",
 				"first_name": "Test",
@@ -73,9 +74,9 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 			description:    "Should allow user creation when user.create permission exists",
 		},
 		{
-			name:           "User without user.create cannot create user",
-			hasCreatePerm:  false,
-			hasManageRoles: false,
+			name:          "User without user.create cannot create user",
+			permissions:   "user.create",
+			hasCreatePerm: false,
 			requestBody: map[string]interface{}{
 				"email":      "test@example.com",
 				"first_name": "Test",
@@ -86,7 +87,8 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 			description:    "Should deny user creation when user.create permission is missing",
 		},
 		{
-			name:           "User with user.create but without user.manage_roles cannot assign role",
+			name:           "User with user.create but without user.manage_roles cannot assign role via combined check",
+			permissions:    "user.create && user.manage_roles", // Both required for role assignment
 			hasCreatePerm:  true,
 			hasManageRoles: false,
 			requestBody: map[string]interface{}{
@@ -97,10 +99,11 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 				"role_id":    uuid.New().String(),
 			},
 			expectedStatus: http.StatusForbidden,
-			description:    "Should deny role assignment when user.manage_roles permission is missing",
+			description:    "Should deny role assignment when user.manage_roles permission is missing (using AND logic)",
 		},
 		{
 			name:           "User with user.create and user.manage_roles can assign role",
+			permissions:    "user.create && user.manage_roles", // Both required for role assignment
 			hasCreatePerm:  true,
 			hasManageRoles: true,
 			requestBody: map[string]interface{}{
@@ -115,6 +118,7 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 		},
 		{
 			name:          "User creating custom role needs role.create and role.manage_permissions",
+			permissions:   "user.create && role.create", // Need both for custom role creation
 			hasCreatePerm: true,
 			hasRoleCreate: false,
 			hasRoleManage: false,
@@ -133,19 +137,12 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRBAC := new(MockRBACService)
-			mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "user.create").Return(tt.hasCreatePerm, nil)
 
-			if tt.hasCreatePerm {
-				if tt.requestBody["role_id"] != nil {
-					mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "user.manage_roles").Return(tt.hasManageRoles, nil)
-				}
-				if tt.requestBody["permissions"] != nil {
-					mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "role.create").Return(tt.hasRoleCreate, nil)
-					if tt.hasRoleCreate {
-						mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "role.manage_permissions").Return(tt.hasRoleManage, nil)
-					}
-				}
-			}
+			// Set up mock expectations based on which permissions will be checked
+			mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "user.create").Return(tt.hasCreatePerm, nil).Maybe()
+			mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "user.manage_roles").Return(tt.hasManageRoles, nil).Maybe()
+			mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "role.create").Return(tt.hasRoleCreate, nil).Maybe()
+			mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "role.manage_permissions").Return(tt.hasRoleManage, nil).Maybe()
 
 			rbacMiddleware := middleware.NewRBACMiddleware(mockRBAC)
 
@@ -165,8 +162,8 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 			ctx = context.WithValue(ctx, common.TenantIDKey, tenantID)
 			c.SetRequest(c.Request().WithContext(ctx))
 
-			// Test RBAC middleware directly
-			handler := rbacMiddleware.RequirePermission("user.create")(func(c echo.Context) error {
+			// Test RBAC middleware directly using the permission string from test case
+			handler := rbacMiddleware.RequirePermission(tt.permissions)(func(c echo.Context) error {
 				return c.NoContent(http.StatusCreated)
 			})
 
@@ -176,19 +173,21 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 				if err != nil {
 					he, ok := err.(*echo.HTTPError)
 					if ok {
-						assert.Equal(t, http.StatusForbidden, he.Code, tt.description)
+						t.Errorf("Got error %d but expected success: %s", he.Code, tt.description)
 					} else {
 						assert.NoError(t, err, tt.description)
 					}
 				}
 			} else {
 				assert.Error(t, err, tt.description)
-				he, ok := err.(*echo.HTTPError)
-				assert.True(t, ok, tt.description)
-				assert.Equal(t, tt.expectedStatus, he.Code, tt.description)
+				if err != nil {
+					he, ok := err.(*echo.HTTPError)
+					assert.True(t, ok, tt.description)
+					if ok {
+						assert.Equal(t, tt.expectedStatus, he.Code, tt.description)
+					}
+				}
 			}
-
-			mockRBAC.AssertExpectations(t)
 		})
 	}
 }

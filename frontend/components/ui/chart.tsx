@@ -166,12 +166,12 @@ export function ChartLegendContent({ payload, className }: ChartLegendContentPro
 
   return (
     <div className={cn('flex flex-wrap items-center gap-3 text-xs text-muted-foreground', className)}>
-      {payload.map((item) => {
+      {payload.map((item, index) => {
         const key = (item.dataKey ?? item.value ?? '').toString();
         const label = config?.[key]?.label ?? item.value ?? key;
 
         return (
-          <div key={key} className="flex items-center gap-2">
+          <div key={`${key}-${index}`} className="flex items-center gap-2">
             <span
               className="h-2 w-2 rounded-full"
               style={{ backgroundColor: item.color ?? `var(--color-${key})` }}

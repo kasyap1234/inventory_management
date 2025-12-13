@@ -174,11 +174,12 @@ func TestProductRepository(t *testing.T) {
 	})
 
 	t.Run("AdvancedSearch", func(t *testing.T) {
-		// Create test products
+		// Create test products with unique names to avoid conflicts with other tests
+		uniqueID := uuid.New().String()[:8]
 		product1 := &models.Product{
 			ID:        uuid.New(),
 			TenantID:  tenantID,
-			Name:      "Organic Pesticide",
+			Name:      "AdvSearch Herbicide " + uniqueID,
 			Quantity:  100,
 			UnitPrice: 30.00,
 		}
@@ -188,33 +189,33 @@ func TestProductRepository(t *testing.T) {
 		product2 := &models.Product{
 			ID:        uuid.New(),
 			TenantID:  tenantID,
-			Name:      "Fertilizer Mix",
+			Name:      "AdvSearch Fertilizer " + uniqueID,
 			Quantity:  50,
 			UnitPrice: 20.00,
-			Barcode:   stringPtr("111111111"),
+			Barcode:   stringPtr("adv" + uniqueID),
 		}
 		err = repo.Create(context.Background(), product2)
 		require.NoError(t, err)
 
-		// Test search by name
+		// Test search by name - use unique prefix
 		filter := &models.ProductSearchFilter{
-			Query: "Pesticide",
+			Query: "AdvSearch Herbicide " + uniqueID,
 			Limit: 10,
 		}
 		results, err := repo.AdvancedSearch(context.Background(), tenantID, filter)
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
-		assert.Equal(t, "Organic Pesticide", results[0].Name)
+		assert.Equal(t, "AdvSearch Herbicide "+uniqueID, results[0].Name)
 
 		// Test search by barcode
 		filter = &models.ProductSearchFilter{
-			Barcode: stringPtr("111111111"),
+			Barcode: stringPtr("adv" + uniqueID),
 			Limit:   10,
 		}
 		results, err = repo.AdvancedSearch(context.Background(), tenantID, filter)
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
-		assert.Equal(t, "Fertilizer Mix", results[0].Name)
+		assert.Equal(t, "AdvSearch Fertilizer "+uniqueID, results[0].Name)
 
 		// Test price range
 		filter = &models.ProductSearchFilter{

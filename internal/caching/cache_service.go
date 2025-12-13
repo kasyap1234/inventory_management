@@ -19,6 +19,16 @@ type CacheService interface {
 	SetProduct(ctx context.Context, tenantID uuid.UUID, product *models.Product, ttl time.Duration) error
 	DeleteProduct(ctx context.Context, tenantID, productID uuid.UUID) error
 
+	// Product List caching
+	GetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error)
+	SetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int, products []*models.Product, ttl time.Duration) error
+	InvalidateProductList(ctx context.Context, tenantID uuid.UUID) error
+
+	// Order List caching
+	GetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error)
+	SetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int, orders []*models.Order, ttl time.Duration) error
+	InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error
+
 	// Inventory caching
 	GetInventory(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) (*models.Inventory, error)
 	SetInventory(ctx context.Context, tenantID uuid.UUID, inventory *models.Inventory, ttl time.Duration) error
@@ -32,6 +42,10 @@ type CacheService interface {
 	// Analytics caching
 	GetTenantAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]interface{}, error)
 	SetTenantAnalytics(ctx context.Context, tenantID uuid.UUID, analytics map[string]interface{}, ttl time.Duration) error
+
+	// Combined Analytics caching
+	GetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID) ([]byte, error)
+	SetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID, data []byte, ttl time.Duration) error
 
 	// Cache invalidation
 	InvalidateTenantCache(ctx context.Context, tenantID uuid.UUID) error
@@ -54,6 +68,7 @@ type CacheService interface {
 	// Pattern-based deletion for token revocation
 	DeleteByPattern(ctx context.Context, pattern string) error
 }
+
 
 type redisCacheService struct {
 	client *redis.Client
@@ -349,4 +364,86 @@ func (r *redisCacheService) DeleteByPattern(ctx context.Context, pattern string)
 	}
 
 	return nil
+}
+
+// Product List caching implementations
+func (r *redisCacheService) GetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error) {
+	key := fmt.Sprintf("agromart:products:list:%s:%d:%d", tenantID.String(), limit, offset)
+	data, err := r.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // cache miss
+		}
+		return nil, err
+	}
+
+	var products []*models.Product
+	if err := json.Unmarshal(data, &products); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
+func (r *redisCacheService) SetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int, products []*models.Product, ttl time.Duration) error {
+	key := fmt.Sprintf("agromart:products:list:%s:%d:%d", tenantID.String(), limit, offset)
+	data, err := json.Marshal(products)
+	if err != nil {
+		return err
+	}
+	return r.client.Set(ctx, key, data, ttl).Err()
+}
+
+func (r *redisCacheService) InvalidateProductList(ctx context.Context, tenantID uuid.UUID) error {
+	pattern := fmt.Sprintf("agromart:products:list:%s:*", tenantID.String())
+	return r.DeleteByPattern(ctx, pattern)
+}
+
+// Order List caching implementations
+func (r *redisCacheService) GetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error) {
+	key := fmt.Sprintf("agromart:orders:list:%s:%d:%d", tenantID.String(), limit, offset)
+	data, err := r.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // cache miss
+		}
+		return nil, err
+	}
+
+	var orders []*models.Order
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
+func (r *redisCacheService) SetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int, orders []*models.Order, ttl time.Duration) error {
+	key := fmt.Sprintf("agromart:orders:list:%s:%d:%d", tenantID.String(), limit, offset)
+	data, err := json.Marshal(orders)
+	if err != nil {
+		return err
+	}
+	return r.client.Set(ctx, key, data, ttl).Err()
+}
+
+func (r *redisCacheService) InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error {
+	pattern := fmt.Sprintf("agromart:orders:list:%s:*", tenantID.String())
+	return r.DeleteByPattern(ctx, pattern)
+}
+
+// Combined Analytics caching implementations
+func (r *redisCacheService) GetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID) ([]byte, error) {
+	key := fmt.Sprintf("agromart:analytics:combined:%s", tenantID.String())
+	data, err := r.client.Get(ctx, key).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // cache miss
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+func (r *redisCacheService) SetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID, data []byte, ttl time.Duration) error {
+	key := fmt.Sprintf("agromart:analytics:combined:%s", tenantID.String())
+	return r.client.Set(ctx, key, data, ttl).Err()
 }

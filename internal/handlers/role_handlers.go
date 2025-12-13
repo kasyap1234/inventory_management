@@ -7,6 +7,7 @@ import (
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/repositories"
+	"agromart2/internal/services"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -17,6 +18,7 @@ type RoleHandlers struct {
 	permissionRepo     repositories.PermissionRepository
 	rolePermissionRepo repositories.RolePermissionRepository
 	rbacMiddleware     *middleware.RBACMiddleware
+	delegationService  services.RoleDelegationService
 }
 
 func NewRoleHandlers(
@@ -30,6 +32,23 @@ func NewRoleHandlers(
 		permissionRepo:     permissionRepo,
 		rolePermissionRepo: rolePermissionRepo,
 		rbacMiddleware:     rbacMiddleware,
+	}
+}
+
+// NewRoleHandlersWithDelegation creates handlers with role delegation service for priority validation
+func NewRoleHandlersWithDelegation(
+	roleRepo repositories.RoleRepository,
+	permissionRepo repositories.PermissionRepository,
+	rolePermissionRepo repositories.RolePermissionRepository,
+	rbacMiddleware *middleware.RBACMiddleware,
+	delegationService services.RoleDelegationService,
+) *RoleHandlers {
+	return &RoleHandlers{
+		roleRepo:           roleRepo,
+		permissionRepo:     permissionRepo,
+		rolePermissionRepo: rolePermissionRepo,
+		rbacMiddleware:     rbacMiddleware,
+		delegationService:  delegationService,
 	}
 }
 
@@ -50,6 +69,80 @@ func (h *RoleHandlers) ListRoles(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Roles retrieved successfully",
 		"roles":   roles,
+	})
+}
+
+// GetAssignableRoles returns roles the current user can assign to others
+func (h *RoleHandlers) GetAssignableRoles(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	userID, ok := common.GetUserIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	}
+
+	if h.delegationService == nil {
+		// Fall back to listing all roles if delegation service not configured
+		roles, err := h.roleRepo.List(ctx, tenantID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch roles")
+		}
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"message": "Assignable roles retrieved successfully",
+			"roles":   roles,
+		})
+	}
+
+	roles, err := h.delegationService.GetAssignableRoles(ctx, userID, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch assignable roles")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Assignable roles retrieved successfully",
+		"roles":   roles,
+	})
+}
+
+// GetAssignablePermissions returns permissions the current user can grant to roles
+func (h *RoleHandlers) GetAssignablePermissions(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
+
+	userID, ok := common.GetUserIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	}
+
+	if h.delegationService == nil {
+		// Fall back to listing all permissions if delegation service not configured
+		permissions, err := h.permissionRepo.List(ctx)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch permissions")
+		}
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"message":     "Assignable permissions retrieved successfully",
+			"permissions": permissions,
+		})
+	}
+
+	permissions, err := h.delegationService.GetAssignablePermissions(ctx, userID, tenantID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch assignable permissions: "+err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":     "Assignable permissions retrieved successfully",
+		"permissions": permissions,
 	})
 }
 
@@ -78,7 +171,7 @@ func (h *RoleHandlers) GetRole(c echo.Context) error {
 	})
 }
 
-// CreateRole creates a new role
+// CreateRole creates a new role with priority validation
 func (h *RoleHandlers) CreateRole(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -87,9 +180,15 @@ func (h *RoleHandlers) CreateRole(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
+	userID, ok := common.GetUserIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
+	}
+
 	var req struct {
 		Name        string  `json:"name" validate:"required"`
 		Description *string `json:"description"`
+		Priority    int     `json:"priority"` // Optional, defaults to 0
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -100,10 +199,23 @@ func (h *RoleHandlers) CreateRole(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
+	// Validate priority if delegation service is available
+	if h.delegationService != nil && req.Priority > 0 {
+		canCreate, err := h.delegationService.CanCreateRoleWithPriority(ctx, userID, tenantID, req.Priority)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to validate role priority")
+		}
+		if !canCreate {
+			return echo.NewHTTPError(http.StatusForbidden, "Cannot create role with priority higher than your own")
+		}
+	}
+
 	role := &models.Role{
 		TenantID:    tenantID,
 		Name:        req.Name,
 		Description: req.Description,
+		Priority:    req.Priority,
+		IsActive:    true,
 	}
 
 	if err := h.roleRepo.Create(ctx, role); err != nil {
@@ -115,6 +227,7 @@ func (h *RoleHandlers) CreateRole(c echo.Context) error {
 		"role":    role,
 	})
 }
+
 
 // UpdateRole updates an existing role
 func (h *RoleHandlers) UpdateRole(c echo.Context) error {

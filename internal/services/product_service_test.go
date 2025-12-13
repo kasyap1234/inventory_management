@@ -350,6 +350,58 @@ func (m *MockCacheService) DeleteByPattern(ctx context.Context, pattern string) 
 	return args.Error(0)
 }
 
+// Combined Analytics caching
+func (m *MockCacheService) GetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID) ([]byte, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (m *MockCacheService) SetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID, data []byte, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, data, ttl)
+	return args.Error(0)
+}
+
+// Product List caching
+func (m *MockCacheService) GetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Product, error) {
+	args := m.Called(ctx, tenantID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Product), args.Error(1)
+}
+
+func (m *MockCacheService) SetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int, products []*models.Product, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, limit, offset, products, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) InvalidateProductList(ctx context.Context, tenantID uuid.UUID) error {
+	args := m.Called(ctx, tenantID)
+	return args.Error(0)
+}
+
+// Order List caching
+func (m *MockCacheService) GetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error) {
+	args := m.Called(ctx, tenantID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Order), args.Error(1)
+}
+
+func (m *MockCacheService) SetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int, orders []*models.Order, ttl time.Duration) error {
+	args := m.Called(ctx, tenantID, limit, offset, orders, ttl)
+	return args.Error(0)
+}
+
+func (m *MockCacheService) InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error {
+	args := m.Called(ctx, tenantID)
+	return args.Error(0)
+}
+
 type MockMinioService struct {
 	mock.Mock
 }
@@ -419,6 +471,20 @@ func (suite *ProductServiceTestSuite) SetupTest() {
 	suite.mockCacheService.On("GetProduct", mock.Anything, mock.Anything, mock.Anything).Return((*models.Product)(nil), nil).Maybe()
 	suite.mockCacheService.On("SetProduct", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	suite.mockCacheService.On("DeleteProduct", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Product list cache expectations
+	suite.mockCacheService.On("GetProductList", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(([]*models.Product)(nil), nil).Maybe()
+	suite.mockCacheService.On("SetProductList", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	suite.mockCacheService.On("InvalidateProductList", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Order list cache expectations
+	suite.mockCacheService.On("GetOrderList", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(([]*models.Order)(nil), nil).Maybe()
+	suite.mockCacheService.On("SetOrderList", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	suite.mockCacheService.On("InvalidateOrderList", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Analytics cache expectations
+	suite.mockCacheService.On("GetCombinedAnalytics", mock.Anything, mock.Anything).Return(([]byte)(nil), nil).Maybe()
+	suite.mockCacheService.On("SetCombinedAnalytics", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	suite.service = NewProductService(suite.mockProductRepo, suite.mockInventoryRepo, suite.mockCategoryRepo, suite.mockProductImageRepo, suite.mockMinioService, suite.mockCacheService)
 	suite.tenantID = uuid.New()
