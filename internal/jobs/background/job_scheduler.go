@@ -244,12 +244,35 @@ func (js *JobScheduler) processInventoryAlerts() error {
 // collectPerformanceMetrics collects and stores performance metrics
 func (js *JobScheduler) collectPerformanceMetrics() error {
 	log.Printf("Collecting performance metrics")
+	ctx := context.Background()
 
-	// Get cache hit rate from Redis
-	// This would require Redis INFO command parsing
-	// For now, just log a placeholder
+	// Get cache stats from Redis
+	if js.cacheSvc != nil {
+		stats, err := js.cacheSvc.GetStats(ctx)
+		if err != nil {
+			log.Printf("Failed to get cache stats: %v", err)
+		} else {
+			log.Printf("Cache stats: keys=%d, memory=%s, hit_rate=%.2f%%, clients=%d, uptime=%ds",
+				stats.KeysCount,
+				stats.UsedMemoryHuman,
+				stats.HitRate,
+				stats.ConnectedClients,
+				stats.UptimeSeconds,
+			)
+
+			// Store metrics for trending (optional - could be stored in a metrics table)
+			// For now, just log them
+			if stats.HitRate < 50 {
+				log.Printf("WARN: Cache hit rate is low (%.2f%%), consider reviewing cache strategy", stats.HitRate)
+			}
+
+			if stats.KeysCount > 100000 {
+				log.Printf("WARN: High number of cache keys (%d), consider cleanup", stats.KeysCount)
+			}
+		}
+	}
+
 	log.Printf("Performance metrics collection completed")
-
 	return nil
 }
 

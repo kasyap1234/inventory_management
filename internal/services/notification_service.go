@@ -588,9 +588,51 @@ func (s *notificationService) GetTemplate(ctx context.Context, tenantID uuid.UUI
 }
 
 func (s *notificationService) ListTemplates(ctx context.Context, tenantID uuid.UUID, eventType string) ([]*models.NotificationTemplate, error) {
-	// In production, this would query the database with proper indexing
-	// For now, return empty slice as placeholder
-	return []*models.NotificationTemplate{}, nil
+	var templates []*models.NotificationTemplate
+
+	// Scan for all templates for this tenant
+	var pattern string
+	if eventType != "" {
+		// Filter by specific event type
+		pattern = fmt.Sprintf("notification_template:%s:*", tenantID.String())
+	} else {
+		// Get all templates for tenant
+		pattern = fmt.Sprintf("notification_template:%s:*", tenantID.String())
+	}
+
+	iter := s.redisClient.Scan(ctx, 0, pattern, 100).Iterator()
+	for iter.Next(ctx) {
+		key := iter.Val()
+
+		// Get template data
+		data, err := s.redisClient.Get(ctx, key).Bytes()
+		if err != nil {
+			if err == redis.Nil {
+				continue
+			}
+			log.Printf("Failed to get template %s: %v", key, err)
+			continue
+		}
+
+		var tmpl models.NotificationTemplate
+		if err := json.Unmarshal(data, &tmpl); err != nil {
+			log.Printf("Failed to unmarshal template %s: %v", key, err)
+			continue
+		}
+
+		// Filter by event type if specified
+		if eventType != "" && tmpl.EventType != eventType {
+			continue
+		}
+
+		templates = append(templates, &tmpl)
+	}
+
+	if err := iter.Err(); err != nil {
+		log.Printf("Error scanning templates: %v", err)
+	}
+
+	return templates, nil
 }
 
 // Configuration management methods
@@ -816,8 +858,108 @@ func (s *notificationService) RenderTemplate(tmplParam *models.NotificationTempl
 }
 
 func (s *notificationService) RetryFailedNotifications(ctx context.Context) error {
-	// Placeholder for retrying failed notifications
-	log.Println("Retrying failed notifications")
+	log.Println("Starting retry of failed notifications")
+
+	// Get all failed notifications from Redis
+	pattern := "failed_notification:*"
+	iter := s.redisClient.Scan(ctx, 0, pattern, 100).Iterator()
+
+	retryCount := 0
+	successCount := 0
+	permanentFailCount := 0
+	maxRetries := 3
+
+	for iter.Next(ctx) {
+		key := iter.Val()
+		retryCount++
+
+		// Get failed notification data
+		data, err := s.redisClient.Get(ctx, key).Bytes()
+		if err != nil {
+			if err == redis.Nil {
+				continue
+			}
+			log.Printf("Failed to get failed notification %s: %v", key, err)
+			continue
+		}
+
+		// Parse notification data
+		var failedNotif struct {
+			TenantID      uuid.UUID              `json:"tenant_id"`
+			Recipient     string                 `json:"recipient"`
+			Subject       string                 `json:"subject"`
+			Body          string                 `json:"body"`
+			Channel       string                 `json:"channel"`
+			RetryCount    int                    `json:"retry_count"`
+			LastError     string                 `json:"last_error"`
+			OriginalTime  time.Time              `json:"original_time"`
+			LastRetryTime time.Time              `json:"last_retry_time"`
+			Metadata      map[string]interface{} `json:"metadata"`
+		}
+
+		if err := json.Unmarshal(data, &failedNotif); err != nil {
+			log.Printf("Failed to unmarshal failed notification %s: %v", key, err)
+			continue
+		}
+
+		// Check if max retries exceeded
+		if failedNotif.RetryCount >= maxRetries {
+			// Move to dead letter queue
+			deadLetterKey := strings.Replace(key, "failed_notification:", "dead_letter:", 1)
+			if err := s.redisClient.Rename(ctx, key, deadLetterKey).Err(); err != nil {
+				log.Printf("Failed to move notification to dead letter queue: %v", err)
+			}
+			permanentFailCount++
+			log.Printf("Notification %s moved to dead letter queue after %d retries", key, maxRetries)
+			continue
+		}
+
+		// Implement exponential backoff
+		backoffDuration := time.Duration(1<<uint(failedNotif.RetryCount)) * time.Minute
+		if time.Since(failedNotif.LastRetryTime) < backoffDuration {
+			// Not time to retry yet
+			continue
+		}
+
+		// Attempt retry based on channel
+		var retryErr error
+		switch failedNotif.Channel {
+		case "email":
+			retryErr = s.SendEmail(ctx, failedNotif.TenantID, failedNotif.Recipient, failedNotif.Subject, failedNotif.Body)
+		case "sms":
+			retryErr = s.SendSMS(ctx, failedNotif.TenantID, failedNotif.Recipient, failedNotif.Body)
+		default:
+			log.Printf("Unknown notification channel: %s", failedNotif.Channel)
+			continue
+		}
+
+		if retryErr != nil {
+			// Update retry count and last error
+			failedNotif.RetryCount++
+			failedNotif.LastError = retryErr.Error()
+			failedNotif.LastRetryTime = time.Now()
+
+			updatedData, _ := json.Marshal(failedNotif)
+			s.redisClient.Set(ctx, key, updatedData, 24*time.Hour)
+
+			log.Printf("Retry failed for %s (attempt %d): %v", key, failedNotif.RetryCount, retryErr)
+		} else {
+			// Success - remove from failed queue
+			if err := s.redisClient.Del(ctx, key).Err(); err != nil {
+				log.Printf("Failed to remove successful retry from queue: %v", err)
+			}
+			successCount++
+			log.Printf("Successfully retried notification %s", key)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		log.Printf("Error scanning failed notifications: %v", err)
+	}
+
+	log.Printf("Retry completed: processed=%d, succeeded=%d, permanent_failures=%d",
+		retryCount, successCount, permanentFailCount)
+
 	return nil
 }
 

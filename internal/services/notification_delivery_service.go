@@ -51,6 +51,7 @@ type notificationDeliveryService struct {
 // NewNotificationDeliveryService creates a new notification delivery service
 func NewNotificationDeliveryService(
 	deliveryRepo NotificationDeliveryRepository,
+	notificationRepo repositories.NotificationRepository,
 	templateService NotificationTemplateService,
 	webhookService WebhookSubscriptionService,
 	alertService AlertRuleService,
@@ -73,7 +74,7 @@ func NewNotificationDeliveryService(
 
 	return &notificationDeliveryService{
 		deliveryRepo:     deliveryRepo,
-		notificationRepo: nil, // Can be injected if needed for enhanced functionality
+		notificationRepo: notificationRepo,
 		templateService:  templateService,
 		webhookService:   webhookService,
 		alertService:     alertService,
@@ -563,9 +564,27 @@ func (s *notificationDeliveryService) deliverPush(ctx context.Context, delivery 
 
 // getBadgeCount returns the unread notification count for badge display
 func (s *notificationDeliveryService) getBadgeCount(ctx context.Context, userID uuid.UUID) *int {
-	// This is a placeholder - in production, you would query the actual unread count
-	// from the notifications table
 	badge := 0
+
+	// Query actual unread count from notification repository
+	if s.notificationRepo != nil {
+		// Get tenant ID from user repo if possible
+		if s.userRepo != nil {
+			tenantID, err := s.userRepo.GetTenantIDByUserID(ctx, userID)
+			if err == nil {
+				count, err := s.notificationRepo.CountUnread(ctx, tenantID, userID)
+				if err == nil {
+					badge = count
+				} else {
+					s.logger.WarnWithContext(ctx, "Failed to get unread notification count", map[string]interface{}{
+						"user_id": userID,
+						"error":   err.Error(),
+					})
+				}
+			}
+		}
+	}
+
 	return &badge
 }
 

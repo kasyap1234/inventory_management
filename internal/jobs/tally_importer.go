@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -606,10 +607,7 @@ func (i *TallyImporter) moveToFailedDirectory(filePath string) error {
 
 // Helper functions for file operations
 func createDirIfNotExists(dir string) error {
-	// Implementation uses os.MkdirAll - placeholder for now
-	// In production, use: return os.MkdirAll(dir, 0755)
-	log.Printf("Creating directory if not exists: %s", dir)
-	return nil
+	return os.MkdirAll(dir, 0755)
 }
 
 type DirEntry struct {
@@ -618,22 +616,35 @@ type DirEntry struct {
 }
 
 func readDirectory(dir string) ([]DirEntry, error) {
-	// Implementation uses os.ReadDir - placeholder for now
-	// In production, implement using: entries, err := os.ReadDir(dir)
-	log.Printf("Reading directory: %s", dir)
-	return []DirEntry{}, nil // Return empty for now
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []DirEntry
+	for _, entry := range entries {
+		result = append(result, DirEntry{
+			Name:  entry.Name(),
+			IsDir: entry.IsDir(),
+		})
+	}
+	return result, nil
 }
 
 func readFileContent(path string) (string, error) {
-	// Implementation uses os.ReadFile - placeholder for now
-	// In production, implement using: data, err := os.ReadFile(path); return string(data), err
-	log.Printf("Reading file content: %s", path)
-	return "", nil // Return empty for now
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func moveFile(src, dst string) error {
-	// Implementation uses os.Rename - placeholder for now
-	// In production, use: return os.Rename(src, dst)
-	log.Printf("Moving file from %s to %s", src, dst)
-	return nil
+	// Ensure destination directory exists
+	dstDir := src[:strings.LastIndex(dst, "/")]
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+	return os.Rename(src, dst)
 }
+

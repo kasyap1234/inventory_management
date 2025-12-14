@@ -67,6 +67,21 @@ type CacheService interface {
 
 	// Pattern-based deletion for token revocation
 	DeleteByPattern(ctx context.Context, pattern string) error
+
+	// Stats for monitoring
+	GetStats(ctx context.Context) (*CacheStats, error)
+}
+
+// CacheStats contains Redis cache statistics
+type CacheStats struct {
+	KeysCount        int64   `json:"keys_count"`
+	UsedMemory       int64   `json:"used_memory"`
+	UsedMemoryHuman  string  `json:"used_memory_human"`
+	Hits             int64   `json:"hits"`
+	Misses           int64   `json:"misses"`
+	HitRate          float64 `json:"hit_rate"`
+	ConnectedClients int64   `json:"connected_clients"`
+	UptimeSeconds    int64   `json:"uptime_seconds"`
 }
 
 
@@ -446,4 +461,60 @@ func (r *redisCacheService) GetCombinedAnalytics(ctx context.Context, tenantID u
 func (r *redisCacheService) SetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID, data []byte, ttl time.Duration) error {
 	key := fmt.Sprintf("agromart:analytics:combined:%s", tenantID.String())
 	return r.client.Set(ctx, key, data, ttl).Err()
+}
+
+// GetStats returns Redis cache statistics
+func (r *redisCacheService) GetStats(ctx context.Context) (*CacheStats, error) {
+	stats := &CacheStats{}
+
+	// Get key count
+	dbSizeResult := r.client.DBSize(ctx)
+	if dbSizeResult.Err() == nil {
+		stats.KeysCount = dbSizeResult.Val()
+	}
+
+	// Get memory info
+	infoResult := r.client.Info(ctx, "memory", "stats", "server", "clients")
+	if infoResult.Err() == nil {
+		infoStr := infoResult.Val()
+
+		// Parse INFO response
+		lines := strings.Split(infoStr, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+
+			key, value := parts[0], strings.TrimSpace(parts[1])
+			
+			switch key {
+			case "used_memory":
+				fmt.Sscanf(value, "%d", &stats.UsedMemory)
+			case "used_memory_human":
+				stats.UsedMemoryHuman = value
+			case "keyspace_hits":
+				fmt.Sscanf(value, "%d", &stats.Hits)
+			case "keyspace_misses":
+				fmt.Sscanf(value, "%d", &stats.Misses)
+			case "connected_clients":
+				fmt.Sscanf(value, "%d", &stats.ConnectedClients)
+			case "uptime_in_seconds":
+				fmt.Sscanf(value, "%d", &stats.UptimeSeconds)
+			}
+		}
+	}
+
+	// Calculate hit rate
+	totalRequests := stats.Hits + stats.Misses
+	if totalRequests > 0 {
+		stats.HitRate = float64(stats.Hits) / float64(totalRequests) * 100
+	}
+
+	return stats, nil
 }

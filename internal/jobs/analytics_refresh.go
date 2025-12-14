@@ -49,18 +49,61 @@ func (a *AnalyticsRefreshService) RefreshAnalyticsForTenant(ctx context.Context,
 func (a *AnalyticsRefreshService) RefreshAllTenantsAnalytics(ctx context.Context) (*AnalyticsRefreshResult, error) {
 	log.Println("Starting analytics refresh for all tenants")
 
-	// In a real implementation, this would get all tenant IDs from tenant repository
-	// For now, just simulate processing
-
 	result := &AnalyticsRefreshResult{
-		TenantsProcessed: 0, // Would be actual count
-		DataUpdated:      true,
-		LastRefreshAt:    time.Now(),
+		TenantsProcessed:       0,
+		DataUpdated:            false,
+		MaterializedViewsRefed: false,
+		LastRefreshAt:          time.Now(),
 	}
 
-	log.Printf("Analytics refresh scheduled (placeholder for all tenants)")
-	log.Printf("Completed analytics refresh for %d tenants at %v",
-		result.TenantsProcessed, result.LastRefreshAt.Format("2006-01-02 15:04:05"))
+	if a.db == nil {
+		log.Println("Database pool not available, skipping tenant analytics refresh")
+		return result, nil
+	}
+
+	// Query all active tenants
+	query := `SELECT id FROM tenants WHERE status = 'active'`
+	rows, err := a.db.Query(ctx, query)
+	if err != nil {
+		log.Printf("Failed to query tenants for analytics refresh: %v", err)
+		return result, err
+	}
+	defer rows.Close()
+
+	var tenantIDs []uuid.UUID
+	for rows.Next() {
+		var tenantID uuid.UUID
+		if err := rows.Scan(&tenantID); err != nil {
+			log.Printf("Failed to scan tenant ID: %v", err)
+			continue
+		}
+		tenantIDs = append(tenantIDs, tenantID)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Printf("Error iterating tenant rows: %v", err)
+		return result, err
+	}
+
+	log.Printf("Found %d active tenants to refresh", len(tenantIDs))
+
+	// Refresh analytics for each tenant
+	successCount := 0
+	failCount := 0
+	for _, tenantID := range tenantIDs {
+		if err := a.RefreshAnalyticsForTenant(ctx, tenantID); err != nil {
+			log.Printf("Failed to refresh analytics for tenant %s: %v", tenantID.String(), err)
+			failCount++
+		} else {
+			successCount++
+		}
+	}
+
+	result.TenantsProcessed = successCount
+	result.DataUpdated = successCount > 0
+
+	log.Printf("Completed analytics refresh: processed=%d, succeeded=%d, failed=%d at %v",
+		len(tenantIDs), successCount, failCount, result.LastRefreshAt.Format("2006-01-02 15:04:05"))
 
 	return result, nil
 }

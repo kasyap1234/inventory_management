@@ -202,8 +202,7 @@ func main() {
 	paymentRepo := repositories.NewPaymentRepo(pool)
 	webhookEventRepo := repositories.NewWebhookEventRepo(pool)
 	auditLogsRepo := repositories.NewAuditLogsRepo(pool)
-	// notificationRepo := repositories.NewNotificationRepo(pool) // Removed unused
-	// notificationConfigRepo := repositories.NewNotificationConfigRepo(pool) // Removed unused
+	notificationRepo := repositories.NewNotificationRepo(pool)
 
 	// Create cache service
 	cacheSvc := caching.NewRedisCacheService(redisAddr, redisPassword, redisDB)
@@ -441,6 +440,7 @@ func main() {
 	notificationDeliveryRepo := repositories.NewNotificationDeliveryRepo(pool)
 	deliverySvc := services.NewNotificationDeliveryService(
 		notificationDeliveryRepo,
+		notificationRepo,
 		notificationTemplateService,
 		webhookSubscriptionService,
 		alertRuleService,

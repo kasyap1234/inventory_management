@@ -23,6 +23,7 @@ type NotificationRepository interface {
 	MarkAsRead(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 	MarkAllAsRead(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) error
 	DeleteOld(ctx context.Context, tenantID uuid.UUID, olderThan time.Time) error
+	CountUnread(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) (int, error)
 }
 
 // NotificationFilters represents filters for querying notifications
@@ -334,4 +335,17 @@ func (r *notificationRepo) DeleteOld(ctx context.Context, tenantID uuid.UUID, ol
 	}
 
 	return nil
+}
+
+// CountUnread counts unread notifications for a user
+func (r *notificationRepo) CountUnread(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM notifications WHERE tenant_id = $1 AND user_id = $2 AND status != 'read'`
+
+	var count int
+	err := r.db.QueryRow(ctx, query, tenantID, userID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count unread notifications: %w", err)
+	}
+
+	return count, nil
 }

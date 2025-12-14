@@ -1096,35 +1096,92 @@ func (a *AnalyticsService) GetSupplierPerformance(ctx context.Context, tenantID 
 		return nil, fmt.Errorf("failed to fetch orders: %w", err)
 	}
 
-	supplierStats := make(map[uuid.UUID]*SupplierPerformance)
+	// Track additional metrics for quality score calculation
+	type supplierMetrics struct {
+		perf           *SupplierPerformance
+		deliveredCount int
+		totalCount     int
+		cancelledCount int
+		returnedCount  int
+		onTimeCount    int
+	}
+
+	supplierStats := make(map[uuid.UUID]*supplierMetrics)
 	for _, order := range orders {
 		if order.SupplierID == nil {
 			continue
 		}
 
 		if supplierStats[*order.SupplierID] == nil {
-			supplierStats[*order.SupplierID] = &SupplierPerformance{
-				SupplierID: *order.SupplierID,
+			supplierStats[*order.SupplierID] = &supplierMetrics{
+				perf: &SupplierPerformance{
+					SupplierID: *order.SupplierID,
+				},
 			}
 		}
-		supplierStats[*order.SupplierID].OrderCount++
+
+		stats := supplierStats[*order.SupplierID]
+		stats.perf.OrderCount++
+		stats.totalCount++
+
 		// Calculate total from quantity * unit_price
 		total, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
 		if err != nil {
 			log.Printf("WARN: overflow computing supplier spend: %v", err)
 			continue
 		}
-		supplierStats[*order.SupplierID].TotalSpent += total
-		if order.Status == "delivered" {
-			supplierStats[*order.SupplierID].OnTimeDelivery += 1
+		stats.perf.TotalSpent += total
+
+		// Track order status for quality metrics
+		switch order.Status {
+		case "delivered":
+			stats.deliveredCount++
+			// Check if delivered on time (before or on expected delivery date)
+			if order.ExpectedDelivery != nil && order.UpdatedAt.Before(*order.ExpectedDelivery) {
+				stats.onTimeCount++
+			} else if order.ExpectedDelivery == nil {
+				// If no expected delivery set, assume on-time
+				stats.onTimeCount++
+			}
+		case "cancelled":
+			stats.cancelledCount++
+		case "returned":
+			stats.returnedCount++
 		}
 	}
 
 	var result []SupplierPerformance
-	for _, perf := range supplierStats {
+	for _, stats := range supplierStats {
+		perf := stats.perf
 		if perf.OrderCount > 0 {
-			perf.OnTimeDelivery = (perf.OnTimeDelivery / float64(perf.OrderCount)) * 100
-			perf.QualityScore = 85.0 // Placeholder
+			// Calculate on-time delivery rate
+			if stats.deliveredCount > 0 {
+				perf.OnTimeDelivery = (float64(stats.onTimeCount) / float64(stats.deliveredCount)) * 100
+			}
+
+			// Calculate quality score based on multiple factors:
+			// 1. Delivery success rate (40% weight) - delivered / total orders
+			// 2. On-time delivery rate (30% weight)
+			// 3. Low cancellation rate (15% weight)
+			// 4. Low return rate (15% weight)
+
+			deliverySuccessRate := float64(stats.deliveredCount) / float64(stats.totalCount) * 100
+			cancellationRate := float64(stats.cancelledCount) / float64(stats.totalCount) * 100
+			returnRate := float64(stats.returnedCount) / float64(stats.totalCount) * 100
+
+			// Score calculation (higher is better)
+			qualityScore := 0.0
+			qualityScore += deliverySuccessRate * 0.40                   // 40% weight for delivery success
+			qualityScore += perf.OnTimeDelivery * 0.30                   // 30% weight for on-time delivery
+			qualityScore += (100 - cancellationRate) * 0.15              // 15% weight for low cancellation
+			qualityScore += (100 - returnRate) * 0.15                    // 15% weight for low returns
+
+			// Cap at 100
+			if qualityScore > 100 {
+				qualityScore = 100
+			}
+
+			perf.QualityScore = qualityScore
 		}
 		result = append(result, *perf)
 	}
@@ -1241,30 +1298,81 @@ func (a *AnalyticsService) GetProfitMarginAnalysis(ctx context.Context, tenantID
 		return cached, nil
 	}
 
+	// Get revenue from invoices
 	invoices, err := a.invoiceRepo.List(ctx, tenantID, 10000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch invoices: %w", err)
 	}
 
-	var totalRevenue, totalCost float64
+	var totalRevenue, totalGSTCollected float64
+	paidInvoiceCount := 0
 	for _, inv := range invoices {
-		totalRevenue += inv.TotalAmount
-		if inv.TotalAmount > 0 {
-			totalCost += inv.TotalAmount * 0.7 // Placeholder: assume 70% cost
+		if inv.Status == "paid" {
+			totalRevenue += inv.TotalAmount
+			paidInvoiceCount++
+			// Track GST collected
+			if inv.CGST != nil {
+				totalGSTCollected += *inv.CGST
+			}
+			if inv.SGST != nil {
+				totalGSTCollected += *inv.SGST
+			}
+			if inv.IGST != nil {
+				totalGSTCollected += *inv.IGST
+			}
 		}
 	}
 
+	// Calculate cost from purchase orders
+	orders, err := a.orderRepo.List(ctx, tenantID, 10000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch orders: %w", err)
+	}
+
+	var totalCost float64
+	purchaseOrderCount := 0
+	salesOrderCount := 0
+	for _, order := range orders {
+		if order.OrderType == "purchase" && (order.Status == "delivered" || order.Status == "completed") {
+			// Calculate cost from purchase orders
+			orderTotal, err := common.SafeMultiplyMonetary(float64(order.Quantity), order.UnitPrice)
+			if err == nil {
+				totalCost += orderTotal
+				purchaseOrderCount++
+			}
+		} else if order.OrderType == "sales" {
+			salesOrderCount++
+		}
+	}
+
+	// Calculate gross profit and margin
+	grossProfit := totalRevenue - totalGSTCollected - totalCost
 	margin := 0.0
 	if totalRevenue > 0 {
-		margin = ((totalRevenue - totalCost) / totalRevenue) * 100
+		margin = (grossProfit / totalRevenue) * 100
+	}
+
+	// Determine margin trend (compare with previous period would require more data)
+	marginTrend := "stable"
+	if margin > 25 {
+		marginTrend = "healthy"
+	} else if margin < 10 {
+		marginTrend = "needs_attention"
+	} else if margin < 0 {
+		marginTrend = "loss"
 	}
 
 	result := map[string]interface{}{
-		"total_revenue": totalRevenue,
-		"total_cost":    totalCost,
-		"profit_margin": margin,
-		"margin_trend":  "stable",
-		"invoice_count": len(invoices),
+		"total_revenue":        totalRevenue,
+		"total_cost":           totalCost,
+		"gross_profit":         grossProfit,
+		"gst_collected":        totalGSTCollected,
+		"profit_margin":        margin,
+		"margin_trend":         marginTrend,
+		"invoice_count":        len(invoices),
+		"paid_invoice_count":   paidInvoiceCount,
+		"purchase_order_count": purchaseOrderCount,
+		"sales_order_count":    salesOrderCount,
 	}
 
 	a.setCachedJSON(ctx, cacheKey, result, 30*time.Minute)

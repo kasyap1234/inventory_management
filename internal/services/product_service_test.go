@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"agromart2/internal/caching"
 	"agromart2/internal/models"
 
 	"github.com/google/uuid"
@@ -400,6 +401,14 @@ func (m *MockCacheService) SetOrderList(ctx context.Context, tenantID uuid.UUID,
 func (m *MockCacheService) InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error {
 	args := m.Called(ctx, tenantID)
 	return args.Error(0)
+}
+
+func (m *MockCacheService) GetStats(ctx context.Context) (*caching.CacheStats, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*caching.CacheStats), args.Error(1)
 }
 
 type MockMinioService struct {
