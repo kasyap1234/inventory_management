@@ -1167,6 +1167,8 @@ func (s *notificationService) SendLowStockAlerts(ctx context.Context, tenantID u
 	}
 	notificationMessage := fmt.Sprintf("The following products are low on stock: %s", strings.Join(productNames, ", "))
 
+	var sentCount, failedCount int
+
 	for _, user := range users {
 		notificationID := uuid.NewString()
 		subject := "Low Stock Alert"
@@ -1186,6 +1188,50 @@ func (s *notificationService) SendLowStockAlerts(ctx context.Context, tenantID u
 			CreatedAt:  time.Now(),
 		}
 
+		// Actually send the email
+		if err := s.SendEmail(ctx, tenantID, user.Email, subject, notificationMessage); err != nil {
+			log.Printf("Failed to send low-stock alert email to %s: %v", user.Email, err)
+			failedCount++
+
+			// Store as failed notification for retry
+			notification.Status = "failed"
+			failedNotif := struct {
+				TenantID      uuid.UUID              `json:"tenant_id"`
+				Recipient     string                 `json:"recipient"`
+				Subject       string                 `json:"subject"`
+				Body          string                 `json:"body"`
+				Channel       string                 `json:"channel"`
+				RetryCount    int                    `json:"retry_count"`
+				LastError     string                 `json:"last_error"`
+				OriginalTime  time.Time              `json:"original_time"`
+				LastRetryTime time.Time              `json:"last_retry_time"`
+				Metadata      map[string]interface{} `json:"metadata"`
+			}{
+				TenantID:      tenantID,
+				Recipient:     user.Email,
+				Subject:       subject,
+				Body:          notificationMessage,
+				Channel:       "email",
+				RetryCount:    0,
+				LastError:     err.Error(),
+				OriginalTime:  time.Now(),
+				LastRetryTime: time.Now(),
+				Metadata:      map[string]interface{}{"event_type": "low_stock_alert"},
+			}
+
+			failedKey := fmt.Sprintf("failed_notification:%s:%s", tenantID.String(), notificationID)
+			if failedData, marshalErr := json.Marshal(failedNotif); marshalErr == nil {
+				if setErr := s.redisClient.Set(ctx, failedKey, failedData, 24*time.Hour).Err(); setErr != nil {
+					log.Printf("Failed to store failed notification for retry: %v", setErr)
+				}
+			}
+		} else {
+			notification.Status = "sent"
+			sentCount++
+			log.Printf("Successfully sent low-stock alert to %s for tenant %s", user.Email, tenantID.String())
+		}
+
+		// Cache the notification record
 		cacheKey := fmt.Sprintf("notification:%s:%s", tenantID.String(), notificationID)
 		data, err := json.Marshal(notification)
 		if err != nil {
@@ -1196,9 +1242,9 @@ func (s *notificationService) SendLowStockAlerts(ctx context.Context, tenantID u
 		if err := s.redisClient.Set(ctx, cacheKey, data, 24*time.Hour).Err(); err != nil {
 			log.Printf("Failed to cache notification for user %s: %v", user.Email, err)
 		}
-
-		log.Printf("Low-stock alert for tenant %s: %s (sent to %s)", tenantID.String(), notificationMessage, user.Email)
 	}
+
+	log.Printf("Low-stock alerts complete for tenant %s: sent=%d, failed=%d", tenantID.String(), sentCount, failedCount)
 
 	return nil
 }

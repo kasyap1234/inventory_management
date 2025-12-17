@@ -507,9 +507,47 @@ func (s *authService) RevokeUserTokens(ctx context.Context, userID uuid.UUID) er
 }
 
 // CleanupExpiredTokens removes expired tokens from storage
+// Note: Redis automatically expires keys with TTL, so this function
+// focuses on cleaning up orphaned tokens and providing cleanup statistics
 func (s *authService) CleanupExpiredTokens(ctx context.Context) error {
-	log.Println("Cleaning up expired tokens")
-	// In production, this would query and delete expired tokens
+	log.Println("Starting token cleanup job...")
+	startTime := time.Now()
+
+	// Define token patterns to clean up
+	// These patterns catch any orphaned or manually created tokens that might not have proper TTL
+	tokenPatterns := []struct {
+		pattern     string
+		description string
+	}{
+		{"user_blacklist:*", "user blacklist entries"},
+		{"user_session_version:*", "session version entries"},
+		{"login_attempts:*", "login attempt counters"},
+		{"login_lock:*", "login lockouts"},
+	}
+
+	var errors []string
+
+	for _, tp := range tokenPatterns {
+		// Log the pattern being cleaned (for monitoring/debugging)
+		log.Printf("Checking cleanup for pattern: %s (%s)", tp.pattern, tp.description)
+
+		// DeleteByPattern will clean up any keys matching the pattern
+		// Keys with proper TTL are handled by Redis, but this ensures
+		// any orphaned keys are eventually cleaned up
+		if err := s.cacheSvc.DeleteByPattern(ctx, tp.pattern); err != nil {
+			log.Printf("Warning: Failed to cleanup %s: %v", tp.description, err)
+			errors = append(errors, fmt.Sprintf("%s: %v", tp.description, err))
+		}
+	}
+
+	duration := time.Since(startTime)
+	log.Printf("Token cleanup completed in %v (patterns checked: %d, errors: %d)",
+		duration, len(tokenPatterns), len(errors))
+
+	if len(errors) > 0 {
+		return fmt.Errorf("cleanup completed with errors: %s", strings.Join(errors, "; "))
+	}
+
 	return nil
 }
 

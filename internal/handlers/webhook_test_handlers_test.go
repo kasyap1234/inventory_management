@@ -70,6 +70,7 @@ func (s *stubCacheService) SetString(ctx context.Context, key string, value stri
 func (s *stubCacheService) GetString(ctx context.Context, key string) (string, error) { return "", nil }
 func (s *stubCacheService) Delete(ctx context.Context, key string) error              { return nil }
 func (s *stubCacheService) DeleteByPattern(ctx context.Context, pattern string) error { return nil }
+func (s *stubCacheService) GetStats(ctx context.Context) (*caching.CacheStats, error) { return nil, nil }
 
 // Combined Analytics caching
 func (s *stubCacheService) GetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID) ([]byte, error) {
