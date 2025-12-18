@@ -49,75 +49,59 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 	userID := uuid.New()
 	tenantID := uuid.New()
 
+	// NOTE: This test validates RBAC middleware behavior ONLY, not the full CreateUser handler.
+	// The middleware only checks the permission specified in RequirePermission().
+	// Additional permission checks (user.manage_roles, role.create, etc.) happen inside
+	// the CreateUser handler and require integration tests with mocked repositories.
 	tests := []struct {
 		name           string
 		hasCreatePerm  bool
-		hasManageRoles bool
-		hasRoleCreate  bool
-		hasRoleManage  bool
 		requestBody    map[string]interface{}
 		expectedStatus int
 		description    string
 	}{
 		{
-			name:           "User with user.create can create user without role",
-			hasCreatePerm:  true,
-			hasManageRoles: false,
-			requestBody: map[string]interface{}{
-				"email":      "test@example.com",
-				"first_name": "Test",
-				"last_name":  "User",
-				"tenant_id":  tenantID.String(),
-			},
-			expectedStatus: http.StatusCreated,
-			description:    "Should allow user creation when user.create permission exists",
-		},
-		{
-			name:           "User without user.create cannot create user",
-			hasCreatePerm:  false,
-			hasManageRoles: false,
-			requestBody: map[string]interface{}{
-				"email":      "test@example.com",
-				"first_name": "Test",
-				"last_name":  "User",
-				"tenant_id":  tenantID.String(),
-			},
-			expectedStatus: http.StatusForbidden,
-			description:    "Should deny user creation when user.create permission is missing",
-		},
-		{
-			name:           "User with user.create but without user.manage_roles cannot assign role",
-			hasCreatePerm:  true,
-			hasManageRoles: false,
-			requestBody: map[string]interface{}{
-				"email":      "test@example.com",
-				"first_name": "Test",
-				"last_name":  "User",
-				"tenant_id":  tenantID.String(),
-				"role_id":    uuid.New().String(),
-			},
-			expectedStatus: http.StatusForbidden,
-			description:    "Should deny role assignment when user.manage_roles permission is missing",
-		},
-		{
-			name:           "User with user.create and user.manage_roles can assign role",
-			hasCreatePerm:  true,
-			hasManageRoles: true,
-			requestBody: map[string]interface{}{
-				"email":      "test@example.com",
-				"first_name": "Test",
-				"last_name":  "User",
-				"tenant_id":  tenantID.String(),
-				"role_id":    uuid.New().String(),
-			},
-			expectedStatus: http.StatusCreated,
-			description:    "Should allow role assignment when both permissions exist",
-		},
-		{
-			name:          "User creating custom role needs role.create and role.manage_permissions",
+			name:          "User with user.create permission passes middleware",
 			hasCreatePerm: true,
-			hasRoleCreate: false,
-			hasRoleManage: false,
+			requestBody: map[string]interface{}{
+				"email":      "test@example.com",
+				"first_name": "Test",
+				"last_name":  "User",
+				"tenant_id":  tenantID.String(),
+			},
+			expectedStatus: http.StatusCreated,
+			description:    "Should allow request when user.create permission exists",
+		},
+		{
+			name:          "User without user.create permission is denied by middleware",
+			hasCreatePerm: false,
+			requestBody: map[string]interface{}{
+				"email":      "test@example.com",
+				"first_name": "Test",
+				"last_name":  "User",
+				"tenant_id":  tenantID.String(),
+			},
+			expectedStatus: http.StatusForbidden,
+			description:    "Should deny request when user.create permission is missing",
+		},
+		{
+			// Middleware doesn't inspect request body - role_id check happens in handler
+			name:          "User with user.create passes middleware even with role_id in request",
+			hasCreatePerm: true,
+			requestBody: map[string]interface{}{
+				"email":      "test@example.com",
+				"first_name": "Test",
+				"last_name":  "User",
+				"tenant_id":  tenantID.String(),
+				"role_id":    uuid.New().String(),
+			},
+			expectedStatus: http.StatusCreated,
+			description:    "Middleware passes with user.create; user.manage_roles check is inside handler",
+		},
+		{
+			// Middleware doesn't inspect request body - permissions check happens in handler
+			name:          "User with user.create passes middleware even with permissions in request",
+			hasCreatePerm: true,
 			requestBody: map[string]interface{}{
 				"email":       "test@example.com",
 				"first_name":  "Test",
@@ -125,8 +109,8 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 				"tenant_id":   tenantID.String(),
 				"permissions": []string{"product.read", "product.create"},
 			},
-			expectedStatus: http.StatusForbidden,
-			description:    "Should deny custom role creation when role.create permission is missing",
+			expectedStatus: http.StatusCreated,
+			description:    "Middleware passes with user.create; role.create check is inside handler",
 		},
 	}
 
@@ -135,23 +119,7 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 			mockRBAC := new(MockRBACService)
 			mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "user.create").Return(tt.hasCreatePerm, nil)
 
-			if tt.hasCreatePerm {
-				if tt.requestBody["role_id"] != nil {
-					mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "user.manage_roles").Return(tt.hasManageRoles, nil)
-				}
-				if tt.requestBody["permissions"] != nil {
-					mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "role.create").Return(tt.hasRoleCreate, nil)
-					if tt.hasRoleCreate {
-						mockRBAC.On("UserHasPermission", mock.Anything, userID, tenantID, "role.manage_permissions").Return(tt.hasRoleManage, nil)
-					}
-				}
-			}
-
 			rbacMiddleware := middleware.NewRBACMiddleware(mockRBAC)
-
-			// Note: This is a simplified test - in a real scenario, you'd need to mock
-			// all the repositories and services used by CreateUser handler
-			// For now, we're just testing that RBAC middleware is called correctly
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader(body))
@@ -165,7 +133,7 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 			ctx = context.WithValue(ctx, common.TenantIDKey, tenantID)
 			c.SetRequest(c.Request().WithContext(ctx))
 
-			// Test RBAC middleware directly
+			// Test RBAC middleware directly - only checks user.create
 			handler := rbacMiddleware.RequirePermission("user.create")(func(c echo.Context) error {
 				return c.NoContent(http.StatusCreated)
 			})
@@ -173,19 +141,16 @@ func TestCreateUser_RBACEnforcement(t *testing.T) {
 			err := handler(c)
 
 			if tt.expectedStatus == http.StatusCreated {
-				if err != nil {
-					he, ok := err.(*echo.HTTPError)
-					if ok {
-						assert.Equal(t, http.StatusForbidden, he.Code, tt.description)
-					} else {
-						assert.NoError(t, err, tt.description)
-					}
-				}
+				assert.NoError(t, err, tt.description)
 			} else {
 				assert.Error(t, err, tt.description)
-				he, ok := err.(*echo.HTTPError)
-				assert.True(t, ok, tt.description)
-				assert.Equal(t, tt.expectedStatus, he.Code, tt.description)
+				if err != nil {
+					he, ok := err.(*echo.HTTPError)
+					assert.True(t, ok, tt.description)
+					if ok && he != nil {
+						assert.Equal(t, tt.expectedStatus, he.Code, tt.description)
+					}
+				}
 			}
 
 			mockRBAC.AssertExpectations(t)

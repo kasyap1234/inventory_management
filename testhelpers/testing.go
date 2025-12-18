@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"agromart2/internal/models"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -24,7 +25,9 @@ func SetupTestDB(t *testing.T, connString string) *TestDB {
 	if connString == "" {
 		connString = os.Getenv("TEST_DATABASE_URL")
 		if connString == "" {
-			connString = "host=localhost port=5432 user=postgres password=postgres dbname=agromart2_test sslmode=disable"
+			// Default connection string matches docker-compose.test.yml
+			// Run: docker-compose -f docker-compose.test.yml up -d
+			connString = "host=localhost port=5440 user=testuser password=testpass dbname=agromart2_test sslmode=disable"
 		}
 	}
 
@@ -89,19 +92,19 @@ func SetupTestProduct(t *testing.T, db *TestDB, tenantID, categoryID uuid.UUID) 
 	expiry := time.Now().Add(365 * 24 * time.Hour)
 
 	product := &models.Product{
-		ID:             productID,
-		TenantID:       tenantID,
-		CategoryID:     &categoryID,
-		Name:           "Test Product",
-		BatchNumber:    &batchNum,
-		ExpiryDate:     &expiry,
-		Quantity:       100,
-		UnitPrice:      10.99,
-		Barcode:        &barcode,
-		UnitOfMeasure:  &unitMeasure,
-		Description:    &description,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		ID:            productID,
+		TenantID:      tenantID,
+		CategoryID:    &categoryID,
+		Name:          "Test Product",
+		BatchNumber:   &batchNum,
+		ExpiryDate:    &expiry,
+		Quantity:      100,
+		UnitPrice:     10.99,
+		Barcode:       &barcode,
+		UnitOfMeasure: &unitMeasure,
+		Description:   &description,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	query := `

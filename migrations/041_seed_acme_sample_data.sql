@@ -58,9 +58,10 @@ DECLARE
 
     tok_web          CONSTANT uuid := 'edededed-eded-eded-eded-111111111111';
 BEGIN
-    -- Safety check
+    -- Safety check - skip if tenant doesn't exist (this is sample data, not required)
     IF NOT EXISTS (SELECT 1 FROM tenants WHERE id = v_tenant) THEN
-        RAISE EXCEPTION 'Tenant % not found. Seed aborted.', v_tenant;
+        RAISE NOTICE 'Tenant % not found. Skipping sample data seeding.', v_tenant;
+        RETURN;
     END IF;
 
     -- Clean existing Acme seed data

@@ -188,6 +188,15 @@ func (a *InventoryAdapter) GetStockHistory(ctx context.Context, tenantID uuid.UU
 	return a.stockAdjustmentRepo.GetByProduct(ctx, tenantID, productID)
 }
 
+// GetStockHistoryPaginated retrieves stock adjustment history with database-level pagination
+// This is more efficient than GetStockHistory + in-memory slicing for large datasets
+func (a *InventoryAdapter) GetStockHistoryPaginated(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, limit, offset int) ([]*StockAdjustment, error) {
+	if a.stockAdjustmentRepo == nil {
+		return nil, fmt.Errorf("stock adjustment repository not configured. Please initialize the adapter with SetStockAdjustmentRepo")
+	}
+	return a.stockAdjustmentRepo.GetByProductPaginated(ctx, tenantID, productID, limit, offset)
+}
+
 // Legacy CRUD methods - delegate to repository
 func (a *InventoryAdapter) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Inventory, error) {
 	return a.repo.List(ctx, tenantID, limit, offset)

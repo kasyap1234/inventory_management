@@ -27,6 +27,7 @@ type InventoryRepository interface {
 	GetReservationsByProduct(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*repositories.InventoryReservation, error)
 	CreateStockAdjustment(ctx context.Context, adjustment *repositories.StockAdjustment) error
 	GetStockHistory(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*repositories.StockAdjustment, error)
+	GetStockHistoryPaginated(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, limit, offset int) ([]*repositories.StockAdjustment, error)
 	// Legacy CRUD methods
 	List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Inventory, error)
 	Create(ctx context.Context, inventory *models.Inventory) error
@@ -123,8 +124,9 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 		return nil, common.CreateDatabaseError("get_inventory_history", err)
 	}
 
-	// Get stock adjustment history for this product
-	adjustments, err := s.repository.GetStockHistory(ctx, tenantID, inventory.ProductID)
+	// Get paginated stock adjustment history for this product using database-level pagination
+	// This is more efficient than fetching all records and slicing in memory
+	adjustments, err := s.repository.GetStockHistoryPaginated(ctx, tenantID, inventory.ProductID, limit, offset)
 	if err != nil {
 		s.logger.ErrorWithContext(ctx, "Failed to get stock history", err, map[string]interface{}{
 			"product_id": inventory.ProductID,
@@ -157,19 +159,7 @@ func (s *inventoryService) GetInventoryHistory(ctx context.Context, tenantID uui
 		auditLogs = append(auditLogs, auditLog)
 	}
 
-	// TODO: Move pagination to repository level for better performance with large datasets
-	// Currently fetches all stock adjustments then paginates in memory - inefficient for large histories
-	// This requires adding limit/offset parameters to GetStockHistory repository method
-	start := offset
-	if start > len(auditLogs) {
-		return []*models.AuditLog{}, nil
-	}
-	end := offset + limit
-	if end > len(auditLogs) {
-		end = len(auditLogs)
-	}
-
-	return auditLogs[start:end], nil
+	return auditLogs, nil
 }
 
 // ReserveStock reserves stock for a specific reservation using transactional semantics.

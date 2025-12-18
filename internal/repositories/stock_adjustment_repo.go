@@ -18,6 +18,7 @@ type StockAdjustmentRepository interface {
 	Create(ctx context.Context, adjustment *StockAdjustment) error
 	GetByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*StockAdjustment, error)
 	GetByProduct(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*StockAdjustment, error)
+	GetByProductPaginated(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, limit, offset int) ([]*StockAdjustment, error)
 	GetByWarehouse(ctx context.Context, tenantID uuid.UUID, warehouseID uuid.UUID) ([]*StockAdjustment, error)
 	GetByProductAndWarehouse(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, warehouseID uuid.UUID) ([]*StockAdjustment, error)
 	GetByAdjustmentType(ctx context.Context, tenantID uuid.UUID, adjustmentType string) ([]*StockAdjustment, error)
@@ -177,6 +178,22 @@ func (r *stockAdjustmentRepo) GetByProduct(ctx context.Context, tenantID uuid.UU
 	`
 
 	return r.scanAdjustments(ctx, query, productID, tenantID)
+}
+
+// GetByProductPaginated retrieves stock adjustments for a product with database-level pagination
+// This provides better performance for large datasets compared to in-memory pagination
+func (r *stockAdjustmentRepo) GetByProductPaginated(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, limit, offset int) ([]*StockAdjustment, error) {
+	query := `
+		SELECT id, tenant_id, product_id, warehouse_id, adjustment_type,
+		       quantity, previous_stock, new_stock, reason, reference_type,
+		       reference_id, adjusted_by, adjusted_at, created_at
+		FROM stock_adjustments
+		WHERE product_id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		ORDER BY adjusted_at DESC
+		LIMIT $3 OFFSET $4
+	`
+
+	return r.scanAdjustments(ctx, query, productID, tenantID, limit, offset)
 }
 
 // GetByWarehouse retrieves all stock adjustments for a warehouse
