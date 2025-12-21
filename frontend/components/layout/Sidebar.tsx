@@ -72,9 +72,10 @@ export function Sidebar() {
                 // Hide Tenants from non-super-admins
                 if (item.name === 'Tenants') return null;
 
-                // Hide RBAC/Users from non-admins
+                // Hide RBAC/Users from non-admins (support both 'admin' and 'tenant_admin' roles)
+                const adminRoles = ['admin', 'tenant_admin'];
                 if ((item.name === 'Users & Roles' || item.name === 'RBAC Management') &&
-                  user?.role !== 'admin') return null;
+                  !adminRoles.includes(user?.role || '')) return null;
               }
 
               const isActive = pathname === item.href;
