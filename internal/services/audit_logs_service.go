@@ -66,17 +66,17 @@ func (s *auditLogsService) LogActivity(ctx context.Context, tenantID uuid.UUID, 
 	}
 
 	auditLog := &models.AuditLog{
-		ID:         uuid.New(),
-		TenantID:   tenantID,
-		TableName:  tableName,
-		RecordID:   recordID,
-		Action:     action,
-		NewValues:  newValues,
-		OldValues:  oldValues,
-		ChangedBy:  changedBy,
-		Deleted:    false,
-		DeletedAt:  nil,
-		CreatedAt:  time.Now(),
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		TableName: tableName,
+		RecordID:  recordID,
+		Action:    action,
+		NewValues: newValues,
+		OldValues: oldValues,
+		ChangedBy: changedBy,
+		Deleted:   false,
+		DeletedAt: nil,
+		CreatedAt: time.Now(),
 	}
 
 	return s.auditLogsRepo.Create(ctx, auditLog)
@@ -170,52 +170,52 @@ func CreateEntityValues(entity interface{}) (models.JSONB, error) {
 	case *models.User:
 		// Clean sensitive fields
 		values := map[string]interface{}{
-			"id":           v.ID,
-			"tenant_id":    v.TenantID,
-			"email":        v.Email,
-			"first_name":   v.FirstName,
-			"last_name":    v.LastName,
-			"status":       v.Status,
-			"created_at":   v.CreatedAt,
-			"updated_at":   v.UpdatedAt,
+			"id":         v.ID,
+			"tenant_id":  v.TenantID,
+			"email":      v.Email,
+			"first_name": v.FirstName,
+			"last_name":  v.LastName,
+			"status":     v.Status,
+			"created_at": v.CreatedAt,
+			"updated_at": v.UpdatedAt,
 		}
 		return values, nil
 
 	case *models.Product:
 		values := map[string]interface{}{
-			"id":             v.ID,
-			"tenant_id":      v.TenantID,
-			"name":           v.Name,
-			"category_id":    v.CategoryID,
-			"quantity":       v.Quantity,
-			"unit_price":     v.UnitPrice,
-			"barcode":        v.Barcode,
+			"id":              v.ID,
+			"tenant_id":       v.TenantID,
+			"name":            v.Name,
+			"category_id":     v.CategoryID,
+			"quantity":        v.Quantity,
+			"unit_price":      v.UnitPrice,
+			"barcode":         v.Barcode,
 			"unit_of_measure": v.UnitOfMeasure,
-			"description":    v.Description,
-			"batch_number":   v.BatchNumber,
-			"expiry_date":    v.ExpiryDate,
-			"created_at":     v.CreatedAt,
-			"updated_at":     v.UpdatedAt,
+			"description":     v.Description,
+			"batch_number":    v.BatchNumber,
+			"expiry_date":     v.ExpiryDate,
+			"created_at":      v.CreatedAt,
+			"updated_at":      v.UpdatedAt,
 		}
 		return values, nil
 
 	case *models.Order:
 		values := map[string]interface{}{
-			"id":                 v.ID,
-			"tenant_id":          v.TenantID,
-			"order_type":         v.OrderType,
-			"supplier_id":        v.SupplierID,
-			"distributor_id":     v.DistributorID,
-			"product_id":         v.ProductID,
-			"warehouse_id":       v.WarehouseID,
-			"quantity":           v.Quantity,
-			"unit_price":         v.UnitPrice,
-			"status":             v.Status,
-			"order_date":         v.OrderDate,
-			"expected_delivery":  v.ExpectedDelivery,
-			"notes":              v.Notes,
-			"created_at":         v.CreatedAt,
-			"updated_at":         v.UpdatedAt,
+			"id":                v.ID,
+			"tenant_id":         v.TenantID,
+			"order_type":        v.OrderType,
+			"supplier_id":       v.SupplierID,
+			"distributor_id":    v.DistributorID,
+			"product_id":        v.ProductID,
+			"warehouse_id":      v.WarehouseID,
+			"quantity":          v.Quantity,
+			"unit_price":        v.UnitPrice,
+			"status":            v.Status,
+			"order_date":        v.OrderDate,
+			"expected_delivery": v.ExpectedDelivery,
+			"notes":             v.Notes,
+			"created_at":        v.CreatedAt,
+			"updated_at":        v.UpdatedAt,
 		}
 		return values, nil
 

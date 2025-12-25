@@ -16,11 +16,11 @@ import (
 
 type AuditLogsServiceTestSuite struct {
 	suite.Suite
-	mockRepo  *repositories.MockAuditLogsRepository
-	service   AuditLogsService
-	tenantID  uuid.UUID
-	userID    uuid.UUID
-	ctx       context.Context
+	mockRepo *repositories.MockAuditLogsRepository
+	service  AuditLogsService
+	tenantID uuid.UUID
+	userID   uuid.UUID
+	ctx      context.Context
 }
 
 func (suite *AuditLogsServiceTestSuite) SetupTest() {
@@ -118,7 +118,7 @@ func (suite *AuditLogsServiceTestSuite) TestGetEntityHistory_Success() {
 func (suite *AuditLogsServiceTestSuite) TestLogEntityCreate_Success() {
 	// Arrange - use mock.MatchedBy to match relevant fields, ignore ID and CreatedAt
 	newValues := models.JSONB{"name": "New Product", "price": 100}
-	
+
 	suite.mockRepo.On("Create", suite.ctx, mock.MatchedBy(func(log *models.AuditLog) bool {
 		return log.TenantID == suite.tenantID &&
 			log.TableName == "products" &&

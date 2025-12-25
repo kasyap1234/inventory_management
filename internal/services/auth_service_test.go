@@ -26,20 +26,20 @@ func TestPasswordHashingDirect(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Hash the password
 			hash, err := bcrypt.GenerateFromPassword([]byte(tc.password), bcrypt.DefaultCost)
-			
+
 			if tc.wantErr {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			assert.NoError(t, err)
 			assert.NotEmpty(t, hash)
 			assert.NotEqual(t, tc.password, string(hash))
-			
+
 			// Verify the hash
 			err = bcrypt.CompareHashAndPassword(hash, []byte(tc.password))
 			assert.NoError(t, err)
-			
+
 			// Verify wrong password fails
 			err = bcrypt.CompareHashAndPassword(hash, []byte("wrong_password"))
 			assert.Error(t, err)
@@ -50,16 +50,16 @@ func TestPasswordHashingDirect(t *testing.T) {
 // TestPasswordHashing_UniqueHashes verifies that the same password produces different hashes
 func TestPasswordHashing_UniqueHashes(t *testing.T) {
 	password := "TestPassword123!"
-	
+
 	hash1, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	assert.NoError(t, err)
-	
+
 	hash2, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	assert.NoError(t, err)
-	
+
 	// Hashes should be different (bcrypt uses salt)
 	assert.NotEqual(t, string(hash1), string(hash2))
-	
+
 	// But both should verify correctly
 	assert.NoError(t, bcrypt.CompareHashAndPassword(hash1, []byte(password)))
 	assert.NoError(t, bcrypt.CompareHashAndPassword(hash2, []byte(password)))
@@ -68,7 +68,7 @@ func TestPasswordHashing_UniqueHashes(t *testing.T) {
 // TestPasswordHashing_CostParameter tests different cost parameters
 func TestPasswordHashing_CostParameter(t *testing.T) {
 	password := "TestPassword123!"
-	
+
 	testCases := []struct {
 		name string
 		cost int
@@ -76,13 +76,13 @@ func TestPasswordHashing_CostParameter(t *testing.T) {
 		{"minimum cost", bcrypt.MinCost},
 		{"default cost", bcrypt.DefaultCost},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			hash, err := bcrypt.GenerateFromPassword([]byte(password), tc.cost)
 			assert.NoError(t, err)
 			assert.NotEmpty(t, hash)
-			
+
 			err = bcrypt.CompareHashAndPassword(hash, []byte(password))
 			assert.NoError(t, err)
 		})
@@ -108,7 +108,7 @@ func TestPasswordVerification_EdgeCases(t *testing.T) {
 		{"password with extra space", hash, password + " ", false},
 		{"password with leading space", hash, " " + password, false},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := bcrypt.CompareHashAndPassword(tc.hash, []byte(tc.password))
@@ -135,7 +135,7 @@ func TestEmailNormalization(t *testing.T) {
 		{"with trailing space", "test@example.com ", "test@example.com"},
 		{"with both spaces", " test@example.com ", "test@example.com"},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Simple normalization logic
@@ -163,7 +163,7 @@ func TestSubdomainValidation(t *testing.T) {
 		{"ends with hyphen", "company-", false},
 		{"valid long subdomain", "myverylongcompanyname", true},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			isValid := isValidSubdomain(tc.subdomain)
@@ -191,7 +191,7 @@ func isValidSubdomain(subdomain string) bool {
 // TestAccountLockoutLogic tests account lockout logic
 func TestAccountLockoutLogic(t *testing.T) {
 	const maxAttempts = 5
-	
+
 	testCases := []struct {
 		name       string
 		attempts   int
@@ -203,7 +203,7 @@ func TestAccountLockoutLogic(t *testing.T) {
 		{"6 attempts", 6, true},
 		{"10 attempts", 10, true},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			isLocked := tc.attempts >= maxAttempts
@@ -227,7 +227,7 @@ func TestPasswordStrengthValidation(t *testing.T) {
 		{"valid strong", "Abcdefg1!", true},
 		{"complex valid", "MyP@ssw0rd!123", true},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			isStrong := isStrongPassword(tc.password)
@@ -241,7 +241,7 @@ func isStrongPassword(password string) bool {
 	if len(password) < 8 {
 		return false
 	}
-	
+
 	var hasUpper, hasLower, hasNumber, hasSpecial bool
 	for _, c := range password {
 		switch {
@@ -255,16 +255,16 @@ func isStrongPassword(password string) bool {
 			hasSpecial = true
 		}
 	}
-	
+
 	return hasUpper && hasLower && hasNumber && hasSpecial
 }
 
 // TestJWTClaimsValidation tests JWT claims validation logic
 func TestJWTClaimsValidation(t *testing.T) {
 	testCases := []struct {
-		name     string
-		claims   map[string]interface{}
-		isValid  bool
+		name    string
+		claims  map[string]interface{}
+		isValid bool
 	}{
 		{
 			"valid claims",
@@ -301,7 +301,7 @@ func TestJWTClaimsValidation(t *testing.T) {
 			false,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			isValid := validateClaims(tc.claims)

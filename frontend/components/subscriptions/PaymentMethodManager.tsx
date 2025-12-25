@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Plus, Edit, Trash2, CreditCard, Building, Shield, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, CreditCard, Building, Shield, CheckCircle } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { toast } from 'react-hot-toast'
@@ -178,8 +178,8 @@ export default function PaymentMethodManager() {
       }
     }
 
-    if (!formData.billing_address.line1 || !formData.billing_address.city || 
-        !formData.billing_address.state || !formData.billing_address.postal_code) {
+    if (!formData.billing_address.line1 || !formData.billing_address.city ||
+      !formData.billing_address.state || !formData.billing_address.postal_code) {
       toast.error('Please fill in all billing address fields')
       return
     }
@@ -276,7 +276,7 @@ export default function PaymentMethodManager() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   {getPaymentMethodIcon(method.type)}
-                  
+
                   <div>
                     <div className="flex items-center space-x-2">
                       {method.type === 'card' && method.card && (
@@ -290,7 +290,7 @@ export default function PaymentMethodManager() {
                           </span>
                         </>
                       )}
-                      
+
                       {method.type === 'bank_account' && method.bank_account && (
                         <>
                           <span className="font-semibold text-gray-900">
@@ -301,7 +301,7 @@ export default function PaymentMethodManager() {
                           </span>
                         </>
                       )}
-                      
+
                       {method.is_default && (
                         <span className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                           <CheckCircle className="w-3 h-3" />
@@ -309,7 +309,7 @@ export default function PaymentMethodManager() {
                         </span>
                       )}
                     </div>
-                    
+
                     <div className="text-sm text-gray-600 mt-1">
                       {method.billing_address.line1}, {method.billing_address.city}, {method.billing_address.state} {method.billing_address.postal_code}
                     </div>
@@ -326,14 +326,14 @@ export default function PaymentMethodManager() {
                       Set Default
                     </button>
                   )}
-                  
+
                   <button
                     onClick={() => handleEdit(method)}
                     className="p-2 text-gray-600 hover:text-gray-900"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  
+
                   <button
                     onClick={() => handleDelete(method)}
                     disabled={method.is_default || deletePaymentMethodMutation.isPending}
@@ -375,23 +375,21 @@ export default function PaymentMethodManager() {
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => setFormData({ ...formData, type: 'card' })}
-                        className={`p-4 border-2 rounded-lg flex items-center space-x-3 ${
-                          formData.type === 'card'
+                        className={`p-4 border-2 rounded-lg flex items-center space-x-3 ${formData.type === 'card'
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <CreditCard className="w-6 h-6 text-blue-500" />
                         <span className="font-medium">Credit/Debit Card</span>
                       </button>
-                      
+
                       <button
                         onClick={() => setFormData({ ...formData, type: 'bank_account' })}
-                        className={`p-4 border-2 rounded-lg flex items-center space-x-3 ${
-                          formData.type === 'bank_account'
+                        className={`p-4 border-2 rounded-lg flex items-center space-x-3 ${formData.type === 'bank_account'
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <Building className="w-6 h-6 text-green-500" />
                         <span className="font-medium">Bank Account</span>
@@ -404,7 +402,7 @@ export default function PaymentMethodManager() {
                 {formData.type === 'card' && !editingMethod && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900">Card Information</h3>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Cardholder Name
@@ -488,7 +486,7 @@ export default function PaymentMethodManager() {
                 {formData.type === 'bank_account' && !editingMethod && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900">Bank Account Information</h3>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Account Holder Name
@@ -550,7 +548,7 @@ export default function PaymentMethodManager() {
                 {/* Billing Address */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900">Billing Address</h3>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Address Line 1

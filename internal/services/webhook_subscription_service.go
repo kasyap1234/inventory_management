@@ -366,21 +366,21 @@ func (s *webhookSubscriptionService) DeliverWebhook(ctx context.Context, webhook
 	if err != nil {
 		// Update failure status
 		s.repository.UpdateDeliveryStatus(ctx, webhook.TenantID, webhook.ID, false)
-		
+
 		s.logger.ErrorWithContext(ctx, "Webhook delivery failed", err, map[string]interface{}{
 			"webhook_id":  webhook.ID,
 			"webhook_url": webhook.URL,
 			"event_type":  event.Type,
 			"duration":    duration.String(),
 		})
-		
+
 		return fmt.Errorf("webhook delivery failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Check response status
 	success := resp.StatusCode >= 200 && resp.StatusCode < 300
-	
+
 	// Update delivery status
 	s.repository.UpdateDeliveryStatus(ctx, webhook.TenantID, webhook.ID, success)
 
@@ -436,14 +436,14 @@ func (s *webhookSubscriptionService) isValidEventType(eventType string) bool {
 	if len(eventType) < 3 || len(eventType) > 50 {
 		return false
 	}
-	
+
 	// Check for valid characters
 	for _, char := range eventType {
 		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_') {
 			return false
 		}
 	}
-	
+
 	return true
 }
 

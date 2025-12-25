@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"net/http"
 	"agromart2/internal/common"
 	"agromart2/internal/middleware"
 	"agromart2/internal/models"
 	"agromart2/internal/services"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"net/http"
 )
 
 // SupplierHandlers handles supplier-related HTTP requests
@@ -71,11 +71,11 @@ func (h *SupplierHandlers) ListSuppliers(c echo.Context) error {
 
 // CreateSupplierRequest represents the supplier creation request payload
 type CreateSupplierRequest struct {
-	Name           string  `json:"name" validate:"required"`
-	ContactEmail   *string `json:"contact_email"`
-	ContactPhone   *string `json:"contact_phone"`
-	Address        *string `json:"address"`
-	LicenseNumber  *string `json:"license_number"`
+	Name          string  `json:"name" validate:"required"`
+	ContactEmail  *string `json:"contact_email"`
+	ContactPhone  *string `json:"contact_phone"`
+	Address       *string `json:"address"`
+	LicenseNumber *string `json:"license_number"`
 }
 
 // CreateSupplier handles creating a new supplier

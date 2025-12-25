@@ -14,18 +14,18 @@ import (
 
 // PermissionRepository interface for permission operations
 type PermissionRepository interface {
-    GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]models.RBACPermission, error)
-    HasPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string) (bool, error)
-    CheckResourceAccess(ctx context.Context, userID, tenantID uuid.UUID, resource, action string, resourceID *uuid.UUID) (bool, error)
-    GetRolePermissions(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) ([]*models.Permission, error)
-    GetPermissionsByRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) ([]models.RBACPermission, error)
-    AssignPermissionToRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID, conditions map[string]interface{}) error
-    RemovePermissionFromRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID) error
-    RemoveAllPermissionsFromRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) error
-    List(ctx context.Context) ([]models.RBACPermission, error)
-    ListPermissions(ctx context.Context) ([]*models.Permission, error)
-    GetPermissionByID(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
-    GetPermissionByName(ctx context.Context, name string) (*models.RBACPermission, error)
+	GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]models.RBACPermission, error)
+	HasPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string) (bool, error)
+	CheckResourceAccess(ctx context.Context, userID, tenantID uuid.UUID, resource, action string, resourceID *uuid.UUID) (bool, error)
+	GetRolePermissions(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) ([]*models.Permission, error)
+	GetPermissionsByRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) ([]models.RBACPermission, error)
+	AssignPermissionToRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID, conditions map[string]interface{}) error
+	RemovePermissionFromRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID) error
+	RemoveAllPermissionsFromRole(ctx context.Context, tenantID uuid.UUID, roleID uuid.UUID) error
+	List(ctx context.Context) ([]models.RBACPermission, error)
+	ListPermissions(ctx context.Context) ([]*models.Permission, error)
+	GetPermissionByID(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
+	GetPermissionByName(ctx context.Context, name string) (*models.RBACPermission, error)
 }
 
 // permissionRepo implements PermissionRepository
@@ -60,9 +60,9 @@ func (r *permissionRepo) GetUserPermissions(ctx context.Context, userID, tenantI
 	}
 	defer rows.Close()
 
-    var permissions []models.RBACPermission
+	var permissions []models.RBACPermission
 	for rows.Next() {
-        var perm models.RBACPermission
+		var perm models.RBACPermission
 		var conditionsJSON []byte
 
 		err := rows.Scan(
@@ -122,7 +122,7 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 		hasWildcardResource, _ := r.HasPermission(ctx, userID, tenantID, wildcardResource)
 		hasWildcardAction, _ := r.HasPermission(ctx, userID, tenantID, wildcardAction)
 		hasFullWildcard, _ := r.HasPermission(ctx, userID, tenantID, "*")
-		
+
 		if !hasWildcardResource && !hasWildcardAction && !hasFullWildcard {
 			return false, nil
 		}
@@ -165,10 +165,10 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 			rh.depth ASC
 		LIMIT 1
 	`
-	
+
 	wildcardResource := fmt.Sprintf("%s.*", resource)
 	wildcardAction := fmt.Sprintf("*.%s", action)
-	
+
 	var conditionsJSON []byte
 	err = r.db.QueryRow(ctx, query, userID, tenantID, permissionName, wildcardResource, wildcardAction, resource).Scan(&conditionsJSON)
 	if err != nil {
@@ -178,7 +178,7 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 		}
 		return false, fmt.Errorf("failed to get permission conditions: %w", err)
 	}
-	
+
 	// Parse conditions
 	var conditions map[string]interface{}
 	if len(conditionsJSON) > 0 {
@@ -186,7 +186,7 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 			return false, fmt.Errorf("failed to parse permission conditions: %w", err)
 		}
 	}
-	
+
 	// Check data_scope condition
 	if dataScope, ok := conditions["data_scope"].(string); ok {
 		switch dataScope {
@@ -202,7 +202,7 @@ func (r *permissionRepo) CheckResourceAccess(ctx context.Context, userID, tenant
 			return r.checkResourceOwnership(ctx, userID, tenantID, resource, *resourceID)
 		}
 	}
-	
+
 	// No data_scope restriction, default to tenant-level access
 	return true, nil
 }
@@ -227,9 +227,9 @@ func (r *permissionRepo) GetRolePermissions(ctx context.Context, tenantID uuid.U
 	}
 	defer rows.Close()
 
-    var permissions []*models.Permission
+	var permissions []*models.Permission
 	for rows.Next() {
-        var perm models.Permission
+		var perm models.Permission
 
 		err := rows.Scan(
 			&perm.ID,
@@ -324,9 +324,9 @@ func (r *permissionRepo) ListPermissions(ctx context.Context) ([]*models.Permiss
 	}
 	defer rows.Close()
 
-    var permissions []*models.Permission
+	var permissions []*models.Permission
 	for rows.Next() {
-        var perm models.Permission
+		var perm models.Permission
 
 		err := rows.Scan(
 			&perm.ID,
@@ -351,7 +351,7 @@ func (r *permissionRepo) GetPermissionByName(ctx context.Context, name string) (
 		FROM permissions
 		WHERE name = $1`
 
-    var perm models.RBACPermission
+	var perm models.RBACPermission
 	var conditionsJSON []byte
 	var description *string
 
@@ -388,7 +388,7 @@ func (r *permissionRepo) GetPermissionByName(ctx context.Context, name string) (
 func (r *permissionRepo) checkResourceOwnership(ctx context.Context, userID, tenantID uuid.UUID, resource string, resourceID uuid.UUID) (bool, error) {
 	// This is a simplified implementation
 	// In practice, you would have specific logic for each resource type
-	
+
 	var query string
 	switch resource {
 	case "product":
@@ -419,6 +419,7 @@ func (r *permissionRepo) checkResourceOwnership(ctx context.Context, userID, ten
 
 	return exists, nil
 }
+
 // GetPermissionByID retrieves a permission by ID (returns as RBAC permission for compatibility)
 func (r *permissionRepo) GetPermissionByID(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error) {
 	query := `

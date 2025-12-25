@@ -31,4 +31,3 @@ type Invitation struct {
 	// If empty, the tenant's default role will be assigned
 	RoleIDs []uuid.UUID `json:"role_ids,omitempty" db:"-"` // Populated from JSONB, not directly scanned
 }
-

@@ -18,17 +18,17 @@ import (
 
 // JobScheduler manages background jobs for distributed environment
 type JobScheduler struct {
-	scheduler         gocron.Scheduler
-	analyticsSvc      *analytics.AnalyticsService
-	cacheSvc          caching.CacheService
-	inventoryRepo     repositories.InventoryRepository
-	orderRepo         repositories.OrderRepository
-	tenantRepo        repositories.TenantRepository
-	productRepo       repositories.ProductRepository
-	userRepo          repositories.UserRepository
-	notificationSvc   services.NotificationService
-	jobJobs           map[string]gocron.Job
-	mu                sync.RWMutex
+	scheduler       gocron.Scheduler
+	analyticsSvc    *analytics.AnalyticsService
+	cacheSvc        caching.CacheService
+	inventoryRepo   repositories.InventoryRepository
+	orderRepo       repositories.OrderRepository
+	tenantRepo      repositories.TenantRepository
+	productRepo     repositories.ProductRepository
+	userRepo        repositories.UserRepository
+	notificationSvc services.NotificationService
+	jobJobs         map[string]gocron.Job
+	mu              sync.RWMutex
 }
 
 // NewJobScheduler creates a new job scheduler
@@ -150,7 +150,7 @@ func (js *JobScheduler) refreshTenantAnalytics(ctx context.Context) error {
 		wg.Add(1)
 		go func(tenantID uuid.UUID) {
 			defer wg.Done()
-			semaphore <- struct{}{} // Acquire
+			semaphore <- struct{}{}        // Acquire
 			defer func() { <-semaphore }() // Release
 
 			// Invalidated cached analytics to force refresh
@@ -225,7 +225,7 @@ func (js *JobScheduler) processInventoryAlerts() error {
 
 		if len(lowStockProducts) > 0 {
 			log.Printf("ALERT: Tenant %s has %d inventory items with low stock", tenant.Name, len(lowStockProducts))
-			
+
 			// Send notifications via email/SMS
 			if js.notificationSvc != nil && js.userRepo != nil {
 				if err := js.notificationSvc.SendLowStockAlerts(ctx, tenant.ID, lowStockProducts, js.userRepo); err != nil {

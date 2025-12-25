@@ -47,7 +47,7 @@ func NewRBACServiceWithCache(userRoleRepo repositories.UserRoleRepository, roleP
 
 func (s *rbacService) UserHasPermission(ctx context.Context, userID, tenantID uuid.UUID, permissionName string) (bool, error) {
 	logger := logging.WithContext(ctx)
-	
+
 	// Try cache first if available
 	if s.cacheService != nil {
 		cacheKey := fmt.Sprintf("agromart:rbac:permission:%s:%s:%s", tenantID.String(), userID.String(), permissionName)
@@ -106,7 +106,7 @@ func (s *rbacService) UserHasPermission(ctx context.Context, userID, tenantID uu
 			s.cachePermissionResult(ctx, userID, tenantID, permissionName, true)
 			return true, nil
 		}
-		
+
 		// Wildcard match (e.g., "*", "product.*", "*.read")
 		if s.matchesWildcard(perm.Name, permissionName) {
 			if logger.IsDebugEnabled() {
@@ -133,7 +133,7 @@ func (s *rbacService) UserHasPermission(ctx context.Context, userID, tenantID uu
 
 func (s *rbacService) GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]string, error) {
 	logger := logging.WithContext(ctx)
-	
+
 	// Try cache first if available
 	if s.cacheService != nil {
 		cacheKey := fmt.Sprintf("agromart:rbac:permissions:%s:%s", tenantID.String(), userID.String())
@@ -195,7 +195,7 @@ func (s *rbacService) GetUserPermissions(ctx context.Context, userID, tenantID u
 			Int("permission_count", len(perms)).
 			Msg("RBAC retrieved user permissions")
 	}
-	
+
 	return perms, nil
 }
 
@@ -225,7 +225,7 @@ func (s *rbacService) cachePermissionResult(ctx context.Context, userID, tenantI
 // InvalidateUserPermissionsCache invalidates all cached permissions for a user
 func (s *rbacService) InvalidateUserPermissionsCache(ctx context.Context, userID, tenantID uuid.UUID) error {
 	logger := logging.WithContext(ctx)
-	
+
 	if s.cacheService == nil {
 		return nil // No cache service, nothing to invalidate
 	}

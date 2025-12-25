@@ -9,7 +9,7 @@ import (
 
 // PerformanceMiddleware contains all performance-related middleware configurations
 type PerformanceMiddleware struct {
-	gzipConfig       middleware.GzipConfig
+	gzipConfig        middleware.GzipConfig
 	rateLimiterConfig middleware.RateLimiterConfig
 }
 
@@ -34,9 +34,9 @@ func NewPerformanceMiddleware() *PerformanceMiddleware {
 			Skipper: middleware.DefaultSkipper,
 			Store: middleware.NewRateLimiterMemoryStoreWithConfig(
 				middleware.RateLimiterMemoryStoreConfig{
-					Rate:      100,              // 100 requests
-					Burst:     150,              // Burst up to 150
-					ExpiresIn: 1 * time.Minute,  // Per minute
+					Rate:      100,             // 100 requests
+					Burst:     150,             // Burst up to 150
+					ExpiresIn: 1 * time.Minute, // Per minute
 				},
 			),
 			IdentifierExtractor: func(c echo.Context) (string, error) {

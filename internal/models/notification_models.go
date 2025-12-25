@@ -35,42 +35,42 @@ type NotificationTemplate struct {
 
 // WebhookSubscription represents a webhook subscription
 type WebhookSubscription struct {
-	ID              uuid.UUID              `json:"id" db:"id"`
-	TenantID        uuid.UUID              `json:"tenant_id" db:"tenant_id"`
-	Name            string                 `json:"name" db:"name"`
-	URL             string                 `json:"url" db:"url"`
-	Secret          *string                `json:"secret,omitempty" db:"secret"`
-	EventTypes      []string               `json:"event_types" db:"event_types"`
-	Headers         map[string]interface{} `json:"headers" db:"headers"`
-	TimeoutSeconds  int                    `json:"timeout_seconds" db:"timeout_seconds"`
-	RetryCount      int                    `json:"retry_count" db:"retry_count"`
-	IsActive        bool                   `json:"is_active" db:"is_active"`
-	LastSuccessAt   *time.Time             `json:"last_success_at" db:"last_success_at"`
-	LastFailureAt   *time.Time             `json:"last_failure_at" db:"last_failure_at"`
-	FailureCount    int                    `json:"failure_count" db:"failure_count"`
-	CreatedAt       time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at" db:"updated_at"`
+	ID             uuid.UUID              `json:"id" db:"id"`
+	TenantID       uuid.UUID              `json:"tenant_id" db:"tenant_id"`
+	Name           string                 `json:"name" db:"name"`
+	URL            string                 `json:"url" db:"url"`
+	Secret         *string                `json:"secret,omitempty" db:"secret"`
+	EventTypes     []string               `json:"event_types" db:"event_types"`
+	Headers        map[string]interface{} `json:"headers" db:"headers"`
+	TimeoutSeconds int                    `json:"timeout_seconds" db:"timeout_seconds"`
+	RetryCount     int                    `json:"retry_count" db:"retry_count"`
+	IsActive       bool                   `json:"is_active" db:"is_active"`
+	LastSuccessAt  *time.Time             `json:"last_success_at" db:"last_success_at"`
+	LastFailureAt  *time.Time             `json:"last_failure_at" db:"last_failure_at"`
+	FailureCount   int                    `json:"failure_count" db:"failure_count"`
+	CreatedAt      time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
 }
 
 // AlertRule represents an alert rule configuration
 type AlertRule struct {
-	ID               uuid.UUID              `json:"id" db:"id"`
-	TenantID         uuid.UUID              `json:"tenant_id" db:"tenant_id"`
-	Name             string                 `json:"name" db:"name"`
-	EventType        string                 `json:"event_type" db:"event_type"`
-	Conditions       map[string]interface{} `json:"conditions" db:"conditions"`
-	Actions          []AlertAction          `json:"actions" db:"actions"`
-	IsActive         bool                   `json:"is_active" db:"is_active"`
-	LastTriggeredAt  *time.Time             `json:"last_triggered_at" db:"last_triggered_at"`
-	TriggerCount     int                    `json:"trigger_count" db:"trigger_count"`
-	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
+	ID              uuid.UUID              `json:"id" db:"id"`
+	TenantID        uuid.UUID              `json:"tenant_id" db:"tenant_id"`
+	Name            string                 `json:"name" db:"name"`
+	EventType       string                 `json:"event_type" db:"event_type"`
+	Conditions      map[string]interface{} `json:"conditions" db:"conditions"`
+	Actions         []AlertAction          `json:"actions" db:"actions"`
+	IsActive        bool                   `json:"is_active" db:"is_active"`
+	LastTriggeredAt *time.Time             `json:"last_triggered_at" db:"last_triggered_at"`
+	TriggerCount    int                    `json:"trigger_count" db:"trigger_count"`
+	CreatedAt       time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at" db:"updated_at"`
 }
 
 // AlertAction represents an action to take when an alert is triggered
 type AlertAction struct {
-	Type       string                 `json:"type"`         // email, sms, webhook
-	Target     string                 `json:"target"`       // recipient or webhook ID
+	Type       string                 `json:"type"`   // email, sms, webhook
+	Target     string                 `json:"target"` // recipient or webhook ID
 	TemplateID *string                `json:"template_id"`
 	CustomData map[string]interface{} `json:"custom_data"`
 }
@@ -137,7 +137,7 @@ type NotificationEvent struct {
 // Template variable validation
 type TemplateVariable struct {
 	Name        string `json:"name"`
-	Type        string `json:"type"`        // string, number, boolean, date
+	Type        string `json:"type"` // string, number, boolean, date
 	Required    bool   `json:"required"`
 	Description string `json:"description"`
 	Default     string `json:"default,omitempty"`

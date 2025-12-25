@@ -19,11 +19,11 @@ func EnhancedErrorMiddleware() echo.MiddlewareFunc {
 			if requestID == "" {
 				requestID = uuid.New().String()
 			}
-			
+
 			// Set request ID in context and response header
 			c.Set("request_id", requestID)
 			c.Response().Header().Set("X-Request-ID", requestID)
-			
+
 			// Add HTTP context information for audit logging
 			httpContext := map[string]interface{}{
 				"ip_address": c.RealIP(),
@@ -31,24 +31,24 @@ func EnhancedErrorMiddleware() echo.MiddlewareFunc {
 				"method":     c.Request().Method,
 				"path":       c.Request().URL.Path,
 			}
-			
+
 			// Create new context with HTTP information
 			ctx := context.WithValue(c.Request().Context(), "http_context", httpContext)
 			ctx = context.WithValue(ctx, "request_id", requestID)
 			c.SetRequest(c.Request().WithContext(ctx))
-			
+
 			// Record start time for performance logging
 			start := time.Now()
-			
+
 			// Execute the handler
 			err := next(c)
-			
+
 			// Calculate duration
 			duration := time.Since(start)
-			
+
 			// Add status code to HTTP context
 			httpContext["status_code"] = c.Response().Status
-			
+
 			// Log performance metrics
 			logger := common.GetGlobalLogger()
 			if logger != nil {
@@ -58,7 +58,7 @@ func EnhancedErrorMiddleware() echo.MiddlewareFunc {
 					"status_code": c.Response().Status,
 					"request_id":  requestID,
 				}
-				
+
 				// Add user and tenant info if available
 				if userID, ok := common.GetUserIDFromContext(ctx); ok {
 					metadata["user_id"] = userID
@@ -66,11 +66,11 @@ func EnhancedErrorMiddleware() echo.MiddlewareFunc {
 				if tenantID, ok := common.GetTenantIDFromContext(ctx); ok {
 					metadata["tenant_id"] = tenantID
 				}
-				
+
 				operation := c.Request().Method + " " + c.Request().URL.Path
 				logger.LogPerformance(ctx, operation, duration, metadata)
 			}
-			
+
 			return err
 		}
 	}
@@ -84,9 +84,9 @@ func RequestLoggingMiddleware() echo.MiddlewareFunc {
 			if logger == nil {
 				return next(c)
 			}
-			
+
 			ctx := c.Request().Context()
-			
+
 			// Log request start
 			logger.InfoWithContext(ctx, "Incoming request", map[string]interface{}{
 				"method":     c.Request().Method,
@@ -95,14 +95,14 @@ func RequestLoggingMiddleware() echo.MiddlewareFunc {
 				"ip_address": c.RealIP(),
 				"user_agent": c.Request().UserAgent(),
 			})
-			
+
 			// Execute handler
 			err := next(c)
-			
+
 			// Log request completion
 			level := "info"
 			message := "Request completed"
-			
+
 			if err != nil {
 				level = "error"
 				message = "Request failed"
@@ -110,18 +110,18 @@ func RequestLoggingMiddleware() echo.MiddlewareFunc {
 				level = "warn"
 				message = "Request completed with error status"
 			}
-			
+
 			logData := map[string]interface{}{
-				"method":      c.Request().Method,
-				"path":        c.Request().URL.Path,
-				"status_code": c.Response().Status,
+				"method":        c.Request().Method,
+				"path":          c.Request().URL.Path,
+				"status_code":   c.Response().Status,
 				"response_size": c.Response().Size,
 			}
-			
+
 			if err != nil {
 				logData["error"] = err.Error()
 			}
-			
+
 			switch level {
 			case "error":
 				logger.ErrorWithContext(ctx, message, err, logData)
@@ -130,7 +130,7 @@ func RequestLoggingMiddleware() echo.MiddlewareFunc {
 			default:
 				logger.InfoWithContext(ctx, message, logData)
 			}
-			
+
 			return err
 		}
 	}
@@ -141,14 +141,14 @@ func ErrorNotificationMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			err := next(c)
-			
+
 			if err != nil {
 				// Check if it's a critical error that needs notification
 				if shouldNotifyError(err, c.Response().Status) {
 					go sendErrorNotification(c.Request().Context(), err, c)
 				}
 			}
-			
+
 			return err
 		}
 	}
@@ -160,13 +160,13 @@ func shouldNotifyError(err error, statusCode int) bool {
 	if statusCode >= 500 {
 		return true
 	}
-	
+
 	// Check for specific error types that should be notified
 	if enhancedErr, ok := err.(*common.EnhancedError); ok {
 		return enhancedErr.Severity == common.ErrorSeverityCritical ||
-			   enhancedErr.Severity == common.ErrorSeverityHigh
+			enhancedErr.Severity == common.ErrorSeverityHigh
 	}
-	
+
 	return false
 }
 
@@ -176,19 +176,19 @@ func sendErrorNotification(ctx context.Context, err error, c echo.Context) {
 	if logger == nil {
 		return
 	}
-	
+
 	// Create notification data
 	notificationData := map[string]interface{}{
-		"error_type":   "critical_system_error",
+		"error_type":    "critical_system_error",
 		"error_message": err.Error(),
-		"method":       c.Request().Method,
-		"path":         c.Request().URL.Path,
-		"status_code":  c.Response().Status,
-		"ip_address":   c.RealIP(),
-		"user_agent":   c.Request().UserAgent(),
-		"timestamp":    time.Now(),
+		"method":        c.Request().Method,
+		"path":          c.Request().URL.Path,
+		"status_code":   c.Response().Status,
+		"ip_address":    c.RealIP(),
+		"user_agent":    c.Request().UserAgent(),
+		"timestamp":     time.Now(),
 	}
-	
+
 	// Add user context if available
 	if userID, ok := common.GetUserIDFromContext(ctx); ok {
 		notificationData["user_id"] = userID
@@ -196,12 +196,12 @@ func sendErrorNotification(ctx context.Context, err error, c echo.Context) {
 	if tenantID, ok := common.GetTenantIDFromContext(ctx); ok {
 		notificationData["tenant_id"] = tenantID
 	}
-	
-    // Log critical alert
+
+	// Log critical alert
 	logger.InfoWithContext(ctx, "CRITICAL ERROR NOTIFICATION", notificationData)
 
-    // Publish event for downstream delivery service
-    common.PublishEvent(ctx, "critical_system_error", notificationData)
+	// Publish event for downstream delivery service
+	common.PublishEvent(ctx, "critical_system_error", notificationData)
 }
 
 // RecoveryMiddleware provides panic recovery with enhanced logging
@@ -212,7 +212,7 @@ func RecoveryMiddleware() echo.MiddlewareFunc {
 				if r := recover(); r != nil {
 					logger := common.GetGlobalLogger()
 					ctx := c.Request().Context()
-					
+
 					// Create enhanced error for panic
 					panicErr := &common.EnhancedError{
 						Code:     "PANIC_RECOVERED",
@@ -231,7 +231,7 @@ func RecoveryMiddleware() echo.MiddlewareFunc {
 							"panic_value": r,
 						},
 					}
-					
+
 					// Add user context if available
 					if userID, ok := common.GetUserIDFromContext(ctx); ok {
 						panicErr.Context.UserID = &userID
@@ -239,12 +239,12 @@ func RecoveryMiddleware() echo.MiddlewareFunc {
 					if tenantID, ok := common.GetTenantIDFromContext(ctx); ok {
 						panicErr.Context.TenantID = &tenantID
 					}
-					
+
 					// Log the panic
 					if logger != nil {
 						logger.LogCriticalError(ctx, panicErr)
 					}
-					
+
 					// Send error response
 					if !c.Response().Committed {
 						c.JSON(500, map[string]interface{}{
@@ -258,7 +258,7 @@ func RecoveryMiddleware() echo.MiddlewareFunc {
 					}
 				}
 			}()
-			
+
 			return next(c)
 		}
 	}

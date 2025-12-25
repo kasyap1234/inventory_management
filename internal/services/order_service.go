@@ -828,8 +828,8 @@ func (s *orderService) CancelOrder(ctx context.Context, tenantID, orderID uuid.U
 
 				if s.logger != nil {
 					s.logger.InfoWithContext(ctx, "Inventory restored for cancelled order", map[string]interface{}{
-						"order_id":     orderID,
-						"restored_qty": order.Quantity,
+						"order_id":      orderID,
+						"restored_qty":  order.Quantity,
 						"new_inventory": newQuantity,
 					})
 				}
@@ -948,7 +948,7 @@ func (s *orderService) recordStatusChange(ctx context.Context, tenantID, orderID
 	}
 
 	userID, _ := common.GetUserIDFromContext(ctx)
-	
+
 	history := &models.OrderStatusHistory{
 		ID:        uuid.New(),
 		TenantID:  tenantID,

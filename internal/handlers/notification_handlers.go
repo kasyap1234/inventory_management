@@ -75,26 +75,26 @@ func (h *NotificationHandlers) CreateWebhookSubscription(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-    var req struct {
-        Name        string   `json:"name" validate:"required"`
-        Description *string  `json:"description"`
-        URL         string   `json:"url" validate:"required,url"`
-        Secret      string   `json:"secret" validate:"required"`
-        Events      []string `json:"events" validate:"required"`
-        IsActive    bool     `json:"is_active"`
-    }
+	var req struct {
+		Name        string   `json:"name" validate:"required"`
+		Description *string  `json:"description"`
+		URL         string   `json:"url" validate:"required,url"`
+		Secret      string   `json:"secret" validate:"required"`
+		Events      []string `json:"events" validate:"required"`
+		IsActive    bool     `json:"is_active"`
+	}
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
 	}
 
 	secret := strings.TrimSpace(req.Secret)
-    subscription := &models.WebhookSubscription{
-		Name:        strings.TrimSpace(req.Name),
-		URL:         strings.TrimSpace(req.URL),
-		Secret:      &secret,
-		EventTypes:  req.Events,
-		IsActive:    req.IsActive,
+	subscription := &models.WebhookSubscription{
+		Name:       strings.TrimSpace(req.Name),
+		URL:        strings.TrimSpace(req.URL),
+		Secret:     &secret,
+		EventTypes: req.Events,
+		IsActive:   req.IsActive,
 	}
 
 	if err := h.notificationSvc.CreateWebhookSubscription(ctx, tenantID, subscription); err != nil {
@@ -137,12 +137,12 @@ func (h *NotificationHandlers) UpdateWebhookSubscription(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Subscription ID is required")
 	}
 
-    existing, err := h.notificationSvc.GetWebhookSubscription(ctx, tenantID, subscriptionID)
+	existing, err := h.notificationSvc.GetWebhookSubscription(ctx, tenantID, subscriptionID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
 
-    var req struct {
+	var req struct {
 		Name        *string  `json:"name"`
 		Description *string  `json:"description"`
 		URL         *string  `json:"url"`
@@ -171,11 +171,11 @@ func (h *NotificationHandlers) UpdateWebhookSubscription(c echo.Context) error {
 	if req.Secret != nil {
 		trimmed := strings.TrimSpace(*req.Secret)
 		if trimmed != "" {
-			existing.Secret = &trimmed  // Secret is a *string field
+			existing.Secret = &trimmed // Secret is a *string field
 		}
 	}
 	if len(req.Events) > 0 {
-		existing.EventTypes = req.Events  // Field is EventTypes, not Events
+		existing.EventTypes = req.Events // Field is EventTypes, not Events
 	}
 	if req.IsActive != nil {
 		existing.IsActive = *req.IsActive
@@ -220,7 +220,7 @@ func (h *NotificationHandlers) CreateTemplate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-    var req struct {
+	var req struct {
 		Type         string                 `json:"type" validate:"required"`
 		EventType    string                 `json:"event_type" validate:"required"`
 		Subject      *string                `json:"subject"`
@@ -233,7 +233,7 @@ func (h *NotificationHandlers) CreateTemplate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
 	}
 
-    template := &models.NotificationTemplate{
+	template := &models.NotificationTemplate{
 		Name:         req.EventType, // Use event type as name for now
 		Type:         models.NotificationType(req.Type),
 		EventType:    req.EventType,
@@ -261,7 +261,7 @@ func (h *NotificationHandlers) ListTemplates(c echo.Context) error {
 
 	eventType := c.QueryParam("event_type")
 
-    templates, err := h.notificationSvc.ListTemplates(ctx, tenantID, eventType)
+	templates, err := h.notificationSvc.ListTemplates(ctx, tenantID, eventType)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -285,7 +285,7 @@ func (h *NotificationHandlers) DeleteTemplate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Template ID is required")
 	}
 
-    if err := h.notificationSvc.DeleteTemplate(ctx, tenantID, id); err != nil {
+	if err := h.notificationSvc.DeleteTemplate(ctx, tenantID, id); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
@@ -303,23 +303,23 @@ func (h *NotificationHandlers) UpdateNotificationConfig(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-    var req struct {
-        Type           models.NotificationType `json:"type" validate:"required"`
-        Configuration  map[string]interface{}  `json:"configuration" validate:"required"`
-        IsActive       bool                    `json:"is_active"`
-        WebhookTimeout *int                    `json:"webhook_timeout"`
-    }
+	var req struct {
+		Type           models.NotificationType `json:"type" validate:"required"`
+		Configuration  map[string]interface{}  `json:"configuration" validate:"required"`
+		IsActive       bool                    `json:"is_active"`
+		WebhookTimeout *int                    `json:"webhook_timeout"`
+	}
 
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
 	}
 
-    // NotificationConfig structure per models/notification_models.go:
-    // EventType string, Channels []string, IsEnabled bool
-    config := &models.NotificationConfig{
-		EventType:  string(req.Type),  // Convert NotificationType to string
-		IsEnabled:  true,  // Default to enabled
-		Channels:   []string{"email"},  // Default channels
+	// NotificationConfig structure per models/notification_models.go:
+	// EventType string, Channels []string, IsEnabled bool
+	config := &models.NotificationConfig{
+		EventType: string(req.Type),  // Convert NotificationType to string
+		IsEnabled: true,              // Default to enabled
+		Channels:  []string{"email"}, // Default channels
 	}
 
 	if err := h.notificationSvc.UpdateNotificationConfig(ctx, tenantID, config); err != nil {
@@ -340,7 +340,7 @@ func (h *NotificationHandlers) UpdateAlertConfig(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-    var req struct {
+	var req struct {
 		AlertType            models.AlertType          `json:"alert_type" validate:"required"`
 		Config               map[string]interface{}    `json:"config" validate:"required"`
 		Enabled              bool                      `json:"enabled"`
@@ -393,7 +393,7 @@ func (h *NotificationHandlers) RenderTemplate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
 	}
 
-    var req struct {
+	var req struct {
 		TemplateID string                 `json:"template_id" validate:"required"`
 		Data       map[string]interface{} `json:"data" validate:"required"`
 	}
@@ -411,7 +411,7 @@ func (h *NotificationHandlers) RenderTemplate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Template is not active")
 	}
 
-    rendered, err := h.notificationSvc.RenderTemplate(template, req.Data)
+	rendered, err := h.notificationSvc.RenderTemplate(template, req.Data)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to render template: %v", err))
 	}
@@ -495,43 +495,43 @@ func (h *NotificationHandlers) MarkNotificationAsRead(c echo.Context) error {
 
 // MarkAllNotificationsAsRead marks all notifications as read for the tenant
 func (h *NotificationHandlers) MarkAllNotificationsAsRead(c echo.Context) error {
-    ctx := c.Request().Context()
+	ctx := c.Request().Context()
 
-    tenantID, ok := common.GetTenantIDFromContext(ctx)
-    if !ok {
-        return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
-    }
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
 
-    if err := h.notificationSvc.MarkAllAsRead(ctx, tenantID); err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-    }
+	if err := h.notificationSvc.MarkAllAsRead(ctx, tenantID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 
-    return c.JSON(http.StatusOK, map[string]string{
-        "message": "All notifications marked as read",
-    })
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "All notifications marked as read",
+	})
 }
 
 // ArchiveNotification archives a single notification
 func (h *NotificationHandlers) ArchiveNotification(c echo.Context) error {
-    ctx := c.Request().Context()
+	ctx := c.Request().Context()
 
-    tenantID, ok := common.GetTenantIDFromContext(ctx)
-    if !ok {
-        return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
-    }
+	tenantID, ok := common.GetTenantIDFromContext(ctx)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Tenant not found")
+	}
 
-    id := c.Param("id")
-    if id == "" {
-        return echo.NewHTTPError(http.StatusBadRequest, "Notification ID is required")
-    }
+	id := c.Param("id")
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Notification ID is required")
+	}
 
-    if err := h.notificationSvc.ArchiveNotification(ctx, tenantID, id); err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-    }
+	if err := h.notificationSvc.ArchiveNotification(ctx, tenantID, id); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 
-    return c.JSON(http.StatusOK, map[string]string{
-        "message": "Notification archived successfully",
-    })
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Notification archived successfully",
+	})
 }
 
 // DeleteNotification deletes a notification

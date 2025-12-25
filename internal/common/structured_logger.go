@@ -65,7 +65,7 @@ func (l *StructuredLogger) shouldLog(level LogLevel) bool {
 		LogLevelError: 3,
 		LogLevelFatal: 4,
 	}
-	
+
 	return levels[level] >= levels[l.level]
 }
 
@@ -74,9 +74,9 @@ func (l *StructuredLogger) log(entry LogEntry) {
 	if !l.shouldLog(entry.Level) {
 		return
 	}
-	
+
 	entry.Timestamp = time.Now()
-	
+
 	jsonData, err := json.Marshal(entry)
 	if err != nil {
 		// Fallback to simple logging if JSON marshaling fails
@@ -84,7 +84,7 @@ func (l *StructuredLogger) log(entry LogEntry) {
 		l.logger.Printf("%s [%s] %s", entry.Timestamp.Format(time.RFC3339), entry.Level, entry.Message)
 		return
 	}
-	
+
 	l.logger.Println(string(jsonData))
 }
 
@@ -203,19 +203,19 @@ func (l *StructuredLogger) LogError(ctx context.Context, err *EnhancedError) {
 			"ip_address":     err.Context.IPAddress,
 		},
 	}
-	
+
 	if err.Cause != nil {
 		entry.Error = err.Cause.Error()
 	}
-	
+
 	if err.Details != nil {
 		entry.Fields["error_details"] = err.Details
 	}
-	
+
 	if err.Context.StackTrace != "" {
 		entry.Fields["stack_trace"] = err.Context.StackTrace
 	}
-	
+
 	l.log(entry)
 }
 
@@ -223,7 +223,7 @@ func (l *StructuredLogger) LogError(ctx context.Context, err *EnhancedError) {
 func (l *StructuredLogger) LogCriticalError(ctx context.Context, err *EnhancedError) {
 	// Log as error first
 	l.LogError(ctx, err)
-	
+
 	// Send additional alert for critical errors
 	l.sendCriticalAlert(err)
 }
@@ -236,34 +236,34 @@ func (l *StructuredLogger) sendCriticalAlert(err *EnhancedError) {
 		Level:   LogLevelError,
 		Message: "CRITICAL ALERT: System requires immediate attention",
 		Fields: map[string]interface{}{
-			"alert_type":     "critical_error",
-			"error_code":     err.Code,
-			"error_message":  err.Message,
-			"operation":      err.Context.Operation,
-			"request_id":     err.Context.RequestID,
-			"tenant_id":      err.Context.TenantID,
-			"user_id":        err.Context.UserID,
-			"timestamp":      err.Context.Timestamp,
+			"alert_type":    "critical_error",
+			"error_code":    err.Code,
+			"error_message": err.Message,
+			"operation":     err.Context.Operation,
+			"request_id":    err.Context.RequestID,
+			"tenant_id":     err.Context.TenantID,
+			"user_id":       err.Context.UserID,
+			"timestamp":     err.Context.Timestamp,
 		},
 	}
-	
+
 	l.log(alertEntry)
 }
 
 // LogOperation logs the start and completion of an operation
 func (l *StructuredLogger) LogOperation(ctx context.Context, operation string, resource string, fn func() error) error {
 	start := time.Now()
-	
+
 	// Log operation start
 	l.InfoWithContext(ctx, fmt.Sprintf("Starting %s", operation), map[string]interface{}{
 		"operation": operation,
 		"resource":  resource,
 	})
-	
+
 	// Execute operation
 	err := fn()
 	duration := time.Since(start)
-	
+
 	// Log operation completion
 	if err != nil {
 		l.ErrorWithContext(ctx, fmt.Sprintf("Failed %s", operation), err, map[string]interface{}{
@@ -278,33 +278,33 @@ func (l *StructuredLogger) LogOperation(ctx context.Context, operation string, r
 			"duration":  duration.String(),
 		})
 	}
-	
+
 	return err
 }
 
 // LogPerformance logs performance metrics
 func (l *StructuredLogger) LogPerformance(ctx context.Context, operation string, duration time.Duration, metadata map[string]interface{}) {
 	fields := map[string]interface{}{
-		"operation":        operation,
-		"duration_ms":      duration.Milliseconds(),
-		"performance_log":  true,
+		"operation":       operation,
+		"duration_ms":     duration.Milliseconds(),
+		"performance_log": true,
 	}
-	
+
 	// Merge metadata
 	for k, v := range metadata {
 		fields[k] = v
 	}
-	
+
 	level := LogLevelInfo
 	message := fmt.Sprintf("Performance: %s completed in %s", operation, duration)
-	
+
 	// Flag slow operations
 	if duration > time.Second*5 {
 		level = LogLevelWarn
 		message = fmt.Sprintf("SLOW OPERATION: %s took %s", operation, duration)
 		fields["slow_operation"] = true
 	}
-	
+
 	entry := LogEntry{
 		Level:   level,
 		Message: message,
@@ -339,7 +339,7 @@ func (l *StructuredLogger) addContextToEntry(ctx context.Context, entry *LogEntr
 	if tenantID, ok := GetTenantIDFromContext(ctx); ok {
 		entry.TenantID = &tenantID
 	}
-	
+
 	// Try to get request ID from context
 	if requestID := ctx.Value("request_id"); requestID != nil {
 		if id, ok := requestID.(string); ok {

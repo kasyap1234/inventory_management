@@ -54,9 +54,8 @@ func TestAnalyticsRefreshResult(t *testing.T) {
 	})
 }
 
-// Test RefreshAnalyticsForTenant - note: requires non-nil analytics service 
+// Test RefreshAnalyticsForTenant - note: requires non-nil analytics service
 // so we skip direct unit test and defer to integration tests
-
 
 // Mock test for tenant filtering logic
 func TestTenantFilteringLogic(t *testing.T) {

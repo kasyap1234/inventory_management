@@ -32,42 +32,42 @@ type TokenResponse struct {
 
 // Token Refresh Request
 type RefreshTokenRequest struct {
-	RefreshToken string   `json:"refresh_token"`
-	GrantType    string   `json:"grant_type"`
-	ClientID     *string  `json:"client_id"`
-	Scope        *string  `json:"scope"`
+	RefreshToken string  `json:"refresh_token"`
+	GrantType    string  `json:"grant_type"`
+	ClientID     *string `json:"client_id"`
+	Scope        *string `json:"scope"`
 }
 
 // Token Revocation Request
 type RevokeTokenRequest struct {
-	Token     string    `json:"token"`
+	Token         string  `json:"token"`
 	TokenTypeHint *string `json:"token_type_hint"` // "access_token" or "refresh_token"
 }
 
 // OAuth2 Client
 type OAuth2Client struct {
-	ID          string     `json:"id" db:"id"`
-	ClientID    string     `json:"client_id" db:"client_id"`
-	ClientSecret string    `json:"-" db:"client_secret"`
-	ClientSecretHash string `json:"-" db:"client_secret_hash"`
-	Name        string     `json:"name" db:"name"`
-	Description *string    `json:"description" db:"description"`
-	RedirectURIs []string  `json:"redirect_uris" db:"-"`
-	Scopes      []string   `json:"scopes" db:"-"`
-	IsActive    bool       `json:"is_active" db:"is_active"`
-	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+	ID               string    `json:"id" db:"id"`
+	ClientID         string    `json:"client_id" db:"client_id"`
+	ClientSecret     string    `json:"-" db:"client_secret"`
+	ClientSecretHash string    `json:"-" db:"client_secret_hash"`
+	Name             string    `json:"name" db:"name"`
+	Description      *string   `json:"description" db:"description"`
+	RedirectURIs     []string  `json:"redirect_uris" db:"-"`
+	Scopes           []string  `json:"scopes" db:"-"`
+	IsActive         bool      `json:"is_active" db:"is_active"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // Authorization Code for OAuth2 flow
 type AuthorizationCode struct {
-	Code        string     `json:"code" db:"code"`
-	CodeHash    string     `json:"-" db:"code_hash"`
-	ClientID    string     `json:"client_id" db:"client_id"`
-	UserID      string     `json:"user_id" db:"user_id"`
-	RedirectURI string     `json:"redirect_uri" db:"redirect_uri"`
-	Scope       *string    `json:"scope" db:"scope"`
-	ExpiresAt   time.Time  `json:"expires_at" db:"expires_at"`
-	Used        bool       `json:"used" db:"used"`
-	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	Code        string    `json:"code" db:"code"`
+	CodeHash    string    `json:"-" db:"code_hash"`
+	ClientID    string    `json:"client_id" db:"client_id"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	RedirectURI string    `json:"redirect_uri" db:"redirect_uri"`
+	Scope       *string   `json:"scope" db:"scope"`
+	ExpiresAt   time.Time `json:"expires_at" db:"expires_at"`
+	Used        bool      `json:"used" db:"used"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }

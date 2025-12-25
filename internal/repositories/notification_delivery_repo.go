@@ -15,13 +15,13 @@ import (
 
 // DeliveryFilters represents filters for querying notification deliveries (repository-level)
 type DeliveryFilters struct {
-    NotificationID *uuid.UUID               `json:"notification_id,omitempty"`
-    Channel        *models.NotificationType `json:"channel,omitempty"`
-    Status         *string                  `json:"status,omitempty"`
-    StartDate      *time.Time               `json:"start_date,omitempty"`
-    EndDate        *time.Time               `json:"end_date,omitempty"`
-    Limit          int                      `json:"limit,omitempty"`
-    Offset         int                      `json:"offset,omitempty"`
+	NotificationID *uuid.UUID               `json:"notification_id,omitempty"`
+	Channel        *models.NotificationType `json:"channel,omitempty"`
+	Status         *string                  `json:"status,omitempty"`
+	StartDate      *time.Time               `json:"start_date,omitempty"`
+	EndDate        *time.Time               `json:"end_date,omitempty"`
+	Limit          int                      `json:"limit,omitempty"`
+	Offset         int                      `json:"offset,omitempty"`
 }
 
 // notificationDeliveryRepo implements NotificationDeliveryRepository
@@ -31,7 +31,7 @@ type notificationDeliveryRepo struct {
 
 // NewNotificationDeliveryRepo creates a new notification delivery repository
 func NewNotificationDeliveryRepo(db *pgxpool.Pool) *notificationDeliveryRepo {
-    return &notificationDeliveryRepo{db: db}
+	return &notificationDeliveryRepo{db: db}
 }
 
 // Create creates a new notification delivery record
@@ -54,7 +54,7 @@ func (r *notificationDeliveryRepo) Create(ctx context.Context, delivery *models.
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()
 		)`
 
-    _, err = r.db.Exec(ctx, query,
+	_, err = r.db.Exec(ctx, query,
 		delivery.ID, delivery.TenantID, delivery.NotificationID, delivery.TemplateID,
 		delivery.WebhookID, string(delivery.Channel), delivery.Recipient, delivery.Status,
 		delivery.AttemptCount, delivery.LastAttemptAt, delivery.DeliveredAt,
@@ -82,7 +82,7 @@ func (r *notificationDeliveryRepo) Update(ctx context.Context, delivery *models.
 			updated_at = NOW()
 		WHERE tenant_id = $1 AND id = $2`
 
-    result, err := r.db.Exec(ctx, query,
+	result, err := r.db.Exec(ctx, query,
 		delivery.TenantID, delivery.ID, delivery.Status, delivery.AttemptCount,
 		delivery.LastAttemptAt, delivery.DeliveredAt, delivery.ErrorMessage,
 		responseDataJSON,
@@ -111,7 +111,7 @@ func (r *notificationDeliveryRepo) GetByID(ctx context.Context, tenantID uuid.UU
 	var delivery models.NotificationDelivery
 	var responseDataJSON []byte
 
-    err := r.db.QueryRow(ctx, query, tenantID, id).Scan(
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(
 		&delivery.ID, &delivery.TenantID, &delivery.NotificationID, &delivery.TemplateID,
 		&delivery.WebhookID, &delivery.Channel, &delivery.Recipient, &delivery.Status,
 		&delivery.AttemptCount, &delivery.LastAttemptAt, &delivery.DeliveredAt,
@@ -198,7 +198,7 @@ func (r *notificationDeliveryRepo) List(ctx context.Context, tenantID uuid.UUID,
 		args = append(args, filters.Offset)
 	}
 
-    rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list notification deliveries: %w", err)
 	}
@@ -244,7 +244,7 @@ func (r *notificationDeliveryRepo) GetFailedDeliveries(ctx context.Context, tena
 		ORDER BY created_at ASC
 		LIMIT 100`
 
-    rows, err := r.db.Query(ctx, query, tenantID, maxRetries)
+	rows, err := r.db.Query(ctx, query, tenantID, maxRetries)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get failed deliveries: %w", err)
 	}
@@ -283,7 +283,7 @@ func (r *notificationDeliveryRepo) GetFailedDeliveries(ctx context.Context, tena
 func (r *notificationDeliveryRepo) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
 	query := `DELETE FROM notification_deliveries WHERE tenant_id = $1 AND id = $2`
 
-    result, err := r.db.Exec(ctx, query, tenantID, id)
+	result, err := r.db.Exec(ctx, query, tenantID, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete notification delivery: %w", err)
 	}

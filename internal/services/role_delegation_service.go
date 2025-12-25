@@ -260,4 +260,3 @@ func (s *roleDelegationService) GetUserMaxPriority(ctx context.Context, userID, 
 
 	return s.roleRepo.GetUserMaxPriority(ctx, tenantID, userID)
 }
-

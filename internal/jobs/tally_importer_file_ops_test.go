@@ -49,7 +49,7 @@ func TestFileOperations_CreateDirIfNotExists(t *testing.T) {
 func TestFileOperations_ReadDirectory(t *testing.T) {
 	t.Run("reads directory with files", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		// Create test files
 		require.NoError(t, os.WriteFile(filepath.Join(tempDir, "file1.txt"), []byte("content1"), 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tempDir, "file2.txt"), []byte("content2"), 0644))
@@ -78,7 +78,7 @@ func TestFileOperations_ReadDirectory(t *testing.T) {
 
 	t.Run("includes subdirectories", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "subdir"), 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(tempDir, "file.txt"), []byte("content"), 0644))
 
@@ -86,7 +86,7 @@ func TestFileOperations_ReadDirectory(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, entries, 2)
-		
+
 		// Verify one is a directory
 		hasDir := false
 		hasFile := false
@@ -199,7 +199,6 @@ func TestFileOperations_MoveFile(t *testing.T) {
 
 		assert.NoError(t, err)
 		content, _ := os.ReadFile(dstPath)
-	assert.Equal(t, "new content", string(content))
+		assert.Equal(t, "new content", string(content))
 	})
 }
-

@@ -25,26 +25,26 @@ const (
 
 // AuditEvent represents an audit event
 type AuditEvent struct {
-	ID          uuid.UUID              `json:"id"`
-	TenantID    uuid.UUID              `json:"tenant_id"`
-	UserID      *uuid.UUID             `json:"user_id,omitempty"`
-	RequestID   string                 `json:"request_id,omitempty"`
-	Action      AuditAction            `json:"action"`
-	Resource    string                 `json:"resource"`
-	ResourceID  string                 `json:"resource_id,omitempty"`
-	TableName   string                 `json:"table_name,omitempty"`
-	OldValues   map[string]interface{} `json:"old_values,omitempty"`
-	NewValues   map[string]interface{} `json:"new_values,omitempty"`
-	Changes     map[string]interface{} `json:"changes,omitempty"`
-	IPAddress   string                 `json:"ip_address,omitempty"`
-	UserAgent   string                 `json:"user_agent,omitempty"`
-	Method      string                 `json:"method,omitempty"`
-	Path        string                 `json:"path,omitempty"`
-	StatusCode  int                    `json:"status_code,omitempty"`
-	Success     bool                   `json:"success"`
-	ErrorMsg    string                 `json:"error_message,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	Timestamp   time.Time              `json:"timestamp"`
+	ID         uuid.UUID              `json:"id"`
+	TenantID   uuid.UUID              `json:"tenant_id"`
+	UserID     *uuid.UUID             `json:"user_id,omitempty"`
+	RequestID  string                 `json:"request_id,omitempty"`
+	Action     AuditAction            `json:"action"`
+	Resource   string                 `json:"resource"`
+	ResourceID string                 `json:"resource_id,omitempty"`
+	TableName  string                 `json:"table_name,omitempty"`
+	OldValues  map[string]interface{} `json:"old_values,omitempty"`
+	NewValues  map[string]interface{} `json:"new_values,omitempty"`
+	Changes    map[string]interface{} `json:"changes,omitempty"`
+	IPAddress  string                 `json:"ip_address,omitempty"`
+	UserAgent  string                 `json:"user_agent,omitempty"`
+	Method     string                 `json:"method,omitempty"`
+	Path       string                 `json:"path,omitempty"`
+	StatusCode int                    `json:"status_code,omitempty"`
+	Success    bool                   `json:"success"`
+	ErrorMsg   string                 `json:"error_message,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
 }
 
 // AuditLogger provides comprehensive audit logging capabilities
@@ -63,14 +63,14 @@ type AuditRepository interface {
 
 // AuditFilters represents filters for querying audit logs
 type AuditFilters struct {
-	UserID     *uuid.UUID   `json:"user_id,omitempty"`
-	Actions    []AuditAction `json:"actions,omitempty"`
-	Resources  []string     `json:"resources,omitempty"`
-	StartDate  *time.Time   `json:"start_date,omitempty"`
-	EndDate    *time.Time   `json:"end_date,omitempty"`
-	Success    *bool        `json:"success,omitempty"`
-	Limit      int          `json:"limit,omitempty"`
-	Offset     int          `json:"offset,omitempty"`
+	UserID    *uuid.UUID    `json:"user_id,omitempty"`
+	Actions   []AuditAction `json:"actions,omitempty"`
+	Resources []string      `json:"resources,omitempty"`
+	StartDate *time.Time    `json:"start_date,omitempty"`
+	EndDate   *time.Time    `json:"end_date,omitempty"`
+	Success   *bool         `json:"success,omitempty"`
+	Limit     int           `json:"limit,omitempty"`
+	Offset    int           `json:"offset,omitempty"`
 }
 
 // NewAuditLogger creates a new audit logger
@@ -86,7 +86,7 @@ func (a *AuditLogger) LogCreate(ctx context.Context, resource, resourceID string
 	event := a.createBaseEvent(ctx, AuditActionCreate, resource, resourceID)
 	event.NewValues = newValues
 	event.Success = true
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -94,7 +94,7 @@ func (a *AuditLogger) LogCreate(ctx context.Context, resource, resourceID string
 func (a *AuditLogger) LogRead(ctx context.Context, resource, resourceID string) {
 	event := a.createBaseEvent(ctx, AuditActionRead, resource, resourceID)
 	event.Success = true
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -105,7 +105,7 @@ func (a *AuditLogger) LogUpdate(ctx context.Context, resource, resourceID string
 	event.NewValues = newValues
 	event.Changes = a.calculateChanges(oldValues, newValues)
 	event.Success = true
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -114,7 +114,7 @@ func (a *AuditLogger) LogDelete(ctx context.Context, resource, resourceID string
 	event := a.createBaseEvent(ctx, AuditActionDelete, resource, resourceID)
 	event.OldValues = oldValues
 	event.Success = true
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -126,7 +126,7 @@ func (a *AuditLogger) LogLogin(ctx context.Context, userID uuid.UUID, success bo
 	if !success {
 		event.ErrorMsg = errorMsg
 	}
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -135,7 +135,7 @@ func (a *AuditLogger) LogLogout(ctx context.Context, userID uuid.UUID) {
 	event := a.createBaseEvent(ctx, AuditActionLogout, "user", userID.String())
 	event.UserID = &userID
 	event.Success = true
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -148,7 +148,7 @@ func (a *AuditLogger) LogExport(ctx context.Context, resource string, filters ma
 		"record_count": recordCount,
 		"export_type":  "csv", // or whatever format
 	}
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -162,7 +162,7 @@ func (a *AuditLogger) LogImport(ctx context.Context, resource string, recordCoun
 	if !success {
 		event.ErrorMsg = errorMsg
 	}
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -171,7 +171,7 @@ func (a *AuditLogger) LogFailedOperation(ctx context.Context, action AuditAction
 	event := a.createBaseEvent(ctx, action, resource, resourceID)
 	event.Success = false
 	event.ErrorMsg = errorMsg
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -180,7 +180,7 @@ func (a *AuditLogger) LogCustomEvent(ctx context.Context, action AuditAction, re
 	event := a.createBaseEvent(ctx, action, resource, resourceID)
 	event.Success = true
 	event.Metadata = metadata
-	
+
 	a.logEvent(ctx, event)
 }
 
@@ -193,23 +193,23 @@ func (a *AuditLogger) createBaseEvent(ctx context.Context, action AuditAction, r
 		ResourceID: resourceID,
 		Timestamp:  time.Now(),
 	}
-	
+
 	// Extract context information
 	if tenantID, ok := GetTenantIDFromContext(ctx); ok {
 		event.TenantID = tenantID
 	}
-	
+
 	if userID, ok := GetUserIDFromContext(ctx); ok {
 		event.UserID = &userID
 	}
-	
+
 	// Try to get request ID from context
 	if requestID := ctx.Value("request_id"); requestID != nil {
 		if id, ok := requestID.(string); ok {
 			event.RequestID = id
 		}
 	}
-	
+
 	// Try to get HTTP context information
 	if httpCtx := ctx.Value("http_context"); httpCtx != nil {
 		if httpInfo, ok := httpCtx.(map[string]interface{}); ok {
@@ -230,7 +230,7 @@ func (a *AuditLogger) createBaseEvent(ctx context.Context, action AuditAction, r
 			}
 		}
 	}
-	
+
 	return event
 }
 
@@ -238,7 +238,7 @@ func (a *AuditLogger) createBaseEvent(ctx context.Context, action AuditAction, r
 func (a *AuditLogger) logEvent(ctx context.Context, event *AuditEvent) {
 	// Log to structured logger
 	a.logger.LogAudit(ctx, string(event.Action), event.Resource, event.ResourceID, event.Changes)
-	
+
 	// Persist to database
 	if a.repository != nil {
 		if err := a.repository.Create(ctx, event); err != nil {
@@ -254,7 +254,7 @@ func (a *AuditLogger) logEvent(ctx context.Context, event *AuditEvent) {
 // calculateChanges calculates the differences between old and new values
 func (a *AuditLogger) calculateChanges(oldValues, newValues map[string]interface{}) map[string]interface{} {
 	changes := make(map[string]interface{})
-	
+
 	// Check for new or changed fields
 	for key, newValue := range newValues {
 		if oldValue, exists := oldValues[key]; exists {
@@ -271,7 +271,7 @@ func (a *AuditLogger) calculateChanges(oldValues, newValues map[string]interface
 			}
 		}
 	}
-	
+
 	// Check for removed fields
 	for key, oldValue := range oldValues {
 		if _, exists := newValues[key]; !exists {
@@ -281,7 +281,7 @@ func (a *AuditLogger) calculateChanges(oldValues, newValues map[string]interface
 			}
 		}
 	}
-	
+
 	return changes
 }
 
@@ -291,12 +291,12 @@ func (a *AuditLogger) valuesEqual(v1, v2 interface{}) bool {
 	// This handles complex types and ensures consistent comparison
 	json1, err1 := json.Marshal(v1)
 	json2, err2 := json.Marshal(v2)
-	
+
 	if err1 != nil || err2 != nil {
 		// Fallback to string comparison if JSON marshaling fails
 		return fmt.Sprintf("%v", v1) == fmt.Sprintf("%v", v2)
 	}
-	
+
 	return string(json1) == string(json2)
 }
 
@@ -305,7 +305,7 @@ func (a *AuditLogger) GetAuditLogs(ctx context.Context, tenantID uuid.UUID, filt
 	if a.repository == nil {
 		return nil, fmt.Errorf("audit repository not configured")
 	}
-	
+
 	return a.repository.List(ctx, tenantID, filters)
 }
 
@@ -314,7 +314,7 @@ func (a *AuditLogger) GetAuditLog(ctx context.Context, tenantID uuid.UUID, id uu
 	if a.repository == nil {
 		return nil, fmt.Errorf("audit repository not configured")
 	}
-	
+
 	return a.repository.GetByID(ctx, tenantID, id)
 }
 
@@ -323,7 +323,7 @@ func (a *AuditLogger) CleanupOldLogs(ctx context.Context, retentionPeriod time.D
 	if a.repository == nil {
 		return fmt.Errorf("audit repository not configured")
 	}
-	
+
 	cutoffDate := time.Now().Add(-retentionPeriod)
 	return a.repository.DeleteOldEntries(ctx, cutoffDate)
 }

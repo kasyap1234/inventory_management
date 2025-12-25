@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import { csrfTokenManager, tokenStorage } from '@/lib/security';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';

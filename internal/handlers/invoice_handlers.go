@@ -494,7 +494,6 @@ func (h *InvoiceHandlers) GetUnpaidInvoices(c echo.Context) error {
 	})
 }
 
-
 // GenerateInvoicePDF handles POST /invoices/:id/generate-pdf
 // Generates and stores PDF invoice using MinIO
 func (h *InvoiceHandlers) GenerateInvoicePDF(c echo.Context) error {

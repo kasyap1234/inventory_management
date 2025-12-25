@@ -28,28 +28,28 @@ type AlertRuleService interface {
 
 // AlertRuleTestResult represents the result of alert rule testing
 type AlertRuleTestResult struct {
-	Success     bool                   `json:"success"`
-	Triggered   bool                   `json:"triggered"`
-	Conditions  map[string]interface{} `json:"conditions"`
-	Actions     []models.AlertAction   `json:"actions"`
-	Errors      []string               `json:"errors,omitempty"`
-	Evaluation  map[string]bool        `json:"evaluation"`
+	Success    bool                   `json:"success"`
+	Triggered  bool                   `json:"triggered"`
+	Conditions map[string]interface{} `json:"conditions"`
+	Actions    []models.AlertAction   `json:"actions"`
+	Errors     []string               `json:"errors,omitempty"`
+	Evaluation map[string]bool        `json:"evaluation"`
 }
 
 // Condition operators
 const (
-	OperatorEquals              = "eq"
-	OperatorNotEquals           = "ne"
-	OperatorGreaterThan         = "gt"
-	OperatorGreaterThanOrEqual  = "gte"
-	OperatorLessThan            = "lt"
-	OperatorLessThanOrEqual     = "lte"
-	OperatorContains            = "contains"
-	OperatorNotContains         = "not_contains"
-	OperatorIn                  = "in"
-	OperatorNotIn               = "not_in"
-	OperatorExists              = "exists"
-	OperatorNotExists           = "not_exists"
+	OperatorEquals             = "eq"
+	OperatorNotEquals          = "ne"
+	OperatorGreaterThan        = "gt"
+	OperatorGreaterThanOrEqual = "gte"
+	OperatorLessThan           = "lt"
+	OperatorLessThanOrEqual    = "lte"
+	OperatorContains           = "contains"
+	OperatorNotContains        = "not_contains"
+	OperatorIn                 = "in"
+	OperatorNotIn              = "not_in"
+	OperatorExists             = "exists"
+	OperatorNotExists          = "not_exists"
 )
 
 // alertRuleService implements AlertRuleService
@@ -85,8 +85,8 @@ func (s *alertRuleService) CreateAlertRule(ctx context.Context, tenantID uuid.UU
 	// Create alert rule
 	if err := s.repository.Create(ctx, rule); err != nil {
 		s.logger.ErrorWithContext(ctx, "Failed to create alert rule", err, map[string]interface{}{
-			"tenant_id": tenantID,
-			"rule_name": rule.Name,
+			"tenant_id":  tenantID,
+			"rule_name":  rule.Name,
 			"event_type": rule.EventType,
 		})
 		return common.CreateDatabaseError("create_alert_rule", err)

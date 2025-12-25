@@ -20,13 +20,13 @@ type WarehouseService interface {
 }
 
 type warehouseService struct {
-	warehouseRepo      repositories.WarehouseRepository
+	warehouseRepo          repositories.WarehouseRepository
 	subscriptionMiddleware SubscriptionMiddlewareService
 }
 
 func NewWarehouseService(warehouseRepo repositories.WarehouseRepository, subscriptionMiddleware SubscriptionMiddlewareService) WarehouseService {
 	return &warehouseService{
-		warehouseRepo:      warehouseRepo,
+		warehouseRepo:          warehouseRepo,
 		subscriptionMiddleware: subscriptionMiddleware,
 	}
 }

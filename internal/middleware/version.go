@@ -11,16 +11,16 @@ import (
 
 // APIVersion represents API version information
 type APIVersion struct {
-	Version     string    `json:"version"`
-	Status      string    `json:"status"`      // "active", "deprecated", "sunset"
-	SunsetDate  *time.Time `json:"sunset_date,omitempty"`
-	Message     string    `json:"message,omitempty"`
+	Version    string     `json:"version"`
+	Status     string     `json:"status"` // "active", "deprecated", "sunset"
+	SunsetDate *time.Time `json:"sunset_date,omitempty"`
+	Message    string     `json:"message,omitempty"`
 }
 
 // VersionMiddleware provides API versioning functionality
 type VersionMiddleware struct {
 	supportedVersions map[string]APIVersion
-	defaultVersion   string
+	defaultVersion    string
 }
 
 // NewVersionMiddleware creates a new version middleware instance
@@ -82,7 +82,7 @@ func (vm *VersionMiddleware) APIVersionResolver() echo.MiddlewareFunc {
 			if version != "" {
 				if _, supported := vm.supportedVersions[version]; !supported {
 					return c.JSON(http.StatusNotFound, map[string]string{
-						"error": "Unsupported API version",
+						"error":              "Unsupported API version",
 						"supported_versions": strings.Join(vm.getSupportedVersions(), ", "),
 					})
 				}

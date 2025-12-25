@@ -56,15 +56,15 @@ func SanitizeFilename(filename string) string {
 	for _, char := range dangerous {
 		result = strings.ReplaceAll(result, char, "_")
 	}
-	
+
 	// Trim whitespace and dots from start/end
 	result = strings.Trim(result, " .")
-	
+
 	// Ensure filename is not empty
 	if result == "" {
 		return "unnamed_file"
 	}
-	
+
 	// Limit length to prevent filesystem issues
 	return TruncateString(result, 255)
 }
@@ -75,25 +75,25 @@ func ValidateEmailDomain(email string) error {
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid email format")
 	}
-	
+
 	domain := parts[1]
 	if domain == "" {
 		return fmt.Errorf("email domain cannot be empty")
 	}
-	
+
 	// Check for common typos and invalid domains
 	invalidDomains := []string{
-		"example.com", "test.com", "localhost", 
+		"example.com", "test.com", "localhost",
 		"invalid.invalid", "temp.temp",
 	}
-	
+
 	domainLower := strings.ToLower(domain)
 	for _, invalid := range invalidDomains {
 		if domainLower == invalid {
 			return fmt.Errorf("email domain '%s' is not allowed", domain)
 		}
 	}
-	
+
 	return nil
 }
 

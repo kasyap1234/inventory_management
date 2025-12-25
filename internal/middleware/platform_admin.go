@@ -33,7 +33,7 @@ func (m *PlatformAdminMiddleware) RequirePlatformAdmin() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			ctx := c.Request().Context()
-			
+
 			userID, ok := common.GetUserIDFromContext(ctx)
 			if !ok {
 				return echo.NewHTTPError(http.StatusUnauthorized, "User not authenticated")
@@ -60,7 +60,7 @@ func (m *PlatformAdminMiddleware) AllowPlatformAdminOrTenantAdmin(rbacService RB
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			ctx := c.Request().Context()
-			
+
 			userID, ok := common.GetUserIDFromContext(ctx)
 			if !ok {
 				return echo.NewHTTPError(http.StatusUnauthorized, "User not authenticated")

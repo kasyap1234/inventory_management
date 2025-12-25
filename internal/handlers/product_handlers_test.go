@@ -18,70 +18,70 @@ func TestValidateUUIDEnhanced(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		input       string
-		expectError bool
-		errorMsg    string
+		name         string
+		input        string
+		expectError  bool
+		errorMsg     string
 		expectedUUID uuid.UUID
 	}{
 		{
-			name:        "Valid UUID",
-			input:       "550e8400-e29b-41d4-a716-446655440000",
-			expectError: false,
+			name:         "Valid UUID",
+			input:        "550e8400-e29b-41d4-a716-446655440000",
+			expectError:  false,
 			expectedUUID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
 		},
 		{
-			name:        "Valid UUID with whitespaces trimmed",
-			input:       " 550e8400-e29b-41d4-a716-446655440000 ",
-			expectError: false,
+			name:         "Valid UUID with whitespaces trimmed",
+			input:        " 550e8400-e29b-41d4-a716-446655440000 ",
+			expectError:  false,
 			expectedUUID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
 		},
 		{
-			name:     "Empty string",
-			input:    "",
+			name:        "Empty string",
+			input:       "",
 			expectError: true,
-			errorMsg: "Invalid UUID format: empty string",
+			errorMsg:    "Invalid UUID format: empty string",
 		},
 		{
-			name:     "Empty string after trimming",
-			input:    "   ",
+			name:        "Empty string after trimming",
+			input:       "   ",
 			expectError: true,
-			errorMsg: "Invalid UUID format: empty string",
+			errorMsg:    "Invalid UUID format: empty string",
 		},
 		{
-			name:     "Too short UUID",
-			input:    "550e8400-e29b-41d4-a716-44665544000",
+			name:        "Too short UUID",
+			input:       "550e8400-e29b-41d4-a716-44665544000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: length must be 36 characters (including hyphens)",
+			errorMsg:    "Invalid UUID format: length must be 36 characters (including hyphens)",
 		},
 		{
-			name:     "Too long UUID",
-			input:    "550e8400-e29b-41d4-a716-4466554400000",
+			name:        "Too long UUID",
+			input:       "550e8400-e29b-41d4-a716-4466554400000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: length must be 36 characters (including hyphens)",
+			errorMsg:    "Invalid UUID format: length must be 36 characters (including hyphens)",
 		},
 		{
-			name:     "Missing hyphen at position 8",
-			input:    "550e8400e29b-41d4-a716-446655440000",
+			name:        "Missing hyphen at position 8",
+			input:       "550e8400e29b-41d4-a716-446655440000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23",
+			errorMsg:    "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23",
 		},
 		{
-			name:     "Invalid character",
-			input:    "550e8400-e29b-41d4-g716-446655440000",
+			name:        "Invalid character",
+			input:       "550e8400-e29b-41d4-g716-446655440000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: contains invalid characters or format",
+			errorMsg:    "Invalid UUID format: contains invalid characters or format",
 		},
 		{
-			name:     "All hyphens placed wrong",
-			input:    "550e8400e-29b-41d4-a716-446655440000",
+			name:        "All hyphens placed wrong",
+			input:       "550e8400e-29b-41d4-a716-446655440000",
 			expectError: true,
-			errorMsg: "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23",
+			errorMsg:    "Invalid UUID format: hyphens must be at positions 8, 13, 18, and 23",
 		},
 		{
-			name:     "Case insensitive UUID",
-			input:    "550E8400-E29B-41D4-A716-446655440000",
-			expectError: false,
+			name:         "Case insensitive UUID",
+			input:        "550E8400-E29B-41D4-A716-446655440000",
+			expectError:  false,
 			expectedUUID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
 		},
 	}

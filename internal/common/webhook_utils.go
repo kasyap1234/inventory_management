@@ -45,12 +45,12 @@ func ValidateOutgoingURLForWebhook(targetURL string, allowHTTPInDev bool, allowe
 	if strings.TrimSpace(targetURL) == "" {
 		return fmt.Errorf("target_url is required")
 	}
-	
+
 	// Check for maximum URL length to prevent DoS
 	if len(targetURL) > 2048 {
 		return fmt.Errorf("target_url exceeds maximum length of 2048 characters")
 	}
-	
+
 	// Normalize and parse URL
 	u, err := url.Parse(targetURL)
 	if err != nil {
@@ -59,7 +59,7 @@ func ValidateOutgoingURLForWebhook(targetURL string, allowHTTPInDev bool, allowe
 	if u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf("URL must include scheme and host")
 	}
-	
+
 	// Prevent URL fragments and user info for security
 	if u.Fragment != "" {
 		return fmt.Errorf("URL fragments are not allowed in webhook URLs")
@@ -90,18 +90,18 @@ func ValidateOutgoingURLForWebhook(targetURL string, allowHTTPInDev bool, allowe
 
 	// Use URL Hostname to properly extract host (handles IPv6 brackets and ports)
 	host := u.Hostname()
-	
+
 	// Validate host is not empty after extraction
 	if host == "" {
 		return fmt.Errorf("invalid or missing hostname")
 	}
-	
+
 	// Check for port if present - reject suspicious ports
 	if port := u.Port(); port != "" {
 		// Common unsafe ports to block
 		unsafePorts := map[string]bool{
 			"22": true, "23": true, "25": true, "110": true, "143": true, // SSH, Telnet, SMTP, POP3, IMAP
-			"3306": true, "5432": true, "6379": true, "27017": true,      // MySQL, PostgreSQL, Redis, MongoDB
+			"3306": true, "5432": true, "6379": true, "27017": true, // MySQL, PostgreSQL, Redis, MongoDB
 		}
 		if unsafePorts[port] {
 			return fmt.Errorf("port %s is not allowed for webhook URLs", port)
@@ -128,7 +128,7 @@ func ValidateOutgoingURLForWebhook(targetURL string, allowHTTPInDev bool, allowe
 		// Map DNS errors distinctly for caller
 		return fmt.Errorf("dns_resolution_failed: %w", err)
 	}
-	
+
 	// Ensure at least one IP was resolved
 	if len(ips) == 0 {
 		return fmt.Errorf("dns_resolution_failed: no IP addresses found for host")
@@ -137,7 +137,7 @@ func ValidateOutgoingURLForWebhook(targetURL string, allowHTTPInDev bool, allowe
 	// Deny ranges (optionally allow loopback in dev when explicitly enabled)
 	goEnv = os.Getenv("GO_ENV")
 	isProd = goEnv == "production" || goEnv == "prod"
-	
+
 	for _, ip := range ips {
 		if isDeniedIP(ip) {
 			// In non-production and when explicitly allowed for dev, permit loopback only
@@ -155,7 +155,7 @@ func isDeniedIP(ip net.IP) bool {
 	if ip == nil {
 		return true
 	}
-	
+
 	// Loopback
 	if ip.IsLoopback() {
 		return true
@@ -172,7 +172,7 @@ func isDeniedIP(ip net.IP) bool {
 	if ip.IsUnspecified() {
 		return true
 	}
-	
+
 	// Private ranges IPv4: 10/8, 172.16/12, 192.168/16
 	if ip.To4() != nil {
 		v4 := ip.To4()
@@ -225,12 +225,12 @@ func isDeniedIP(ip net.IP) bool {
 // Whitelist: content-type, date, server, x-request-id, content-length, via
 func ExtractWhitelistedHeaders(resp *http.Response) map[string]string {
 	whitelist := map[string]struct{}{
-		"content-type":  {},
-		"date":          {},
-		"server":        {},
-		"x-request-id":  {},
+		"content-type":   {},
+		"date":           {},
+		"server":         {},
+		"x-request-id":   {},
 		"content-length": {},
-		"via":           {},
+		"via":            {},
 	}
 	out := make(map[string]string)
 	for k, vals := range resp.Header {

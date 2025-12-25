@@ -48,18 +48,18 @@ func NewSearchHandlers(db *pgxpool.Pool) *SearchHandlers {
 func sanitizeTsQuery(input string) string {
 	// Characters that need escaping in PostgreSQL tsquery
 	specialChars := []string{"&", "|", "!", "(", ")", ":", "'", "*", "<", ">"}
-	
+
 	sanitized := input
 	for _, char := range specialChars {
 		sanitized = strings.ReplaceAll(sanitized, char, " ")
 	}
-	
+
 	// Split into words and join with & for AND logic
 	words := strings.Fields(sanitized)
 	if len(words) == 0 {
 		return ""
 	}
-	
+
 	// Filter out empty words and create tsquery terms
 	var terms []string
 	for _, word := range words {
@@ -68,7 +68,7 @@ func sanitizeTsQuery(input string) string {
 			terms = append(terms, word)
 		}
 	}
-	
+
 	return strings.Join(terms, " & ")
 }
 
@@ -92,7 +92,7 @@ func (h *SearchHandlers) UnifiedSearch(c echo.Context) error {
 
 	// Search query - using PostgreSQL full-text search
 	searchQuery := strings.TrimSpace(req.Query)
-	
+
 	if searchQuery == "" {
 		return c.JSON(http.StatusOK, SearchResponse{
 			Results: results,
@@ -178,13 +178,13 @@ func (h *SearchHandlers) searchProducts(ctx context.Context, tenantID uuid.UUID,
 	results := []SearchResult{}
 	for rows.Next() {
 		var (
-			id          uuid.UUID
-			name        string
-			description *string
-			sku         *string
-			price       float64
+			id           uuid.UUID
+			name         string
+			description  *string
+			sku          *string
+			price        float64
 			categoryName *string
-			relevance   float64
+			relevance    float64
 		)
 
 		if err := rows.Scan(&id, &name, &description, &sku, &price, &categoryName, &relevance); err != nil {

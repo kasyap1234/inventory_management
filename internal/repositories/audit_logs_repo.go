@@ -295,13 +295,13 @@ func (r *auditLogsRepo) GetSummary(ctx context.Context, tenantID uuid.UUID, star
 	}
 
 	summary := &models.AuditLogSummary{
-		TenantID:    tenantID,
-		TotalLogs:   totalLogs,
-		TableBreakdown: make(map[string]int),
+		TenantID:        tenantID,
+		TotalLogs:       totalLogs,
+		TableBreakdown:  make(map[string]int),
 		ActionBreakdown: make(map[string]int),
 		UserActivity:    make(map[string]int),
-		PeriodStart: startDate,
-		PeriodEnd:   endDate,
+		PeriodStart:     startDate,
+		PeriodEnd:       endDate,
 	}
 
 	// Get table breakdown

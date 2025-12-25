@@ -127,10 +127,10 @@ func TestSupplierQualityScoreCalculation(t *testing.T) {
 		returnRate := float64(returnedCount) / float64(totalCount) * 100
 
 		qualityScore := 0.0
-		qualityScore += deliverySuccessRate * 0.40           // 50 * 0.4 = 20
-		qualityScore += onTimeDeliveryRate * 0.30            // 60 * 0.3 = 18
-		qualityScore += (100 - cancellationRate) * 0.15      // 70 * 0.15 = 10.5
-		qualityScore += (100 - returnRate) * 0.15            // 80 * 0.15 = 12
+		qualityScore += deliverySuccessRate * 0.40      // 50 * 0.4 = 20
+		qualityScore += onTimeDeliveryRate * 0.30       // 60 * 0.3 = 18
+		qualityScore += (100 - cancellationRate) * 0.15 // 70 * 0.15 = 10.5
+		qualityScore += (100 - returnRate) * 0.15       // 80 * 0.15 = 12
 
 		expectedScore := 20.0 + 18.0 + 10.5 + 12.0 // 60.5
 		assert.InDelta(t, expectedScore, qualityScore, 0.01)
@@ -148,10 +148,10 @@ func TestSupplierQualityScoreCalculation(t *testing.T) {
 		returnRate := float64(returnedCount) / float64(totalCount) * 100
 
 		qualityScore := 0.0
-		qualityScore += deliverySuccessRate * 0.40           // 0 * 0.4 = 0
-		qualityScore += 0 * 0.30                             // No delivered orders, 0% on-time
-		qualityScore += (100 - cancellationRate) * 0.15      // 0 * 0.15 = 0
-		qualityScore += (100 - returnRate) * 0.15            // 100 * 0.15 = 15
+		qualityScore += deliverySuccessRate * 0.40      // 0 * 0.4 = 0
+		qualityScore += 0 * 0.30                        // No delivered orders, 0% on-time
+		qualityScore += (100 - cancellationRate) * 0.15 // 0 * 0.15 = 0
+		qualityScore += (100 - returnRate) * 0.15       // 100 * 0.15 = 15
 
 		assert.InDelta(t, 15.0, qualityScore, 0.01)
 	})
@@ -225,8 +225,8 @@ func TestProfitMarginOrderFiltering(t *testing.T) {
 	t.Run("only counts delivered purchase orders for cost", func(t *testing.T) {
 		orders := []*models.Order{
 			{OrderType: "purchase", Status: "delivered", Quantity: 10, UnitPrice: 100},
-			{OrderType: "purchase", Status: "pending", Quantity: 10, UnitPrice: 100},    // Should not count
-			{OrderType: "sales", Status: "delivered", Quantity: 10, UnitPrice: 150},     // Should not count as cost
+			{OrderType: "purchase", Status: "pending", Quantity: 10, UnitPrice: 100}, // Should not count
+			{OrderType: "sales", Status: "delivered", Quantity: 10, UnitPrice: 150},  // Should not count as cost
 			{OrderType: "purchase", Status: "completed", Quantity: 5, UnitPrice: 100},
 		}
 

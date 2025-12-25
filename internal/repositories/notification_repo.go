@@ -28,15 +28,15 @@ type NotificationRepository interface {
 
 // NotificationFilters represents filters for querying notifications
 type NotificationFilters struct {
-	UserID             *uuid.UUID `json:"user_id,omitempty"`
-	NotificationType   *string    `json:"notification_type,omitempty"`
-	EventType          *string    `json:"event_type,omitempty"`
-	Status             *string    `json:"status,omitempty"`
-	Priority           *string    `json:"priority,omitempty"`
-	StartDate          *time.Time `json:"start_date,omitempty"`
-	EndDate            *time.Time `json:"end_date,omitempty"`
-	Limit              int        `json:"limit,omitempty"`
-	Offset             int        `json:"offset,omitempty"`
+	UserID           *uuid.UUID `json:"user_id,omitempty"`
+	NotificationType *string    `json:"notification_type,omitempty"`
+	EventType        *string    `json:"event_type,omitempty"`
+	Status           *string    `json:"status,omitempty"`
+	Priority         *string    `json:"priority,omitempty"`
+	StartDate        *time.Time `json:"start_date,omitempty"`
+	EndDate          *time.Time `json:"end_date,omitempty"`
+	Limit            int        `json:"limit,omitempty"`
+	Offset           int        `json:"offset,omitempty"`
 }
 
 // notificationRepo implements NotificationRepository

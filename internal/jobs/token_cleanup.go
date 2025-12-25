@@ -23,13 +23,13 @@ func NewTokenCleanupService(authService services.AuthService) *TokenCleanupServi
 // CleanupExpiredTokens removes expired tokens from storage
 func (s *TokenCleanupService) CleanupExpiredTokens(ctx context.Context) error {
 	log.Println("Starting token cleanup job...")
-	
+
 	startTime := time.Now()
 	if err := s.authService.CleanupExpiredTokens(ctx); err != nil {
 		log.Printf("Token cleanup failed: %v", err)
 		return err
 	}
-	
+
 	duration := time.Since(startTime)
 	log.Printf("Token cleanup completed in %v", duration)
 	return nil

@@ -337,7 +337,7 @@ func (h *JobHandlers) GetJob(c echo.Context) error {
 
 	// Search through different states to find the job
 	states := []string{"pending", "active", "scheduled", "retry", "archived", "completed"}
-	
+
 	for _, state := range states {
 		var tasks []*asynq.TaskInfo
 		var err error
@@ -387,9 +387,9 @@ func (h *JobHandlers) GetJob(c echo.Context) error {
 
 	// Job not found in any state
 	return echo.NewHTTPError(http.StatusNotFound, map[string]interface{}{
-		"message": "Job not found",
-		"job_id":  jobID,
-		"queue":   queue,
+		"message":    "Job not found",
+		"job_id":     jobID,
+		"queue":      queue,
 		"suggestion": "The job may have been deleted or the ID is incorrect. Try listing jobs with GET /jobs?queue=<queue>&state=<state>",
 	})
 }

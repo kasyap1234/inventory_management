@@ -84,7 +84,6 @@ type CacheStats struct {
 	UptimeSeconds    int64   `json:"uptime_seconds"`
 }
 
-
 type redisCacheService struct {
 	client *redis.Client
 }
@@ -492,7 +491,7 @@ func (r *redisCacheService) GetStats(ctx context.Context) (*CacheStats, error) {
 			}
 
 			key, value := parts[0], strings.TrimSpace(parts[1])
-			
+
 			switch key {
 			case "used_memory":
 				fmt.Sscanf(value, "%d", &stats.UsedMemory)

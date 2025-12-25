@@ -2,20 +2,20 @@ package performance
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
-	"runtime"
-	"github.com/stretchr/testify/assert"
 )
 
 // LoadTestSuite provides enterprise-grade performance and load testing
 type LoadTestSuite struct {
 }
+
 // TestConcurrentUserSimulation simulates 100+ concurrent users
 func (suite *LoadTestSuite) TestConcurrentUserSimulation(t *testing.T) {
 	ctx := context.Background()
-
 
 	const concurrentUsers = 100
 	const operationsPerUser = 10
@@ -257,9 +257,9 @@ type OperationResult struct {
 }
 
 type LoadScenario struct {
-	Name           string
-	ConcurrentOps  int
-	Duration       time.Duration
+	Name             string
+	ConcurrentOps    int
+	Duration         time.Duration
 	OperationsPerSec int
 }
 

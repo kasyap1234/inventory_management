@@ -36,11 +36,11 @@ type ImportResult struct {
 
 // TallyLedger represents ledger entries from Tally
 type TallyLedger struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Type        string    `json:"type"`
-	Balance     float64   `json:"balance"`
-	LastUpdated time.Time `json:"last_updated"`
+	ID           string             `json:"id"`
+	Name         string             `json:"name"`
+	Type         string             `json:"type"`
+	Balance      float64            `json:"balance"`
+	LastUpdated  time.Time          `json:"last_updated"`
 	Transactions []TallyTransaction `json:"transactions"`
 }
 

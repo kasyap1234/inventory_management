@@ -43,10 +43,10 @@ type RoleManagementService interface {
 }
 
 // PermissionService implements the middleware.PermissionService interface
-type PermissionService interface{ // implements middleware contract without importing it here
-    HasPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string, context map[string]interface{}) (bool, error)
-    GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]models.RBACPermission, error)
-    CheckResourceAccess(ctx context.Context, userID, tenantID uuid.UUID, resource, action string, resourceID *uuid.UUID) (bool, error)
+type PermissionService interface { // implements middleware contract without importing it here
+	HasPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string, context map[string]interface{}) (bool, error)
+	GetUserPermissions(ctx context.Context, userID, tenantID uuid.UUID) ([]models.RBACPermission, error)
+	CheckResourceAccess(ctx context.Context, userID, tenantID uuid.UUID, resource, action string, resourceID *uuid.UUID) (bool, error)
 }
 
 // roleManagementService implements RoleManagementService and PermissionService
@@ -598,7 +598,7 @@ func (s *roleManagementService) DetectRoleConflicts(ctx context.Context, tenantI
 
 	// No hardcoded conflicts - allow any role combination
 	// In a real-world scenario, this might be driven by a policy engine or configuration
-	
+
 	return conflicts, nil
 }
 

@@ -30,17 +30,17 @@ type SubscriptionService interface {
 
 type subscriptionService struct {
 	subscriptionRepo repositories.SubscriptionRepository
-	razorpaySvc     RazorpayService
+	razorpaySvc      RazorpayService
 }
 
 // PlanConfig represents a subscription plan configuration
 type PlanConfig struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Amount      float64 `json:"amount"`
-	Currency    string  `json:"currency"`
-	Interval    string  `json:"interval"` // monthly, yearly
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Amount      float64  `json:"amount"`
+	Currency    string   `json:"currency"`
+	Interval    string   `json:"interval"` // monthly, yearly
 	Features    []string `json:"features"`
 }
 
@@ -101,7 +101,7 @@ func NewSubscriptionService(
 ) SubscriptionService {
 	return &subscriptionService{
 		subscriptionRepo: subscriptionRepo,
-		razorpaySvc:     razorpaySvc,
+		razorpaySvc:      razorpaySvc,
 	}
 }
 
@@ -248,8 +248,8 @@ func (s *subscriptionService) UpdatePlan(ctx context.Context, tenantID, subscrip
 	// Update in Razorpay if it exists (construct updates map)
 	if subscription.RazorpaySubscriptionID != nil {
 		updates := map[string]interface{}{
-			"plan_id":   plan.ID,
-			"quantity":  1,
+			"plan_id":  plan.ID,
+			"quantity": 1,
 		}
 
 		_, err = s.razorpaySvc.UpdateSubscription(ctx, *subscription.RazorpaySubscriptionID, updates)

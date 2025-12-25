@@ -1,15 +1,15 @@
 package common
 
 import (
-    "context"
-    "fmt"
-    "net/http"
-    "runtime"
-    "strings"
-    "time"
+	"context"
+	"fmt"
+	"net/http"
+	"runtime"
+	"strings"
+	"time"
 
-    "github.com/google/uuid"
-    "github.com/labstack/echo/v4"
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 // ErrorSeverity represents the severity level of an error
@@ -24,28 +24,28 @@ const (
 
 // ErrorContext contains contextual information about an error
 type ErrorContext struct {
-	RequestID    string                 `json:"request_id"`
-	UserID       *uuid.UUID             `json:"user_id,omitempty"`
-	TenantID     *uuid.UUID             `json:"tenant_id,omitempty"`
-	Operation    string                 `json:"operation"`
-	Resource     string                 `json:"resource,omitempty"`
-	Method       string                 `json:"method,omitempty"`
-	Path         string                 `json:"path,omitempty"`
-	UserAgent    string                 `json:"user_agent,omitempty"`
-	IPAddress    string                 `json:"ip_address,omitempty"`
-	Timestamp    time.Time              `json:"timestamp"`
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`
-	StackTrace   string                 `json:"stack_trace,omitempty"`
+	RequestID  string                 `json:"request_id"`
+	UserID     *uuid.UUID             `json:"user_id,omitempty"`
+	TenantID   *uuid.UUID             `json:"tenant_id,omitempty"`
+	Operation  string                 `json:"operation"`
+	Resource   string                 `json:"resource,omitempty"`
+	Method     string                 `json:"method,omitempty"`
+	Path       string                 `json:"path,omitempty"`
+	UserAgent  string                 `json:"user_agent,omitempty"`
+	IPAddress  string                 `json:"ip_address,omitempty"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	StackTrace string                 `json:"stack_trace,omitempty"`
 }
 
 // EnhancedError represents a structured error with context and severity
 type EnhancedError struct {
-	Code      string                 `json:"code"`
-	Message   string                 `json:"message"`
-	Severity  ErrorSeverity          `json:"severity"`
-	Context   ErrorContext           `json:"context"`
-	Details   map[string]interface{} `json:"details,omitempty"`
-	Cause     error                  `json:"-"` // Original error, not serialized
+	Code     string                 `json:"code"`
+	Message  string                 `json:"message"`
+	Severity ErrorSeverity          `json:"severity"`
+	Context  ErrorContext           `json:"context"`
+	Details  map[string]interface{} `json:"details,omitempty"`
+	Cause    error                  `json:"-"` // Original error, not serialized
 }
 
 // Error implements the error interface
@@ -83,7 +83,7 @@ func (h *EnhancedErrorHandler) HandleError(c echo.Context, err error, operation 
 	}
 
 	enhancedErr := h.enhanceError(c, err, operation)
-	
+
 	// Log the error based on severity
 	if enhancedErr.Severity == ErrorSeverityCritical {
 		h.logger.LogCriticalError(c.Request().Context(), enhancedErr)
@@ -104,10 +104,10 @@ func (h *EnhancedErrorHandler) enhanceError(c echo.Context, err error, operation
 
 	// Extract context information
 	ctx := h.extractContext(c, operation)
-	
+
 	// Determine error code, message, and severity
 	code, message, severity := h.classifyError(err)
-	
+
 	// Create enhanced error
 	enhancedErr := &EnhancedError{
 		Code:     code,
@@ -155,14 +155,14 @@ func (h *EnhancedErrorHandler) getRequestID(c echo.Context) string {
 	if requestID := c.Request().Header.Get("X-Request-ID"); requestID != "" {
 		return requestID
 	}
-	
+
 	// Try to get from Echo context
 	if requestID := c.Get("request_id"); requestID != nil {
 		if id, ok := requestID.(string); ok {
 			return id
 		}
 	}
-	
+
 	// Generate new UUID
 	return uuid.New().String()
 }
@@ -234,7 +234,7 @@ func (h *EnhancedErrorHandler) classifyHTTPError(he *echo.HTTPError) (string, st
 // createHTTPResponse creates an appropriate HTTP response for the error
 func (h *EnhancedErrorHandler) createHTTPResponse(c echo.Context, err *EnhancedError) error {
 	statusCode := h.getHTTPStatusCode(err.Code)
-	
+
 	// Create response body
 	response := map[string]interface{}{
 		"error": map[string]interface{}{
@@ -266,7 +266,7 @@ func (h *EnhancedErrorHandler) getSafeMessage(err *EnhancedError) string {
 			return "An error occurred. Please try again later."
 		}
 	}
-	
+
 	return err.Message
 }
 

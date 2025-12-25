@@ -1,23 +1,23 @@
 package middleware
 
 import (
-    "context"
-    "net/http"
-    "strings"
+	"context"
+	"net/http"
+	"strings"
 
-    "agromart2/internal/common"
-    "github.com/google/uuid"
+	"agromart2/internal/common"
+	"github.com/google/uuid"
 
-    "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4"
 )
 
 type RBACMiddleware struct {
-    rbacService RBACService
+	rbacService RBACService
 }
 
 // Define a narrow interface to avoid importing services
 type RBACService interface {
-    UserHasPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string) (bool, error)
+	UserHasPermission(ctx context.Context, userID, tenantID uuid.UUID, permission string) (bool, error)
 }
 
 func NewRBACMiddleware(rbacService RBACService) *RBACMiddleware {

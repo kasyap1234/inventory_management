@@ -1171,10 +1171,10 @@ func (a *AnalyticsService) GetSupplierPerformance(ctx context.Context, tenantID 
 
 			// Score calculation (higher is better)
 			qualityScore := 0.0
-			qualityScore += deliverySuccessRate * 0.40                   // 40% weight for delivery success
-			qualityScore += perf.OnTimeDelivery * 0.30                   // 30% weight for on-time delivery
-			qualityScore += (100 - cancellationRate) * 0.15              // 15% weight for low cancellation
-			qualityScore += (100 - returnRate) * 0.15                    // 15% weight for low returns
+			qualityScore += deliverySuccessRate * 0.40      // 40% weight for delivery success
+			qualityScore += perf.OnTimeDelivery * 0.30      // 30% weight for on-time delivery
+			qualityScore += (100 - cancellationRate) * 0.15 // 15% weight for low cancellation
+			qualityScore += (100 - returnRate) * 0.15       // 15% weight for low returns
 
 			// Cap at 100
 			if qualityScore > 100 {

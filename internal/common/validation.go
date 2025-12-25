@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"math"
-	"regexp"
 )
 
 // MaxMonetaryValue is the maximum allowed monetary value (10 billion)
@@ -36,12 +35,12 @@ func SafeMultiplyMonetary(a, b float64) (float64, error) {
 	if a == 0 || b == 0 {
 		return 0, nil
 	}
-	
+
 	// Validate inputs first
 	if math.IsInf(a, 0) || math.IsNaN(a) || math.IsInf(b, 0) || math.IsNaN(b) {
 		return 0, fmt.Errorf("invalid input values for multiplication")
 	}
-	
+
 	// Negative values should be rejected for monetary calculations
 	if a < 0 || b < 0 {
 		return 0, fmt.Errorf("negative values not allowed in monetary calculations")
@@ -143,33 +142,5 @@ func ValidateBulkUpdateQuantity(quantity *int, fieldName string) error {
 	if *quantity > MaxQuantity {
 		return fmt.Errorf("%s exceeds maximum allowed (1,000,000)", fieldName)
 	}
-	return nil
-}
-
-// ValidatePasswordStrength validates password strength requirements
-// Deprecated: Use validation.ValidatePasswordSimple or ValidatePassword from password_validation.go
-func ValidatePasswordStrength(password string) error {
-	if len(password) < 12 {
-		return fmt.Errorf("password must be at least 12 characters long")
-	}
-
-	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
-	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
-	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
-	hasSpecial := regexp.MustCompile(`[!@#$%^&*]`).MatchString(password)
-
-	if !hasUpper {
-		return fmt.Errorf("password must contain at least one uppercase letter")
-	}
-	if !hasLower {
-		return fmt.Errorf("password must contain at least one lowercase letter")
-	}
-	if !hasNumber {
-		return fmt.Errorf("password must contain at least one number")
-	}
-	if !hasSpecial {
-		return fmt.Errorf("password must contain at least one special character (!@#$%%^&*)")
-	}
-
 	return nil
 }

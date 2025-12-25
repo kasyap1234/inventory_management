@@ -84,13 +84,13 @@ func (h *NotificationTemplateHandlers) CreateTemplate(c echo.Context) error {
 	}
 
 	var req struct {
-		Name         string                 `json:"name" validate:"required"`
+		Name         string                  `json:"name" validate:"required"`
 		Type         models.NotificationType `json:"type" validate:"required"`
-		EventType    string                 `json:"event_type" validate:"required"`
-		Subject      *string                `json:"subject"`
-		BodyTemplate string                 `json:"body_template" validate:"required"`
-		Variables    map[string]interface{} `json:"variables"`
-		IsActive     bool                   `json:"is_active"`
+		EventType    string                  `json:"event_type" validate:"required"`
+		Subject      *string                 `json:"subject"`
+		BodyTemplate string                  `json:"body_template" validate:"required"`
+		Variables    map[string]interface{}  `json:"variables"`
+		IsActive     bool                    `json:"is_active"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -137,13 +137,13 @@ func (h *NotificationTemplateHandlers) UpdateTemplate(c echo.Context) error {
 	}
 
 	var req struct {
-		Name         string                 `json:"name" validate:"required"`
+		Name         string                  `json:"name" validate:"required"`
 		Type         models.NotificationType `json:"type" validate:"required"`
-		EventType    string                 `json:"event_type" validate:"required"`
-		Subject      *string                `json:"subject"`
-		BodyTemplate string                 `json:"body_template" validate:"required"`
-		Variables    map[string]interface{} `json:"variables"`
-		IsActive     bool                   `json:"is_active"`
+		EventType    string                  `json:"event_type" validate:"required"`
+		Subject      *string                 `json:"subject"`
+		BodyTemplate string                  `json:"body_template" validate:"required"`
+		Variables    map[string]interface{}  `json:"variables"`
+		IsActive     bool                    `json:"is_active"`
 	}
 
 	if err := c.Bind(&req); err != nil {

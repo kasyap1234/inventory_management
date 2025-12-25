@@ -138,11 +138,11 @@ func (i *TallyImporter) TallyImportHandler(ctx context.Context, t *asynq.Task) e
 // handleExportSuccess is a success callback after successful export
 func (e *TallyExporter) handleExportSuccess(ctx context.Context, tenantID uuid.UUID, result *ExportResult) error {
 	log.Printf("Export success callback: tenant=%s, records=%d, file=%s", tenantID, result.RecordsExported, result.FileName)
-	
+
 	// Store export result in audit logs for traceability
 	// The notification service can be used to send email/SMS notifications to tenant admin
 	// Example: notificationService.SendEmail(ctx, tenantID, adminEmail, "Tally Export Complete", emailBody)
-	
+
 	return nil
 }
 
@@ -150,10 +150,10 @@ func (e *TallyExporter) handleExportSuccess(ctx context.Context, tenantID uuid.U
 func (i *TallyImporter) handleImportSuccess(ctx context.Context, tenantID uuid.UUID, result *ImportResult) error {
 	log.Printf("Import success callback: tenant=%s, processed=%d, imported=%d, errors=%d",
 		tenantID, result.RecordsProcessed, result.RecordsImported, len(result.Errors))
-	
+
 	// Store import result in audit logs for traceability
 	// The notification service can be used to send email/SMS notifications to tenant admin
 	// Example: notificationService.SendEmail(ctx, tenantID, adminEmail, "Tally Import Complete", emailBody)
-	
+
 	return nil
 }

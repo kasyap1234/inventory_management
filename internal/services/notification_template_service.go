@@ -32,11 +32,11 @@ type NotificationTemplateService interface {
 
 // TemplateTestResult represents the result of template testing
 type TemplateTestResult struct {
-	Success      bool                   `json:"success"`
-	RenderedBody string                 `json:"rendered_body,omitempty"`
-	RenderedSubject string              `json:"rendered_subject,omitempty"`
-	Errors       []string               `json:"errors,omitempty"`
-	Variables    map[string]interface{} `json:"variables,omitempty"`
+	Success         bool                   `json:"success"`
+	RenderedBody    string                 `json:"rendered_body,omitempty"`
+	RenderedSubject string                 `json:"rendered_subject,omitempty"`
+	Errors          []string               `json:"errors,omitempty"`
+	Variables       map[string]interface{} `json:"variables,omitempty"`
 }
 
 // notificationTemplateService implements NotificationTemplateService
@@ -71,9 +71,9 @@ func (s *notificationTemplateService) CreateTemplate(ctx context.Context, templa
 	// Create template
 	if err := s.repository.Create(ctx, template); err != nil {
 		s.logger.ErrorWithContext(ctx, "Failed to create notification template", err, map[string]interface{}{
-			"tenant_id":    template.TenantID,
+			"tenant_id":     template.TenantID,
 			"template_name": template.Name,
-			"event_type":   template.EventType,
+			"event_type":    template.EventType,
 		})
 		return common.CreateDatabaseError("create_template", err)
 	}
@@ -392,10 +392,10 @@ func (s *notificationTemplateService) validateVariableValue(value interface{}) e
 func (s *notificationTemplateService) renderTemplateString(templateStr string, data map[string]interface{}) (string, error) {
 	// Create template with helper functions
 	tmpl := template.New("notification").Funcs(template.FuncMap{
-		"upper":     strings.ToUpper,
-		"lower":     strings.ToLower,
-		"title":     strings.Title,
-		"trim":      strings.TrimSpace,
+		"upper": strings.ToUpper,
+		"lower": strings.ToLower,
+		"title": strings.Title,
+		"trim":  strings.TrimSpace,
 		"formatDate": func(t time.Time, layout string) string {
 			return t.Format(layout)
 		},

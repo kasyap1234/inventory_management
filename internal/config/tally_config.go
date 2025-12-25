@@ -11,8 +11,8 @@ import (
 
 // TallyConfig represents the complete configuration
 type TallyConfig struct {
-	Tally         TallyIntegration    `toml:"tally"`
-	Queuing       QueuingConfig       `toml:"queuing"`
+	Tally        TallyIntegration   `toml:"tally"`
+	Queuing      QueuingConfig      `toml:"queuing"`
 	ExportImport ExportImportConfig `toml:"export_import"`
 }
 
@@ -26,20 +26,20 @@ type TallyIntegration struct {
 
 // QueuingConfig contains Redis and concurrency settings
 type QueuingConfig struct {
-	RedisAddr       string            `toml:"redis_addr"`
-	RedisPassword   string            `toml:"redis_password"`
-	RedisDB         int               `toml:"redis_db"`
-	Concurrency     int               `toml:"concurrency"`
-	Queues          []string          `toml:"queues"`
-	QueuePriorities map[string]int    `toml:"queue_priorities"`
+	RedisAddr       string         `toml:"redis_addr"`
+	RedisPassword   string         `toml:"redis_password"`
+	RedisDB         int            `toml:"redis_db"`
+	Concurrency     int            `toml:"concurrency"`
+	Queues          []string       `toml:"queues"`
+	QueuePriorities map[string]int `toml:"queue_priorities"`
 }
 
 // ExportImportConfig contains timeouts and retry settings
 type ExportImportConfig struct {
-	Mode               string `toml:"mode"`
-	TimeoutSeconds     int    `toml:"timeout_seconds"`
-	MaxRetryAttempts   int    `toml:"max_retry_attempts"`
-	RetryDelaySeconds  int    `toml:"retry_delay_seconds"`
+	Mode              string `toml:"mode"`
+	TimeoutSeconds    int    `toml:"timeout_seconds"`
+	MaxRetryAttempts  int    `toml:"max_retry_attempts"`
+	RetryDelaySeconds int    `toml:"retry_delay_seconds"`
 }
 
 /*

@@ -228,7 +228,6 @@ func (h *RoleHandlers) CreateRole(c echo.Context) error {
 	})
 }
 
-
 // UpdateRole updates an existing role
 func (h *RoleHandlers) UpdateRole(c echo.Context) error {
 	ctx := c.Request().Context()

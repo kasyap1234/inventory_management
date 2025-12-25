@@ -13,18 +13,18 @@ import (
 
 // GSTReportRow represents a row in GST reporting
 type GSTReportRow struct {
-	InvoiceID       uuid.UUID `json:"invoice_id"`
-	OrderID         uuid.UUID `json:"order_id"`
-	HSNSAC          *string   `json:"hsn_sac"`
-	TaxableAmount   *float64  `json:"taxable_amount"`
-	GSTRate         *float64  `json:"gst_rate"`
-	CGST            *float64  `json:"cgst"`
-	SGST            *float64  `json:"sgst"`
-	IGST            *float64  `json:"igst"`
-	TotalAmount     float64   `json:"total_amount"`
-	Status          string    `json:"status"`
-	IssuedDate      time.Time `json:"issued_date"`
-	GSTIN           *string   `json:"gstin"`
+	InvoiceID     uuid.UUID `json:"invoice_id"`
+	OrderID       uuid.UUID `json:"order_id"`
+	HSNSAC        *string   `json:"hsn_sac"`
+	TaxableAmount *float64  `json:"taxable_amount"`
+	GSTRate       *float64  `json:"gst_rate"`
+	CGST          *float64  `json:"cgst"`
+	SGST          *float64  `json:"sgst"`
+	IGST          *float64  `json:"igst"`
+	TotalAmount   float64   `json:"total_amount"`
+	Status        string    `json:"status"`
+	IssuedDate    time.Time `json:"issued_date"`
+	GSTIN         *string   `json:"gstin"`
 }
 
 type InvoiceRepository interface {
@@ -201,7 +201,6 @@ func (r *invoiceRepo) GetInvoicesByOrderID(ctx context.Context, tenantID, orderI
 		return nil, err
 	}
 	defer rows.Close()
-
 
 	var invoices []*models.Invoice
 	for rows.Next() {

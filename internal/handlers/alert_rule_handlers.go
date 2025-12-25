@@ -85,12 +85,12 @@ func (h *AlertRuleHandlers) UpdateAlertRule(c echo.Context) error {
 	}
 
 	var req struct {
-		Name        *string                 `json:"name"`
-		Description *string                 `json:"description"`
-		EventType   *string                 `json:"event_type"`
-		Conditions  map[string]interface{}  `json:"conditions"`
-		Actions     []models.AlertAction    `json:"actions"`
-		IsActive    *bool                   `json:"is_active"`
+		Name        *string                `json:"name"`
+		Description *string                `json:"description"`
+		EventType   *string                `json:"event_type"`
+		Conditions  map[string]interface{} `json:"conditions"`
+		Actions     []models.AlertAction   `json:"actions"`
+		IsActive    *bool                  `json:"is_active"`
 	}
 
 	if err := c.Bind(&req); err != nil {

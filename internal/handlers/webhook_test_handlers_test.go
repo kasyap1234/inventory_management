@@ -28,49 +28,65 @@ type stubCacheService struct {
 
 var _ caching.CacheService = (*stubCacheService)(nil)
 
-func (s *stubCacheService) GetProduct(ctx context.Context, tenantID, productID uuid.UUID) (*models.Product, error) { return nil, nil }
+func (s *stubCacheService) GetProduct(ctx context.Context, tenantID, productID uuid.UUID) (*models.Product, error) {
+	return nil, nil
+}
 func (s *stubCacheService) SetProduct(ctx context.Context, tenantID uuid.UUID, product *models.Product, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) DeleteProduct(ctx context.Context, tenantID, productID uuid.UUID) error { return nil }
+func (s *stubCacheService) DeleteProduct(ctx context.Context, tenantID, productID uuid.UUID) error {
+	return nil
+}
 func (s *stubCacheService) GetInventory(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) (*models.Inventory, error) {
 	return nil, nil
 }
 func (s *stubCacheService) SetInventory(ctx context.Context, tenantID uuid.UUID, inventory *models.Inventory, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) DeleteInventory(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) error { return nil }
+func (s *stubCacheService) DeleteInventory(ctx context.Context, tenantID, warehouseID, productID uuid.UUID) error {
+	return nil
+}
 func (s *stubCacheService) GetCategory(ctx context.Context, tenantID, categoryID uuid.UUID) (*models.Category, error) {
 	return nil, nil
 }
 func (s *stubCacheService) SetCategory(ctx context.Context, tenantID uuid.UUID, category *models.Category, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) DeleteCategory(ctx context.Context, tenantID, categoryID uuid.UUID) error { return nil }
+func (s *stubCacheService) DeleteCategory(ctx context.Context, tenantID, categoryID uuid.UUID) error {
+	return nil
+}
 func (s *stubCacheService) GetTenantAnalytics(ctx context.Context, tenantID uuid.UUID) (map[string]interface{}, error) {
 	return nil, nil
 }
 func (s *stubCacheService) SetTenantAnalytics(ctx context.Context, tenantID uuid.UUID, analytics map[string]interface{}, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) InvalidateTenantCache(ctx context.Context, tenantID uuid.UUID) error { return nil }
-func (s *stubCacheService) InvalidateAllCache(ctx context.Context) error                     { return nil }
+func (s *stubCacheService) InvalidateTenantCache(ctx context.Context, tenantID uuid.UUID) error {
+	return nil
+}
+func (s *stubCacheService) InvalidateAllCache(ctx context.Context) error { return nil }
 func (s *stubCacheService) SetSession(ctx context.Context, sessionID, userID string, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) GetSession(ctx context.Context, sessionID string) (string, error) { return "", nil }
-func (s *stubCacheService) DeleteSession(ctx context.Context, sessionID string) error        { return nil }
+func (s *stubCacheService) GetSession(ctx context.Context, sessionID string) (string, error) {
+	return "", nil
+}
+func (s *stubCacheService) DeleteSession(ctx context.Context, sessionID string) error { return nil }
 func (s *stubCacheService) IsRateLimited(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
 	return s.limited, nil
 }
-func (s *stubCacheService) IncrementRateLimit(ctx context.Context, key string, window time.Duration) error { return nil }
+func (s *stubCacheService) IncrementRateLimit(ctx context.Context, key string, window time.Duration) error {
+	return nil
+}
 func (s *stubCacheService) SetString(ctx context.Context, key string, value string, ttl time.Duration) error {
 	return nil
 }
 func (s *stubCacheService) GetString(ctx context.Context, key string) (string, error) { return "", nil }
 func (s *stubCacheService) Delete(ctx context.Context, key string) error              { return nil }
 func (s *stubCacheService) DeleteByPattern(ctx context.Context, pattern string) error { return nil }
-func (s *stubCacheService) GetStats(ctx context.Context) (*caching.CacheStats, error) { return nil, nil }
+func (s *stubCacheService) GetStats(ctx context.Context) (*caching.CacheStats, error) {
+	return nil, nil
+}
 
 // Combined Analytics caching
 func (s *stubCacheService) GetCombinedAnalytics(ctx context.Context, tenantID uuid.UUID) ([]byte, error) {
@@ -87,7 +103,9 @@ func (s *stubCacheService) GetProductList(ctx context.Context, tenantID uuid.UUI
 func (s *stubCacheService) SetProductList(ctx context.Context, tenantID uuid.UUID, limit, offset int, products []*models.Product, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) InvalidateProductList(ctx context.Context, tenantID uuid.UUID) error { return nil }
+func (s *stubCacheService) InvalidateProductList(ctx context.Context, tenantID uuid.UUID) error {
+	return nil
+}
 
 // Order List caching
 func (s *stubCacheService) GetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*models.Order, error) {
@@ -96,7 +114,9 @@ func (s *stubCacheService) GetOrderList(ctx context.Context, tenantID uuid.UUID,
 func (s *stubCacheService) SetOrderList(ctx context.Context, tenantID uuid.UUID, limit, offset int, orders []*models.Order, ttl time.Duration) error {
 	return nil
 }
-func (s *stubCacheService) InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error { return nil }
+func (s *stubCacheService) InvalidateOrderList(ctx context.Context, tenantID uuid.UUID) error {
+	return nil
+}
 
 func makeEchoWithAuthContext() (*echo.Echo, echo.Context, uuid.UUID, uuid.UUID) {
 	e := echo.New()
@@ -139,9 +159,9 @@ func TestWebhookTestHandlers_HeaderSanitization(t *testing.T) {
 		"target_url": ts.URL,
 		"method":     "POST",
 		"headers": map[string]string{
-			"Authorization":      "Bearer attempt",
+			"Authorization":       "Bearer attempt",
 			"X-Webhook-Signature": "override",
-			"X-Allowed":          "ok",
+			"X-Allowed":           "ok",
 		},
 		"payload": map[string]interface{}{"x": 1},
 	}

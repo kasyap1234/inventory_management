@@ -111,4 +111,3 @@ func (s *BatchService) updateProductTotalQuantity(ctx context.Context, tenantID,
 	// For now, let's assume we can use a direct update or we need to add a method to ProductRepo
 	return s.productRepo.UpdateQuantity(ctx, tenantID, productID, total)
 }
-

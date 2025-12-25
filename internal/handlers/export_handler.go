@@ -86,7 +86,7 @@ func (h *ExportHandlers) ExportToExcel(c echo.Context) error {
 		for colIdx, col := range req.Columns {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
 			value := row[col.Key]
-			
+
 			// Handle different types
 			switch v := value.(type) {
 			case nil:

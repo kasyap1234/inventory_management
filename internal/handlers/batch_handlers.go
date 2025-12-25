@@ -173,4 +173,3 @@ func (h *BatchHandler) ListBatches(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, batches)
 }
-

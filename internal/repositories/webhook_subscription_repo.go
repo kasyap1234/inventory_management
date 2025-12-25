@@ -72,7 +72,7 @@ func (r *webhookSubscriptionRepo) Create(ctx context.Context, webhook *models.We
 		return fmt.Errorf("failed to create webhook subscription: %w", err)
 	}
 
-    return nil
+	return nil
 }
 
 // Update updates an existing webhook subscription

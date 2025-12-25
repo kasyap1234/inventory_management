@@ -16,11 +16,11 @@ import (
 // AuditMiddleware provides automatic audit logging for HTTP requests
 // Define a minimal interface to avoid importing services and causing cycles
 type AuditLogger interface {
-    LogActivity(ctx context.Context, tenantID uuid.UUID, tableName, recordID, action string, changedBy *uuid.UUID, oldValues, newValues models.JSONB) error
+	LogActivity(ctx context.Context, tenantID uuid.UUID, tableName, recordID, action string, changedBy *uuid.UUID, oldValues, newValues models.JSONB) error
 }
 
 type AuditMiddleware struct {
-    auditService AuditLogger
+	auditService AuditLogger
 }
 
 // NewAuditMiddleware creates a new audit middleware instance
@@ -112,11 +112,11 @@ func (m *AuditMiddleware) auditMediumSensitivity(c echo.Context, tenantID uuid.U
 	action := method + " " + path
 
 	data := map[string]interface{}{
-		"method":     method,
-		"path":       path,
-		"user_agent": c.Request().UserAgent(),
-		"ip":         c.RealIP(),
-		"timestamp":  time.Now().Format(time.RFC3339),
+		"method":       method,
+		"path":         path,
+		"user_agent":   c.Request().UserAgent(),
+		"ip":           c.RealIP(),
+		"timestamp":    time.Now().Format(time.RFC3339),
 		"query_params": c.QueryParams(),
 	}
 
@@ -283,26 +283,26 @@ func (m *AuditMiddleware) normalizeEntity(entity interface{}) (models.JSONB, err
 
 	case *models.Product:
 		return map[string]interface{}{
-			"id":           v.ID,
-			"name":         v.Name,
-			"quantity":     v.Quantity,
-			"unit_price":   v.UnitPrice,
-			"category_id":  v.CategoryID,
-			"barcode":      v.Barcode,
-			"description":  v.Description,
+			"id":          v.ID,
+			"name":        v.Name,
+			"quantity":    v.Quantity,
+			"unit_price":  v.UnitPrice,
+			"category_id": v.CategoryID,
+			"barcode":     v.Barcode,
+			"description": v.Description,
 		}, nil
 
 	case *models.Order:
 		return map[string]interface{}{
-			"id":              v.ID,
-			"order_type":      v.OrderType,
-			"supplier_id":     v.SupplierID,
-			"distributor_id":  v.DistributorID,
-			"product_id":      v.ProductID,
-			"warehouse_id":    v.WarehouseID,
-			"quantity":        v.Quantity,
-			"unit_price":      v.UnitPrice,
-			"status":          v.Status,
+			"id":             v.ID,
+			"order_type":     v.OrderType,
+			"supplier_id":    v.SupplierID,
+			"distributor_id": v.DistributorID,
+			"product_id":     v.ProductID,
+			"warehouse_id":   v.WarehouseID,
+			"quantity":       v.Quantity,
+			"unit_price":     v.UnitPrice,
+			"status":         v.Status,
 		}, nil
 
 	default:
@@ -386,8 +386,8 @@ func (m *AuditMiddleware) AuditDecorator(operation string, getEntity func() (int
 
 		// Log the operation (this is a simplified approach)
 		data := map[string]interface{}{
-			"operation": operation,
-			"timestamp": time.Now().Format(time.RFC3339),
+			"operation":   operation,
+			"timestamp":   time.Now().Format(time.RFC3339),
 			"entity_type": reflect.TypeOf(entity).String(),
 		}
 

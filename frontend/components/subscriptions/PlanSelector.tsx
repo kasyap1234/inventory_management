@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Check, Star, Zap, Building, Users, HardDrive, Activity, Shield, CreditCard } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import axios from 'axios'
@@ -277,8 +277,8 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
             <button
               onClick={() => setPaymentMethod('stripe')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${paymentMethod === 'stripe'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               Stripe
@@ -286,8 +286,8 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
             <button
               onClick={() => setPaymentMethod('razorpay')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${paymentMethod === 'razorpay'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               Razorpay
@@ -307,10 +307,10 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
             <div
               key={plan.id}
               className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 ${plan.popular
-                  ? 'border-blue-500 ring-2 ring-blue-200'
-                  : isCurrentPlan
-                    ? 'border-green-500 ring-2 ring-green-200'
-                    : 'border-gray-200 hover:border-gray-300'
+                ? 'border-blue-500 ring-2 ring-blue-200'
+                : isCurrentPlan
+                  ? 'border-green-500 ring-2 ring-green-200'
+                  : 'border-gray-200 hover:border-gray-300'
                 }`}
             >
               {/* Popular Badge */}
@@ -399,10 +399,10 @@ const PlanSelector = React.memo(function PlanSelector({ currentPlan, onPlanSelec
                   onClick={() => handleSelectPlan(plan.id)}
                   disabled={isCurrentPlan || stripeCheckout.isLoading || razorpayCheckout.isLoading}
                   className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${isCurrentPlan
-                      ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                      : plan.popular
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-900 text-white hover:bg-gray-800'
+                    ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                    : plan.popular
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-900 text-white hover:bg-gray-800'
                     } ${(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id ? 'opacity-50' : ''}`}
                 >
                   {(stripeCheckout.isLoading || razorpayCheckout.isLoading) && selectedPlan === plan.id

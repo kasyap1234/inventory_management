@@ -25,46 +25,46 @@ type ProductSearchFilter struct {
 
 // ProductBulkUpdate represents a bulk update operation for products
 type ProductBulkUpdate struct {
-	ProductIDs        []uuid.UUID          `json:"product_ids" validate:"required,min=1"`       // List of product IDs to update
-	CategoryID        *uuid.UUID           `json:"category_id,omitempty"`                       // New category for all products
-	UnitPriceChange   *float64             `json:"unit_price_change,omitempty"`                 // Price change (absolute or percentage)
-	UnitPriceMode     string               `json:"unit_price_mode,omitempty"`                   // Mode: "absolute", "percentage"
-	BatchNumber       *string              `json:"batch_number,omitempty"`                      // New batch number for all products
-	ExpiryDate        *time.Time           `json:"expiry_date,omitempty"`                       // New expiry date for all products
-	UnitOfMeasure     *string              `json:"unit_of_measure,omitempty"`                    // New unit of measure
-	Description       *string              `json:"description,omitempty"`                        // New description for all products
-	ValidationMode    string               `json:"validation_mode"`                             // Mode: "strict", "skip_invalid" - default strict
-	TransactionMode   string               `json:"transaction_mode"`                            // Mode: "atomic", "best_effort" - default atomic
+	ProductIDs      []uuid.UUID `json:"product_ids" validate:"required,min=1"` // List of product IDs to update
+	CategoryID      *uuid.UUID  `json:"category_id,omitempty"`                 // New category for all products
+	UnitPriceChange *float64    `json:"unit_price_change,omitempty"`           // Price change (absolute or percentage)
+	UnitPriceMode   string      `json:"unit_price_mode,omitempty"`             // Mode: "absolute", "percentage"
+	BatchNumber     *string     `json:"batch_number,omitempty"`                // New batch number for all products
+	ExpiryDate      *time.Time  `json:"expiry_date,omitempty"`                 // New expiry date for all products
+	UnitOfMeasure   *string     `json:"unit_of_measure,omitempty"`             // New unit of measure
+	Description     *string     `json:"description,omitempty"`                 // New description for all products
+	ValidationMode  string      `json:"validation_mode"`                       // Mode: "strict", "skip_invalid" - default strict
+	TransactionMode string      `json:"transaction_mode"`                      // Mode: "atomic", "best_effort" - default atomic
 }
 
 // ProductBulkCreate represents bulk product creation
 type ProductBulkCreate struct {
-	Products         []*Product           `json:"products" validate:"required,min=1,dive"`      // List of products to create
-	ValidationMode   string               `json:"validation_mode"`                             // Mode: "strict", "skip_invalid" - default strict
-	TransactionMode  string               `json:"transaction_mode"`                            // Mode: "atomic", "best_effort" - default atomic
+	Products        []*Product `json:"products" validate:"required,min=1,dive"` // List of products to create
+	ValidationMode  string     `json:"validation_mode"`                         // Mode: "strict", "skip_invalid" - default strict
+	TransactionMode string     `json:"transaction_mode"`                        // Mode: "atomic", "best_effort" - default atomic
 }
 
 type Product struct {
-	ID             uuid.UUID `json:"id" db:"id"`
-	TenantID       uuid.UUID `json:"tenant_id" db:"tenant_id"`
-	CategoryID     *uuid.UUID `json:"category_id" db:"category_id"`
-	Name           string    `json:"name" db:"name"`
+	ID         uuid.UUID  `json:"id" db:"id"`
+	TenantID   uuid.UUID  `json:"tenant_id" db:"tenant_id"`
+	CategoryID *uuid.UUID `json:"category_id" db:"category_id"`
+	Name       string     `json:"name" db:"name"`
 	// Deprecated: Use Batches instead
-	BatchNumber    *string   `json:"batch_number" db:"batch_number"`
+	BatchNumber *string `json:"batch_number" db:"batch_number"`
 	// Deprecated: Use Batches instead
-	ExpiryDate     *time.Time `json:"expiry_date" db:"expiry_date"`
-	Quantity       int       `json:"quantity" db:"quantity"`
-	UnitPrice      float64   `json:"unit_price" db:"unit_price"`
-	Barcode        *string   `json:"barcode" db:"barcode"`
-	UnitOfMeasure  *string   `json:"unit_of_measure" db:"unit_of_measure"`
-	Description    *string   `json:"description" db:"description"`
-	
+	ExpiryDate    *time.Time `json:"expiry_date" db:"expiry_date"`
+	Quantity      int        `json:"quantity" db:"quantity"`
+	UnitPrice     float64    `json:"unit_price" db:"unit_price"`
+	Barcode       *string    `json:"barcode" db:"barcode"`
+	UnitOfMeasure *string    `json:"unit_of_measure" db:"unit_of_measure"`
+	Description   *string    `json:"description" db:"description"`
+
 	// Agro-Tech / Chemical specific fields
-	IsHazardous      bool    `json:"is_hazardous" db:"is_hazardous"`
-	HazardClass      *string `json:"hazard_class" db:"hazard_class"`
-	SDSUrl           *string `json:"sds_url" db:"sds_url"`
+	IsHazardous       bool    `json:"is_hazardous" db:"is_hazardous"`
+	HazardClass       *string `json:"hazard_class" db:"hazard_class"`
+	SDSUrl            *string `json:"sds_url" db:"sds_url"`
 	ActiveIngredients *string `json:"active_ingredients" db:"active_ingredients"`
 
-	CreatedAt      time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
