@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,6 @@ import { Product, Warehouse } from '@/types';
 export default function BatchesPage() {
     const [selectedProductId, setSelectedProductId] = useState<string>('');
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
     const queryClient = useQueryClient();
 
     // Fetch products for selection
@@ -62,22 +61,6 @@ export default function BatchesPage() {
         onError: (error: unknown) => {
             const err = error as { response?: { data?: { message?: string } } };
             toast.error(err.response?.data?.message || 'Failed to create batch');
-        },
-    });
-
-    const updateBatchMutation = useMutation({
-        mutationFn: async (data: { id: string } & Partial<Batch>) => {
-            const response = await api.put(`/batches/${data.id}`, data);
-            return response.data;
-        },
-        onSuccess: () => {
-            toast.success('Batch updated successfully');
-            setEditingBatch(null);
-            queryClient.invalidateQueries({ queryKey: ['batches', selectedProductId] });
-        },
-        onError: (error: unknown) => {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast.error(err.response?.data?.message || 'Failed to update batch');
         },
     });
 
@@ -182,7 +165,7 @@ function CreateBatchDialog({
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    productId: string;
+    productId: string; // Used for future functionality
     warehouses: Warehouse[];
     onSubmit: (data: { batch_number: string; quantity: number; manufacturing_date: string; expiry_date: string; warehouse_id: string }) => void;
     isSubmitting: boolean;

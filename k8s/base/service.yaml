@@ -80,11 +80,10 @@ kind: Secret
 metadata:
   name: agromart2-secrets
 type: Opaque
-data:
-  # Fill with base64 encoded values
-  database-url: ""
-  redis-url: ""
-  jwt-secret: ""
+stringData:
+  database-url: "postgresql://user:password@postgres:5432/dbname"
+  redis-url: "redis://redis:6379"
+  jwt-secret: "change-this-to-a-secure-random-string"
   supabase-url: ""
   supabase-anon-key: ""
 

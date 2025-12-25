@@ -638,10 +638,25 @@ func (h *ProductHandlers) GetProductImages(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve product images")
 	}
 
-	// Attach signed URLs for safer direct access
+	// Attach signed URLs for safer direct access (parallel generation)
+	type imageResult struct {
+		image *models.ProductImage
+		url   string
+		err   error
+	}
+	resultChan := make(chan imageResult, len(images))
+
 	for _, image := range images {
-		if url, err := h.productService.GetProductImageURL(ctx, tenantID, image.ID, 24*time.Hour); err == nil {
-			image.ImageURL = url
+		go func(img *models.ProductImage) {
+			url, err := h.productService.GetProductImageURL(ctx, tenantID, img.ID, 24*time.Hour)
+			resultChan <- imageResult{image: img, url: url, err: err}
+		}(image)
+	}
+
+	for range images {
+		result := <-resultChan
+		if result.err == nil {
+			result.image.ImageURL = result.url
 		}
 	}
 

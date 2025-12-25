@@ -52,7 +52,7 @@ func (h *WebSocketHub) Run() {
 			h.mu.Lock()
 			h.clients[client.ID] = client
 			h.mu.Unlock()
-			log.Printf("WebSocket client registered: %s (tenant: %s, user: %s)", 
+			log.Printf("WebSocket client registered: %s (tenant: %s, user: %s)",
 				client.ID, client.TenantID, client.UserID)
 
 		case client := <-h.unregister:
@@ -66,17 +66,22 @@ func (h *WebSocketHub) Run() {
 
 		case message := <-h.broadcast:
 			h.mu.RLock()
+			// Collect clients that need to be unregistered to avoid
+			// unlocking/re-locking during iteration (race condition fix)
+			var toUnregister []*WebSocketClient
 			for _, client := range h.clients {
 				select {
 				case client.Send <- message:
 				default:
-					// Client's send channel is full, close it
-					h.mu.RUnlock()
-					h.unregister <- client
-					h.mu.RLock()
+					// Client's send channel is full, mark for unregistration
+					toUnregister = append(toUnregister, client)
 				}
 			}
 			h.mu.RUnlock()
+			// Unregister clients outside the read lock to avoid deadlock
+			for _, client := range toUnregister {
+				h.unregister <- client
+			}
 		}
 	}
 }

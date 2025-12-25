@@ -12,7 +12,7 @@ import (
 type SubscriptionMiddlewareService interface {
 	// Feature access checks
 	CanAccessFeature(ctx context.Context, tenantID uuid.UUID, feature string) (bool, error)
-	
+
 	// Resource limit checks
 	CanCreateWarehouse(ctx context.Context, tenantID uuid.UUID) error
 	CanCreateUser(ctx context.Context, tenantID uuid.UUID) error
@@ -20,11 +20,11 @@ type SubscriptionMiddlewareService interface {
 	CanCreateOrder(ctx context.Context, tenantID uuid.UUID) error
 	CanCreateSupplier(ctx context.Context, tenantID uuid.UUID) error
 	CanCreateDistributor(ctx context.Context, tenantID uuid.UUID) error
-	
+
 	// Get limits and usage
 	GetSubscriptionLimits(ctx context.Context, tenantID uuid.UUID) (*SubscriptionLimits, error)
 	GetCurrentUsage(ctx context.Context, tenantID uuid.UUID) (*ResourceUsage, error)
-	
+
 	// Refresh usage tracking
 	RefreshUsageTracking(ctx context.Context, tenantID uuid.UUID) error
 }
@@ -35,36 +35,36 @@ type subscriptionMiddlewareService struct {
 
 // SubscriptionLimits represents the limits for a subscription plan
 type SubscriptionLimits struct {
-	PlanID                     string `db:"plan_id" json:"plan_id"`
-	PlanName                   string `db:"plan_name" json:"plan_name"`
-	MaxWarehouses              int    `db:"max_warehouses" json:"max_warehouses"`
-	MaxUsers                   int    `db:"max_users" json:"max_users"`
-	MaxProducts                int    `db:"max_products" json:"max_products"`
-	MaxOrdersPerMonth          int    `db:"max_orders_per_month" json:"max_orders_per_month"`
-	MaxSuppliers               int    `db:"max_suppliers" json:"max_suppliers"`
-	MaxDistributors            int    `db:"max_distributors" json:"max_distributors"`
-	AnalyticsEnabled           bool   `db:"analytics_enabled" json:"analytics_enabled"`
-	AdvancedAnalyticsEnabled   bool   `db:"advanced_analytics_enabled" json:"advanced_analytics_enabled"`
-	APIAccessEnabled           bool   `db:"api_access_enabled" json:"api_access_enabled"`
-	CustomBrandingEnabled      bool   `db:"custom_branding_enabled" json:"custom_branding_enabled"`
-	PrioritySupportEnabled     bool   `db:"priority_support_enabled" json:"priority_support_enabled"`
-	MultiLocationEnabled       bool   `db:"multi_location_enabled" json:"multi_location_enabled"`
-	CustomIntegrationsEnabled  bool   `db:"custom_integrations_enabled" json:"custom_integrations_enabled"`
-	DedicatedAccountManager    bool   `db:"dedicated_account_manager" json:"dedicated_account_manager"`
-	APIRateLimitPerMinute      int    `db:"api_rate_limit_per_minute" json:"api_rate_limit_per_minute"`
-	StorageLimitGB             int    `db:"storage_limit_gb" json:"storage_limit_gb"`
+	PlanID                    string `db:"plan_id" json:"plan_id"`
+	PlanName                  string `db:"plan_name" json:"plan_name"`
+	MaxWarehouses             int    `db:"max_warehouses" json:"max_warehouses"`
+	MaxUsers                  int    `db:"max_users" json:"max_users"`
+	MaxProducts               int    `db:"max_products" json:"max_products"`
+	MaxOrdersPerMonth         int    `db:"max_orders_per_month" json:"max_orders_per_month"`
+	MaxSuppliers              int    `db:"max_suppliers" json:"max_suppliers"`
+	MaxDistributors           int    `db:"max_distributors" json:"max_distributors"`
+	AnalyticsEnabled          bool   `db:"analytics_enabled" json:"analytics_enabled"`
+	AdvancedAnalyticsEnabled  bool   `db:"advanced_analytics_enabled" json:"advanced_analytics_enabled"`
+	APIAccessEnabled          bool   `db:"api_access_enabled" json:"api_access_enabled"`
+	CustomBrandingEnabled     bool   `db:"custom_branding_enabled" json:"custom_branding_enabled"`
+	PrioritySupportEnabled    bool   `db:"priority_support_enabled" json:"priority_support_enabled"`
+	MultiLocationEnabled      bool   `db:"multi_location_enabled" json:"multi_location_enabled"`
+	CustomIntegrationsEnabled bool   `db:"custom_integrations_enabled" json:"custom_integrations_enabled"`
+	DedicatedAccountManager   bool   `db:"dedicated_account_manager" json:"dedicated_account_manager"`
+	APIRateLimitPerMinute     int    `db:"api_rate_limit_per_minute" json:"api_rate_limit_per_minute"`
+	StorageLimitGB            int    `db:"storage_limit_gb" json:"storage_limit_gb"`
 }
 
 // ResourceUsage represents current resource usage
 type ResourceUsage struct {
-	WarehousesCount          int     `db:"warehouses_count" json:"warehouses_count"`
-	UsersCount               int     `db:"users_count" json:"users_count"`
-	ProductsCount            int     `db:"products_count" json:"products_count"`
-	OrdersCountCurrentMonth  int     `db:"orders_count_current_month" json:"orders_count_current_month"`
-	SuppliersCount           int     `db:"suppliers_count" json:"suppliers_count"`
-	DistributorsCount        int     `db:"distributors_count" json:"distributors_count"`
-	StorageUsedGB            float64 `db:"storage_used_gb" json:"storage_used_gb"`
-	APICallsCurrentMonth     int     `db:"api_calls_current_month" json:"api_calls_current_month"`
+	WarehousesCount         int     `db:"warehouses_count" json:"warehouses_count"`
+	UsersCount              int     `db:"users_count" json:"users_count"`
+	ProductsCount           int     `db:"products_count" json:"products_count"`
+	OrdersCountCurrentMonth int     `db:"orders_count_current_month" json:"orders_count_current_month"`
+	SuppliersCount          int     `db:"suppliers_count" json:"suppliers_count"`
+	DistributorsCount       int     `db:"distributors_count" json:"distributors_count"`
+	StorageUsedGB           float64 `db:"storage_used_gb" json:"storage_used_gb"`
+	APICallsCurrentMonth    int     `db:"api_calls_current_month" json:"api_calls_current_month"`
 }
 
 // NewSubscriptionMiddlewareService creates a new subscription middleware service
@@ -106,7 +106,7 @@ func (s *subscriptionMiddlewareService) GetSubscriptionLimits(ctx context.Contex
 		ORDER BY s.created_at DESC
 		LIMIT 1
 	`
-	
+
 	var limits SubscriptionLimits
 	err := s.db.QueryRow(ctx, query, tenantID).Scan(
 		&limits.PlanID, &limits.PlanName,
@@ -124,7 +124,7 @@ func (s *subscriptionMiddlewareService) GetSubscriptionLimits(ctx context.Contex
 		}
 		return nil, fmt.Errorf("failed to get subscription limits: %w", err)
 	}
-	
+
 	return &limits, nil
 }
 
@@ -149,8 +149,9 @@ func (s *subscriptionMiddlewareService) getDefaultLimits(ctx context.Context) (*
 
 // GetCurrentUsage gets the current resource usage for a tenant
 func (s *subscriptionMiddlewareService) GetCurrentUsage(ctx context.Context, tenantID uuid.UUID) (*ResourceUsage, error) {
+	// SELECT * is acceptable here because get_current_usage() is a stored function that returns known columns
 	query := `SELECT * FROM get_current_usage($1)`
-	
+
 	var usage ResourceUsage
 	err := s.db.QueryRow(ctx, query, tenantID).Scan(
 		&usage.WarehousesCount,
@@ -163,7 +164,7 @@ func (s *subscriptionMiddlewareService) GetCurrentUsage(ctx context.Context, ten
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current usage: %w", err)
 	}
-	
+
 	return &usage, nil
 }
 
@@ -173,22 +174,22 @@ func (s *subscriptionMiddlewareService) CanCreateWarehouse(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	
+
 	// -1 means unlimited
 	if limits.MaxWarehouses == -1 {
 		return nil
 	}
-	
+
 	usage, err := s.GetCurrentUsage(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	
+
 	if usage.WarehousesCount >= limits.MaxWarehouses {
-		return fmt.Errorf("warehouse limit reached: %d/%d. Please upgrade your subscription to create more warehouses", 
+		return fmt.Errorf("warehouse limit reached: %d/%d. Please upgrade your subscription to create more warehouses",
 			usage.WarehousesCount, limits.MaxWarehouses)
 	}
-	
+
 	return nil
 }
 
@@ -198,21 +199,21 @@ func (s *subscriptionMiddlewareService) CanCreateUser(ctx context.Context, tenan
 	if err != nil {
 		return err
 	}
-	
+
 	if limits.MaxUsers == -1 {
 		return nil
 	}
-	
+
 	usage, err := s.GetCurrentUsage(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	
+
 	if usage.UsersCount >= limits.MaxUsers {
-		return fmt.Errorf("user limit reached: %d/%d. Please upgrade your subscription to add more users", 
+		return fmt.Errorf("user limit reached: %d/%d. Please upgrade your subscription to add more users",
 			usage.UsersCount, limits.MaxUsers)
 	}
-	
+
 	return nil
 }
 
@@ -222,21 +223,21 @@ func (s *subscriptionMiddlewareService) CanCreateProduct(ctx context.Context, te
 	if err != nil {
 		return err
 	}
-	
+
 	if limits.MaxProducts == -1 {
 		return nil
 	}
-	
+
 	usage, err := s.GetCurrentUsage(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	
+
 	if usage.ProductsCount >= limits.MaxProducts {
-		return fmt.Errorf("product limit reached: %d/%d. Please upgrade your subscription to add more products", 
+		return fmt.Errorf("product limit reached: %d/%d. Please upgrade your subscription to add more products",
 			usage.ProductsCount, limits.MaxProducts)
 	}
-	
+
 	return nil
 }
 
@@ -246,21 +247,21 @@ func (s *subscriptionMiddlewareService) CanCreateOrder(ctx context.Context, tena
 	if err != nil {
 		return err
 	}
-	
+
 	if limits.MaxOrdersPerMonth == -1 {
 		return nil
 	}
-	
+
 	usage, err := s.GetCurrentUsage(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	
+
 	if usage.OrdersCountCurrentMonth >= limits.MaxOrdersPerMonth {
-		return fmt.Errorf("monthly order limit reached: %d/%d. Please upgrade your subscription or wait for next billing cycle", 
+		return fmt.Errorf("monthly order limit reached: %d/%d. Please upgrade your subscription or wait for next billing cycle",
 			usage.OrdersCountCurrentMonth, limits.MaxOrdersPerMonth)
 	}
-	
+
 	return nil
 }
 
@@ -270,21 +271,21 @@ func (s *subscriptionMiddlewareService) CanCreateSupplier(ctx context.Context, t
 	if err != nil {
 		return err
 	}
-	
+
 	if limits.MaxSuppliers == -1 {
 		return nil
 	}
-	
+
 	usage, err := s.GetCurrentUsage(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	
+
 	if usage.SuppliersCount >= limits.MaxSuppliers {
-		return fmt.Errorf("supplier limit reached: %d/%d. Please upgrade your subscription to add more suppliers", 
+		return fmt.Errorf("supplier limit reached: %d/%d. Please upgrade your subscription to add more suppliers",
 			usage.SuppliersCount, limits.MaxSuppliers)
 	}
-	
+
 	return nil
 }
 
@@ -294,21 +295,21 @@ func (s *subscriptionMiddlewareService) CanCreateDistributor(ctx context.Context
 	if err != nil {
 		return err
 	}
-	
+
 	if limits.MaxDistributors == -1 {
 		return nil
 	}
-	
+
 	usage, err := s.GetCurrentUsage(ctx, tenantID)
 	if err != nil {
 		return err
 	}
-	
+
 	if usage.DistributorsCount >= limits.MaxDistributors {
-		return fmt.Errorf("distributor limit reached: %d/%d. Please upgrade your subscription to add more distributors", 
+		return fmt.Errorf("distributor limit reached: %d/%d. Please upgrade your subscription to add more distributors",
 			usage.DistributorsCount, limits.MaxDistributors)
 	}
-	
+
 	return nil
 }
 
@@ -336,11 +337,11 @@ func (s *subscriptionMiddlewareService) RefreshUsageTracking(ctx context.Context
 			distributors_count = EXCLUDED.distributors_count,
 			updated_at = NOW()
 	`
-	
+
 	_, err := s.db.Exec(ctx, query, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to refresh usage tracking: %w", err)
 	}
-	
+
 	return nil
 }

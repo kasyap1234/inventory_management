@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Plus, Search, Edit, Trash2, Shield, Users as UsersIcon, Key, CheckCircle, Clock, XCircle, Mail, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,9 @@ type TabType = 'users' | 'pending' | 'roles' | 'permissions' | 'invitations';
 export default function UsersPage() {
   const [activeTab, setActiveTab] = useState<TabType>('users');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Debounce search query to reduce API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   return (
     <div className="space-y-6 p-6">
@@ -102,11 +106,11 @@ export default function UsersPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'users' && <UsersTab searchQuery={searchQuery} />}
-      {activeTab === 'pending' && <PendingApprovalTab searchQuery={searchQuery} />}
-      {activeTab === 'invitations' && <InvitationsTab searchQuery={searchQuery} />}
-      {activeTab === 'roles' && <RolesTab searchQuery={searchQuery} />}
-      {activeTab === 'permissions' && <PermissionsTab searchQuery={searchQuery} />}
+      {activeTab === 'users' && <UsersTab searchQuery={debouncedSearchQuery} />}
+      {activeTab === 'pending' && <PendingApprovalTab searchQuery={debouncedSearchQuery} />}
+      {activeTab === 'invitations' && <InvitationsTab searchQuery={debouncedSearchQuery} />}
+      {activeTab === 'roles' && <RolesTab searchQuery={debouncedSearchQuery} />}
+      {activeTab === 'permissions' && <PermissionsTab searchQuery={debouncedSearchQuery} />}
 
     </div>
   );

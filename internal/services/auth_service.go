@@ -438,7 +438,10 @@ func (s *authService) GetRefreshToken(ctx context.Context, tokenHash string) (*m
 	}
 
 	userIDStr, _, tokenHash, expiryStr := parts[0], parts[1], parts[2], parts[3]
-	expiry, _ := strconv.ParseInt(expiryStr, 10, 64)
+	expiry, err := strconv.ParseInt(expiryStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid token expiry: %w", err)
+	}
 
 	return &models.RefreshToken{
 		ID:        uuid.NewString(),
@@ -1445,7 +1448,6 @@ func (s *authService) SeedSuperAdmin(ctx context.Context, email, password string
 		}
 		log.Printf("Updated super admin password for: %s", email)
 	}
-
 
 	// 4. Assign super_admin role
 	// Check if already assigned

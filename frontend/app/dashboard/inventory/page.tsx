@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, AlertTriangle, PlusCircle, MinusCircle, Package, Scan } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { BarcodeScanner } from '@/components/inventory/BarcodeScanner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,9 @@ export default function InventoryPage() {
   const [isBulkAdjustmentOpen, setIsBulkAdjustmentOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  // Debounce search query to reduce API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   const handleSelectAll = (checked: boolean) => {
     if (checked && inventory?.inventories) {
       setSelectedItems(new Set(inventory.inventories.map((item) => item.id)));
@@ -83,8 +87,8 @@ export default function InventoryPage() {
       limit: 100,
     };
 
-    if (searchQuery) {
-      params.query = searchQuery;
+    if (debouncedSearchQuery) {
+      params.query = debouncedSearchQuery;
     }
 
     if (advancedFilters.warehouse_id) {
@@ -107,7 +111,7 @@ export default function InventoryPage() {
   };
 
   const { data: inventory, isLoading } = useQuery<{ inventories: InventoryWithDetails[] }>({
-    queryKey: ['inventory', searchQuery, advancedFilters],
+    queryKey: ['inventory', debouncedSearchQuery, advancedFilters],
     queryFn: async () => {
       const params = buildQueryParams();
       const queryString = new URLSearchParams(
@@ -121,6 +125,7 @@ export default function InventoryPage() {
       const response = await api.get(`/inventory/search?${queryString}`);
       return response.data;
     },
+    staleTime: 30 * 1000, // 30 seconds for inventory data
   });
 
   // Fetch products and warehouses only for dropdowns (keep these minimal)
@@ -456,8 +461,48 @@ function InventoryFormDialog({
         await api.post('/inventory', data);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    onMutate: async (data) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['inventory'] });
+
+      // Snapshot previous value
+      const previousInventory = queryClient.getQueryData<{ inventories: InventoryWithDetails[] }>(['inventory']);
+
+      // Optimistically update
+      if (inventory) {
+        // Update existing
+        queryClient.setQueryData<{ inventories: InventoryWithDetails[] }>(
+          ['inventory'],
+          (old) => ({
+            ...old,
+            inventories: old?.inventories?.map((item) =>
+              item.id === inventory.id ? { ...item, ...data } : item
+            ) || [],
+          })
+        );
+      } else {
+        // Add new
+        queryClient.setQueryData<{ inventories: InventoryWithDetails[] }>(
+          ['inventory'],
+          (old) => ({
+            ...old,
+            inventories: [data as Inventory, ...(old?.inventories || [])],
+          })
+        );
+      }
+
+      return { previousInventory };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousInventory) {
+        queryClient.setQueryData(['inventory'], context.previousInventory);
+      }
+      alert('Failed to save inventory. Please try again.');
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['inventory'], refetchType: 'none' });
       onOpenChange(false);
     },
   });
@@ -564,18 +609,45 @@ function StockAdjustmentDialog({
         reason,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    onMutate: async () => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['inventory'] });
+
+      // Snapshot previous value
+      const previousInventory = queryClient.getQueryData<{ inventories: InventoryWithDetails[] }>(['inventory']);
+
+      // Optimistically update quantity
+      queryClient.setQueryData<{ inventories: InventoryWithDetails[] }>(
+        ['inventory'],
+        (old) => ({
+          ...old,
+          inventories: old?.inventories?.map((item) =>
+            item.id === inventory?.id
+              ? { ...item, quantity: inventory.quantity + adjustment }
+              : item
+          ) || [],
+        })
+      );
+
+      return { previousInventory };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousInventory) {
+        queryClient.setQueryData(['inventory'], context.previousInventory);
+      }
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      alert(err.response?.data?.error?.message || 'Failed to adjust stock');
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['inventory'], refetchType: 'none' });
       if (inventory) {
-        queryClient.invalidateQueries({ queryKey: ['inventory-history', inventory.id] });
+        queryClient.invalidateQueries({ queryKey: ['inventory-history', inventory.id], refetchType: 'none' });
       }
       onOpenChange(false);
       setAdjustment(0);
       setReason('');
-    },
-    onError: (error: Error) => {
-      // @ts-expect-error - The error object from axios might not perfectly match the 'Error' interface, especially for network errors or custom backend errors.
-      alert(error.response?.data?.error?.message || 'Failed to adjust stock');
     },
   });
 

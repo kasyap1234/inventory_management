@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"net/http"
 	"os"
@@ -11,8 +12,11 @@ import (
 
 // GoogleLogin initiates the Google OAuth2 flow
 func (h *AuthHandlers) GoogleLogin(c echo.Context) error {
-	// Generate a random state string for security (in production use a proper CSRF token)
-	state := "random-state-string"
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate state")
+	}
+	state := base64.URLEncoding.EncodeToString(b)
 	url := h.authService.GetGoogleAuthURL(state)
 	return c.Redirect(http.StatusTemporaryRedirect, url)
 }
@@ -38,18 +42,43 @@ func (h *AuthHandlers) GoogleCallback(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate tokens")
 		}
 
-		// Redirect to frontend with tokens
-		// In a real app, you might set a cookie or redirect to a page that handles the token
-		// For this implementation, we'll redirect to a frontend route that processes the token
+		// Set HttpOnly cookies for tokens
+		c.SetCookie(&http.Cookie{
+			Name:     "auth_token",
+			Value:    tokenResponse.AccessToken,
+			HttpOnly: true,
+			Secure:   os.Getenv("ENV") == "production",
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
+			MaxAge:   3600,
+		})
+		c.SetCookie(&http.Cookie{
+			Name:     "refresh_token",
+			Value:    tokenResponse.RefreshToken,
+			HttpOnly: true,
+			Secure:   os.Getenv("ENV") == "production",
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
+			MaxAge:   86400 * 7,
+		})
+
+		// Redirect to frontend without tokens in URL
 		frontendURL := os.Getenv("FRONTEND_URL")
-		redirectURL := frontendURL + "/auth/google/callback?access_token=" + tokenResponse.AccessToken + "&refresh_token=" + tokenResponse.RefreshToken
-		return c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+		return c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/auth/google/callback")
 	}
 
-	// If user does not exist, redirect to completion page with temp token
+	// If user does not exist, redirect to completion page with temp token in cookie
+	c.SetCookie(&http.Cookie{
+		Name:     "temp_token",
+		Value:    tempToken,
+		HttpOnly: true,
+		Secure:   os.Getenv("ENV") == "production",
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+		MaxAge:   3600,
+	})
 	frontendURL := os.Getenv("FRONTEND_URL")
-	redirectURL := frontendURL + "/complete-registration?token=" + tempToken
-	return c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+	return c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/complete-registration")
 }
 
 // CompleteGoogleSignupRequest represents the request to complete Google signup

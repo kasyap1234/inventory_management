@@ -1,5 +1,3 @@
-import { tokenStorage } from './security';
-
 export type WebSocketMessage = {
   type: 'inventory_update' | 'order_update' | 'notification' | 'low_stock_alert' | 'ping' | 'pong';
   data: unknown;
@@ -30,15 +28,9 @@ class WebSocketClient {
     }
 
     this.isIntentionallyClosed = false;
-    const token = tokenStorage.getAccessToken();
-
-    if (!token) {
-      console.warn('No access token available for WebSocket connection');
-      return;
-    }
 
     try {
-      this.ws = new WebSocket(`${this.url}?token=${token}`);
+      this.ws = new WebSocket(this.url);
 
       this.ws.onopen = () => {
         console.log('WebSocket connected');
@@ -162,19 +154,34 @@ class WebSocketClient {
 // Singleton instance
 export const wsClient = new WebSocketClient();
 
-// React hook for WebSocket
+// React hook for WebSocket - properly manages subscription lifecycle
+import { useEffect, useCallback, useRef } from 'react';
+
 export function useWebSocket(type: string, handler: WebSocketEventHandler) {
-  if (typeof window === 'undefined') return;
+  // Store handler in ref to avoid re-subscribing on handler changes
+  const handlerRef = useRef<WebSocketEventHandler>(handler);
+  handlerRef.current = handler;
 
-  const handleMessage = (message: WebSocketMessage) => {
-    handler(message);
-  };
+  // Stable callback that reads from ref
+  const stableHandler = useCallback((message: WebSocketMessage) => {
+    handlerRef.current(message);
+  }, []);
 
-  // Subscribe
-  wsClient.on(type, handleMessage);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-  // Cleanup
-  return () => {
-    wsClient.off(type, handleMessage);
-  };
+    // Connect if not already connected
+    if (!wsClient.isConnected()) {
+      wsClient.connect();
+    }
+
+    // Subscribe
+    wsClient.on(type, stableHandler);
+
+    // Cleanup on unmount or type change
+    return () => {
+      wsClient.off(type, stableHandler);
+    };
+  }, [type, stableHandler]);
 }
+

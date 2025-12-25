@@ -180,12 +180,12 @@ func (a *InventoryAdapter) CreateStockAdjustment(ctx context.Context, adjustment
 	return a.stockAdjustmentRepo.Create(ctx, adjustment)
 }
 
-// GetStockHistory retrieves stock adjustment history
-func (a *InventoryAdapter) GetStockHistory(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID) ([]*StockAdjustment, error) {
+// GetStockHistory retrieves stock adjustment history with pagination
+func (a *InventoryAdapter) GetStockHistory(ctx context.Context, tenantID uuid.UUID, productID uuid.UUID, limit, offset int) ([]*StockAdjustment, error) {
 	if a.stockAdjustmentRepo == nil {
 		return nil, fmt.Errorf("stock adjustment repository not configured. Please initialize the adapter with SetStockAdjustmentRepo")
 	}
-	return a.stockAdjustmentRepo.GetByProduct(ctx, tenantID, productID)
+	return a.stockAdjustmentRepo.GetByProductPaginated(ctx, tenantID, productID, limit, offset)
 }
 
 // Legacy CRUD methods - delegate to repository

@@ -1,11 +1,17 @@
-import axios from 'axios';
-
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { csrfTokenManager, tokenStorage } from '@/lib/security';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 if (!process.env.NEXT_PUBLIC_API_URL && typeof window !== 'undefined') {
   console.warn('NEXT_PUBLIC_API_URL is not defined, falling back to relative path /api/v1');
+}
+
+// Request deduplication: Track in-flight requests
+const pendingRequests = new Map<string, AbortController>();
+
+function generateRequestKey(config: AxiosRequestConfig): string {
+  return `${config.method}:${config.url}:${JSON.stringify(config.params)}:${JSON.stringify(config.data)}`;
 }
 
 export const api = axios.create({
@@ -34,6 +40,25 @@ api.interceptors.request.use(
     }
 
     config.headers = headers;
+
+    // Request deduplication for GET requests
+    if (config.method?.toLowerCase() === 'get' && config.url) {
+      const requestKey = generateRequestKey(config);
+      const existingController = pendingRequests.get(requestKey);
+
+      if (existingController) {
+        // Abort the previous identical request
+        existingController.abort();
+      }
+
+      // Create new AbortController for this request
+      const controller = new AbortController();
+      pendingRequests.set(requestKey, controller);
+      config.signal = controller.signal;
+
+      // Clean up after request completes (handled in response interceptor)
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -41,16 +66,35 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
+    // Clean up pending request after success
+    if (response.config.method?.toLowerCase() === 'get' && response.config.url) {
+      const requestKey = generateRequestKey(response.config);
+      pendingRequests.delete(requestKey);
+    }
+
     // Handle 4xx errors that didn't throw
     if (response.status >= 400 && response.status < 500) {
-      const error = new Error(response.data?.message || 'Request failed');
-      (error as any).response = response;
+      const error = new Error(response.data?.message || 'Request failed') as Error & { response: typeof response; code: string; status: number };
+      error.response = response;
+      error.code = `HTTP_${response.status}`;
+      error.name = 'HttpError';
       throw error;
     }
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
+
+    // Clean up pending request on error (unless it was aborted)
+    if (originalRequest && originalRequest.method?.toLowerCase() === 'get' && originalRequest.url) {
+      const requestKey = generateRequestKey(originalRequest);
+      pendingRequests.delete(requestKey);
+    }
+
+    // If request was aborted, propagate the abort error
+    if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+      return Promise.reject(new Error('Request cancelled'));
+    }
 
     // Handle CSRF token errors - retry once with a fresh token
     if (
@@ -72,13 +116,19 @@ api.interceptors.response.use(
       console.error('Network error:', error.message);
       // Clear CSRF token on network errors in case it's stale
       csrfTokenManager.clearToken();
-      return Promise.reject(new Error('Network error. Please check your connection.'));
+      const networkError = new Error('Network error. Please check your connection.') as Error & { code: string; isRetryable: boolean };
+      networkError.code = 'NETWORK_ERROR';
+      networkError.isRetryable = true;
+      return Promise.reject(networkError);
     }
 
     // Handle timeout errors
     if (error.code === 'ECONNABORTED') {
       console.error('Request timeout');
-      return Promise.reject(new Error('Request timeout. Please try again.'));
+      const timeoutError = new Error('Request timeout. Please try again.') as Error & { code: string; isRetryable: boolean };
+      timeoutError.code = 'TIMEOUT';
+      timeoutError.isRetryable = true;
+      return Promise.reject(timeoutError);
     }
 
     const status = error.response?.status;
@@ -208,5 +258,23 @@ type WebhookTestResponse = {
     return data as WebhookTestResponse;
   },
 };
+
+// Export function to cancel in-flight requests
+export function cancelRequest(config: AxiosRequestConfig) {
+  const requestKey = generateRequestKey(config);
+  const controller = pendingRequests.get(requestKey);
+  if (controller) {
+    controller.abort();
+    pendingRequests.delete(requestKey);
+  }
+}
+
+// Export function to cancel all in-flight requests
+export function cancelAllRequests() {
+  pendingRequests.forEach((controller) => {
+    controller.abort();
+  });
+  pendingRequests.clear();
+}
 
 export default api;

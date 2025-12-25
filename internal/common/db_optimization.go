@@ -171,12 +171,12 @@ func (o *DBOptimizer) ArchiveOldData(ctx context.Context, table string, dateColu
 // OptimizeConnectionPool adjusts connection pool settings
 func (o *DBOptimizer) OptimizeConnectionPool() {
 	config := o.pool.Config()
-	
+
 	// Set optimal pool size based on CPU cores
 	// Rule of thumb: (core_count * 2) + effective_spindle_count
 	config.MaxConns = 20
 	config.MinConns = 5
-	
+
 	// Set connection timeouts
 	config.MaxConnLifetime = 1 * time.Hour
 	config.MaxConnIdleTime = 30 * time.Minute
@@ -210,15 +210,15 @@ type TableSize struct {
 // BatchInsert performs optimized batch insert
 func BatchInsert(ctx context.Context, pool *pgxpool.Pool, query string, values [][]interface{}, batchSize int) error {
 	total := len(values)
-	
+
 	for i := 0; i < total; i += batchSize {
 		end := i + batchSize
 		if end > total {
 			end = total
 		}
-		
+
 		batch := values[i:end]
-		
+
 		// Use COPY for better performance with large batches
 		// Or use batch.Queue for multiple inserts
 		for _, row := range batch {
@@ -228,24 +228,24 @@ func BatchInsert(ctx context.Context, pool *pgxpool.Pool, query string, values [
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 // PrepareStatements prepares commonly used statements for better performance
 func PrepareStatements(ctx context.Context, pool *pgxpool.Pool) error {
 	statements := map[string]string{
-		"get_product_by_id": "SELECT * FROM products WHERE tenant_id = $1 AND id = $2",
-		"get_inventory": "SELECT * FROM inventory WHERE tenant_id = $1 AND product_id = $2",
-		"update_stock": "UPDATE inventory SET quantity = $1, updated_at = NOW() WHERE tenant_id = $2 AND product_id = $3",
+		"get_product_by_id": "SELECT id, tenant_id, category_id, name, batch_number, expiry_date, quantity, unit_price, barcode, unit_of_measure, description, is_hazardous, hazard_class, sds_url, active_ingredients, created_at, updated_at FROM products WHERE tenant_id = $1 AND id = $2",
+		"get_inventory":     "SELECT id, tenant_id, warehouse_id, product_id, quantity, reserved_quantity, minimum_level, maximum_level, reorder_point, last_updated, product_name, warehouse_name FROM inventory WHERE tenant_id = $1 AND product_id = $2",
+		"update_stock":      "UPDATE inventory SET quantity = $1, updated_at = NOW() WHERE tenant_id = $2 AND product_id = $3",
 	}
-	
+
 	for name, sql := range statements {
 		_, err := pool.Exec(ctx, fmt.Sprintf("PREPARE %s AS %s", name, sql))
 		if err != nil {
 			return fmt.Errorf("failed to prepare statement %s: %w", name, err)
 		}
 	}
-	
+
 	return nil
 }

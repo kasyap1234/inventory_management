@@ -711,7 +711,7 @@ func main() {
 
 	// Protected routes (require JWT and RBAC)
 	protected := v1.Group("")
-	protected.Use(middleware.JWTMiddleware(userRepo, jwtSecret))
+	protected.Use(middleware.JWTMiddleware(userRepo, jwtSecret, cacheSvc))
 
 	// Protected auth routes
 	protected.POST("/auth/logout", authHandlers.Logout)

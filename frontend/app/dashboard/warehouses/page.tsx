@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Plus, Search, Edit, Trash2, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,9 @@ export default function WarehousesPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const queryClient = useQueryClient();
+
+  // Debounce search query to reduce API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const { data: warehouses, isLoading } = useQuery<{ warehouses: Warehouse[] }>({
     queryKey: ['warehouses'],
@@ -36,8 +40,8 @@ export default function WarehousesPage() {
   });
 
   const filteredWarehouses = warehouses?.warehouses?.filter(warehouse =>
-    warehouse.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    warehouse.address?.toLowerCase().includes(searchQuery.toLowerCase())
+    warehouse.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+    warehouse.address?.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   ) || [];
 
   return (

@@ -2,13 +2,13 @@
 
 import { Bell, ChevronDown, Settings, User, LogOut, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 
-export function Header() {
+export const Header = React.memo(function Header() {
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -141,4 +141,4 @@ export function Header() {
       </div>
     </header>
   );
-}
+});

@@ -47,7 +47,10 @@ func (h *InvitationHandlers) CreateInvitation(c echo.Context) error {
 		return err
 	}
 
-	roleID, _ := uuid.Parse(req.RoleID)
+	roleID, err := uuid.Parse(req.RoleID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID format")
+	}
 
 	serviceReq := &services.CreateInvitationRequest{
 		TenantID:    tenantID,

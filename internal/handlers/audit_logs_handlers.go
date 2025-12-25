@@ -77,12 +77,12 @@ func (h *AuditLogsHandlers) ListAuditLogs(c echo.Context) error {
 	}
 
 	// Parse pagination
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	if limit <= 0 || limit > 1000 {
+	limit, err := strconv.Atoi(c.QueryParam("limit"))
+	if err != nil || limit <= 0 || limit > 1000 {
 		limit = 50 // Default limit
 	}
-	offset, _ := strconv.Atoi(c.QueryParam("offset"))
-	if offset < 0 {
+	offset, err := strconv.Atoi(c.QueryParam("offset"))
+	if err != nil || offset < 0 {
 		offset = 0
 	}
 
@@ -152,12 +152,12 @@ func (h *AuditLogsHandlers) GetEntityHistory(c echo.Context) error {
 	}
 
 	// Parse pagination
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	if limit <= 0 || limit > 1000 {
+	limit, err := strconv.Atoi(c.QueryParam("limit"))
+	if err != nil || limit <= 0 || limit > 1000 {
 		limit = 100 // Default for entity history
 	}
-	offset, _ := strconv.Atoi(c.QueryParam("offset"))
-	if offset < 0 {
+	offset, err := strconv.Atoi(c.QueryParam("offset"))
+	if err != nil || offset < 0 {
 		offset = 0
 	}
 
@@ -194,12 +194,12 @@ func (h *AuditLogsHandlers) GetUserActivity(c echo.Context) error {
 	}
 
 	// Parse pagination
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	if limit <= 0 || limit > 1000 {
+	limit, err := strconv.Atoi(c.QueryParam("limit"))
+	if err != nil || limit <= 0 || limit > 1000 {
 		limit = 100 // Default for user activity
 	}
-	offset, _ := strconv.Atoi(c.QueryParam("offset"))
-	if offset < 0 {
+	offset, err := strconv.Atoi(c.QueryParam("offset"))
+	if err != nil || offset < 0 {
 		offset = 0
 	}
 
@@ -388,8 +388,8 @@ func (h *AuditLogsHandlers) GetAuditTimeline(c echo.Context) error {
 	}
 
 	// Parse pagination
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	if limit <= 0 || limit > 500 {
+	limit, err := strconv.Atoi(c.QueryParam("limit"))
+	if err != nil || limit <= 0 || limit > 500 {
 		limit = 100 // Default limit for timeline
 	}
 	filters.Limit = limit
@@ -449,10 +449,10 @@ func (h *AuditLogsHandlers) GetEntityTimeline(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"entity":  tableName,
-		"record":  recordID,
-		"events":  events,
-		"count":   len(events),
+		"entity": tableName,
+		"record": recordID,
+		"events": events,
+		"count":  len(events),
 	})
 }
 

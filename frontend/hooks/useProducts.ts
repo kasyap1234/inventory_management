@@ -62,11 +62,34 @@ export function useProducts(params?: PaginationParams) {
       const response = await api.post('/products', data);
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onMutate: async (newProduct) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+
+      // Snapshot previous value
+      const previousProducts = queryClient.getQueryData<PaginatedProductsResponse>(['products', { page, pageSize }]);
+
+      // Optimistically update
+      queryClient.setQueryData<PaginatedProductsResponse>(
+        ['products', { page, pageSize }],
+        (old) => ({
+          ...old,
+          products: [newProduct as Product, ...(old?.products || [])],
+        })
+      );
+
+      return { previousProducts };
     },
-    onError: (error: any) => {
+    onError: (error, variables, context) => {
       console.error('Failed to create product:', error);
+      // Rollback on error
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products', { page, pageSize }], context.previousProducts);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
     },
     retry: 2,
   });
@@ -79,12 +102,47 @@ export function useProducts(params?: PaginationParams) {
       const response = await api.put(`/products/${id}`, data);
       return response.data;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['product', variables.id] });
+    onMutate: async ({ id, data }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+      await queryClient.cancelQueries({ queryKey: ['product', id] });
+
+      // Snapshot previous values
+      const previousProducts = queryClient.getQueryData<PaginatedProductsResponse>(['products', { page, pageSize }]);
+      const previousProduct = queryClient.getQueryData<Product>(['product', id]);
+
+      // Optimistically update list
+      queryClient.setQueryData<PaginatedProductsResponse>(
+        ['products', { page, pageSize }],
+        (old) => ({
+          ...old,
+          products: old?.products?.map((p) =>
+            p.id === id ? { ...p, ...data } : p
+          ) || [],
+        })
+      );
+
+      // Optimistically update detail
+      queryClient.setQueryData<Product>(['product', id], (old) =>
+        old ? { ...old, ...data } : undefined
+      );
+
+      return { previousProducts, previousProduct };
     },
-    onError: (error: any) => {
+    onError: (error, variables, context) => {
       console.error('Failed to update product:', error);
+      // Rollback on error
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products', { page, pageSize }], context.previousProducts);
+      }
+      if (context?.previousProduct) {
+        queryClient.setQueryData(['product', variables.id], context.previousProduct);
+      }
+    },
+    onSettled: (_, __, { id }) => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['product', id], refetchType: 'none' });
     },
     retry: 2,
   });
@@ -96,12 +154,35 @@ export function useProducts(params?: PaginationParams) {
       }
       await api.delete(`/products/${id}`);
     },
-    onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.removeQueries({ queryKey: ['product', id] });
+    onMutate: async (id) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['products'] });
+
+      // Snapshot previous value
+      const previousProducts = queryClient.getQueryData<PaginatedProductsResponse>(['products', { page, pageSize }]);
+
+      // Optimistically remove from list
+      queryClient.setQueryData<PaginatedProductsResponse>(
+        ['products', { page, pageSize }],
+        (old) => ({
+          ...old,
+          products: old?.products?.filter((p) => p.id !== id) || [],
+        })
+      );
+
+      return { previousProducts, id };
     },
-    onError: (error: any) => {
+    onError: (error, id, context) => {
       console.error('Failed to delete product:', error);
+      // Rollback on error
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products', { page, pageSize }], context.previousProducts);
+      }
+    },
+    onSettled: (_, __, id) => {
+      // Remove detail query and refetch list
+      queryClient.removeQueries({ queryKey: ['product', id] });
+      queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
     },
     retry: 1,
   });

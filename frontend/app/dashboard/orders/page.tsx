@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Eye, Trash2, CheckCircle, Package, Truck, Home, XCircle, MoreHorizontal } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
+import { Plus, Search, CheckCircle, Package, Truck, Home, XCircle, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +17,7 @@ import { format } from "date-fns";
 import api from '@/lib/api';
 import { Order, Product, Warehouse, Supplier, Distributor } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/AdvancedFilters';
+
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 export default function OrdersPage() {
@@ -30,6 +31,9 @@ export default function OrdersPage() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { createOneTimePayment, isLoading: isPaymentLoading } = useRazorpayCheckout();
+
+  // Debounce search query to reduce API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const { data: orders, isLoading } = useQuery<{ orders: Order[] }>({
     queryKey: ['orders'],
@@ -75,8 +79,34 @@ export default function OrdersPage() {
     mutationFn: async (id: string) => {
       await api.delete(`/orders/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    onMutate: async (id) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['orders'] });
+
+      // Snapshot previous value
+      const previousOrders = queryClient.getQueryData<{ orders: Order[] }>(['orders']);
+
+      // Optimistically remove from list
+      queryClient.setQueryData<{ orders: Order[] }>(
+        ['orders'],
+        (old) => ({
+          ...old,
+          orders: old?.orders?.filter((o) => o.id !== id) || [],
+        })
+      );
+
+      return { previousOrders };
+    },
+    onError: (error, id, context) => {
+      // Rollback on error
+      if (context?.previousOrders) {
+        queryClient.setQueryData(['orders'], context.previousOrders);
+      }
+      alert('Failed to delete order. Please try again.');
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['orders'], refetchType: 'none' });
       setSelectedOrders([]);
     },
   });
@@ -86,12 +116,51 @@ export default function OrdersPage() {
     mutationFn: async ({ orderId, action }: { orderId: string; action: string }) => {
       await api.post(`/orders/${orderId}/${action}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      setSelectedOrders([]);
+    onMutate: async ({ orderId, action }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['orders'] });
+
+      // Snapshot previous value
+      const previousOrders = queryClient.getQueryData<{ orders: Order[] }>(['orders']);
+
+      // Determine new status based on action
+      const statusMap: Record<string, string> = {
+        'approve': 'approved',
+        'process': 'processing',
+        'ship': 'shipped',
+        'deliver': 'delivered',
+        'cancel': 'cancelled',
+      };
+
+      const newStatus = statusMap[action];
+
+      // Optimistically update status
+      if (newStatus) {
+        queryClient.setQueryData<{ orders: Order[] }>(
+          ['orders'],
+          (old) => ({
+            ...old,
+            orders: old?.orders?.map((order) =>
+              order.id === orderId ? { ...order, status: newStatus as Order['status'] } : order
+            ) || [],
+          })
+        );
+      }
+
+      return { previousOrders };
     },
-    onError: (error: any) => {
-      alert(error.response?.data?.error?.message || `Failed to ${error.config?.url?.split('/').pop()} order`);
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousOrders) {
+        queryClient.setQueryData(['orders'], context.previousOrders);
+      }
+      const err = error as { response?: { data?: { error?: { message?: string } } } };
+      alert(err.response?.data?.error?.message || `Failed to ${variables.action} order`);
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['orders'], refetchType: 'none' });
+      setSelectedOrders([]);
     },
   });
 
@@ -476,7 +545,7 @@ export default function OrdersPage() {
                       <input
                         type="checkbox"
                         checked={selectedOrders.includes(order.id)}
-                        onChange={(e) => 
+                        onChange={(e) =>
                           handleSelectOrder(order.id, e.target.checked)
                         }
                         aria-label={`Select order ${order.id}`}
@@ -487,11 +556,10 @@ export default function OrdersPage() {
                       #{order.id.substring(0, 8)}
                     </TableCell>
                     <TableCell className="font-mono text-sm border-r border-border">
-                      <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wider border ${
-                        order.order_type === 'sales' 
-                          ? 'border-emerald-500/50 text-emerald-500 bg-emerald-500/10' 
+                      <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wider border ${order.order_type === 'sales'
+                          ? 'border-emerald-500/50 text-emerald-500 bg-emerald-500/10'
                           : 'border-purple-500/50 text-purple-500 bg-purple-500/10'
-                      }`}>
+                        }`}>
                         {order.order_type}
                       </span>
                     </TableCell>
@@ -513,20 +581,18 @@ export default function OrdersPage() {
                           const currentStatusIdx = arr.indexOf(order.status.toLowerCase());
                           const isCompleted = idx <= currentStatusIdx;
                           const isCurrent = idx === currentStatusIdx;
-                          
+
                           return (
                             <div key={step} className="flex items-center">
-                              <div className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
-                                isCurrent 
-                                  ? 'bg-primary shadow-[0_0_8px_rgba(0,255,136,0.8)] scale-125' 
-                                  : isCompleted 
-                                    ? 'bg-primary/70' 
+                              <div className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${isCurrent
+                                  ? 'bg-primary shadow-[0_0_8px_rgba(0,255,136,0.8)] scale-125'
+                                  : isCompleted
+                                    ? 'bg-primary/70'
                                     : 'bg-muted'
-                              }`} title={step} />
+                                }`} title={step} />
                               {idx < arr.length - 1 && (
-                                <div className={`h-[1px] w-3 transition-colors duration-500 ${
-                                  idx < currentStatusIdx ? 'bg-primary/50' : 'bg-muted/30'
-                                }`} />
+                                <div className={`h-[1px] w-3 transition-colors duration-500 ${idx < currentStatusIdx ? 'bg-primary/50' : 'bg-muted/30'
+                                  }`} />
                               )}
                             </div>
                           );
@@ -541,7 +607,7 @@ export default function OrdersPage() {
                         </Button>
                       }>
                         <div className="font-mono uppercase text-xs text-muted-foreground px-2 py-1.5">Actions</div>
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onSelect={() => {
                             setSelectedOrder(order);
                             setIsDetailsDialogOpen(true);
@@ -560,7 +626,7 @@ export default function OrdersPage() {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {order.status === 'pending' && (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onSelect={() => orderAction.mutate({ orderId: order.id, action: 'approve' })}
                             className="font-mono text-xs uppercase cursor-pointer focus:bg-primary/10 focus:text-primary"
                           >
@@ -568,7 +634,7 @@ export default function OrdersPage() {
                           </DropdownMenuItem>
                         )}
                         {order.status === 'approved' && (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onSelect={() => orderAction.mutate({ orderId: order.id, action: 'ship' })}
                             className="font-mono text-xs uppercase cursor-pointer focus:bg-primary/10 focus:text-primary"
                           >
@@ -576,7 +642,7 @@ export default function OrdersPage() {
                           </DropdownMenuItem>
                         )}
                         {order.status === 'shipped' && (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onSelect={() => orderAction.mutate({ orderId: order.id, action: 'deliver' })}
                             className="font-mono text-xs uppercase cursor-pointer focus:bg-primary/10 focus:text-primary"
                           >
@@ -584,7 +650,7 @@ export default function OrdersPage() {
                           </DropdownMenuItem>
                         )}
                         {['pending', 'approved'].includes(order.status) && (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onSelect={() => orderAction.mutate({ orderId: order.id, action: 'cancel' })}
                             className="font-mono text-xs uppercase cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
                           >
@@ -858,11 +924,10 @@ function OrderDetailsDialog({
             <div>
               <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground block mb-1">Order Type</span>
               <div className="flex items-center">
-                <span className={`px-2 py-0.5 text-xs font-mono uppercase tracking-wider border ${
-                  order.order_type === 'sales' 
-                    ? 'border-emerald-500/50 text-emerald-500 bg-emerald-500/10' 
+                <span className={`px-2 py-0.5 text-xs font-mono uppercase tracking-wider border ${order.order_type === 'sales'
+                    ? 'border-emerald-500/50 text-emerald-500 bg-emerald-500/10'
                     : 'border-purple-500/50 text-purple-500 bg-purple-500/10'
-                }`}>
+                  }`}>
                   {order.order_type}
                 </span>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useDeferredValue, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, Trash2, CheckSquare, DollarSign, Trash, Package, AlertTriangle, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -14,6 +14,7 @@ import api from '@/lib/api';
 import { Product } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { VirtualizedTable } from '@/components/ui/virtualized-table';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +24,9 @@ export default function ProductsPage() {
   const [isBulkPriceDialogOpen, setIsBulkPriceDialogOpen] = useState(false);
   const [imagesProduct, setImagesProduct] = useState<Product | null>(null);
   const queryClient = useQueryClient();
+
+  // Debounce search query to reduce API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const { data: products, isLoading } = useQuery<{ products: Product[] }>({
     queryKey: ['products', 50],
@@ -37,22 +41,48 @@ export default function ProductsPage() {
     mutationFn: async (id: string) => {
       await api.delete(`/products/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onMutate: async (id) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['products', 50] });
+
+      // Snapshot previous value
+      const previousProducts = queryClient.getQueryData<{ products: Product[] }>(['products', 50]);
+
+      // Optimistically remove from list
+      queryClient.setQueryData<{ products: Product[] }>(
+        ['products', 50],
+        (old) => ({
+          ...old,
+          products: old?.products?.filter((p) => p.id !== id) || [],
+        })
+      );
+
+      return { previousProducts };
+    },
+    onError: (error, id, context) => {
+      // Rollback on error
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['products', 50], context.previousProducts);
+      }
+      alert('Failed to delete product. Please try again.');
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
     },
   });
 
-  const deferredSearch = useDeferredValue(searchQuery);
+
 
   const filteredProducts = useMemo(() => {
-    const term = deferredSearch.trim().toLowerCase();
+    const term = debouncedSearchQuery.trim().toLowerCase();
     const source = products?.products ?? [];
     if (!term) return source;
     return source.filter((product) =>
       product.name.toLowerCase().includes(term) ||
       product.barcode?.toLowerCase().includes(term)
     );
-  }, [deferredSearch, products?.products]);
+  }, [debouncedSearchQuery, products?.products]);
 
   const bulkDeleteProducts = useMutation({
     mutationFn: async (ids: string[]) => {

@@ -22,7 +22,6 @@ import {
 import toast from 'react-hot-toast';
 import {
   analyticsService,
-  categoryService,
   type ProductSales,
   type LowStockItem,
   type OrderStatusEntry,
@@ -50,11 +49,6 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-
-type CategoryOption = {
-  id: string;
-  name: string;
-};
 
 
 

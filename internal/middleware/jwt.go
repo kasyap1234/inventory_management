@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"agromart2/internal/caching"
 	"agromart2/internal/common"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -103,7 +104,7 @@ type UserTenantResolver interface {
 	GetTenantIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 }
 
-func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.MiddlewareFunc {
+func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string, cacheSvc caching.CacheService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			var tokenString string
@@ -158,6 +159,14 @@ func JWTMiddleware(userRepo UserTenantResolver, jwtSecret string) echo.Middlewar
 			if claimTenant, ok := claims["tenant_id"].(string); ok && claimTenant != "" {
 				if parsed, parseErr := uuid.Parse(claimTenant); parseErr == nil {
 					tokenTenantID = parsed
+				}
+			}
+
+			// Check if token is blacklisted (revoked)
+			if tokenID, ok := claims["token_id"].(string); ok && tokenID != "" {
+				blacklistKey := "token_blacklist:" + tokenID
+				if val, err := cacheSvc.GetString(c.Request().Context(), blacklistKey); err == nil && val == "revoked" {
+					return echo.NewHTTPError(http.StatusUnauthorized, "Token has been revoked")
 				}
 			}
 

@@ -16,6 +16,7 @@ import (
 	"net/smtp"
 	"net/url"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -81,6 +82,7 @@ type NotificationService interface {
 type notificationService struct {
 	redisClient      *redis.Client
 	templates        map[string]*template.Template // Cached templates
+	templateMu       sync.RWMutex                  // Protects templates map for concurrent access
 	httpClient       *http.Client
 	resendClient     *resend.Client
 	resendFromEmail  string
@@ -834,7 +836,12 @@ func (s *notificationService) GetAlertConfig(ctx context.Context, tenantID uuid.
 func (s *notificationService) RenderTemplate(tmplParam *models.NotificationTemplate, data map[string]interface{}) (string, error) {
 	templateCacheKey := fmt.Sprintf("%s:%s", tmplParam.TenantID.String(), tmplParam.ID.String())
 
-	if tmpl, exists := s.templates[templateCacheKey]; exists {
+	// Try to get cached template with read lock
+	s.templateMu.RLock()
+	tmpl, exists := s.templates[templateCacheKey]
+	s.templateMu.RUnlock()
+
+	if exists {
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
 			return "", fmt.Errorf("failed to execute template: %v", err)
@@ -842,15 +849,18 @@ func (s *notificationService) RenderTemplate(tmplParam *models.NotificationTempl
 		return buf.String(), nil
 	}
 
-	tmpl, err := template.New(templateCacheKey).Parse(tmplParam.BodyTemplate)
+	// Parse and cache new template with write lock
+	newTmpl, err := template.New(templateCacheKey).Parse(tmplParam.BodyTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %v", err)
 	}
 
-	s.templates[templateCacheKey] = tmpl
+	s.templateMu.Lock()
+	s.templates[templateCacheKey] = newTmpl
+	s.templateMu.Unlock()
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := newTmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute template: %v", err)
 	}
 
@@ -971,7 +981,9 @@ func (s *notificationService) cacheTemplate(tmplParam *models.NotificationTempla
 		log.Printf("Failed to cache template %s: %v", templateCacheKey, err)
 		return
 	}
+	s.templateMu.Lock()
 	s.templates[templateCacheKey] = tmpl
+	s.templateMu.Unlock()
 }
 
 // Helper methods

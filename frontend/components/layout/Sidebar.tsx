@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import React, { useMemo } from 'react';
 import {
   LayoutDashboard,
   Package,
@@ -46,9 +47,28 @@ const navigation = [
   { name: 'Alert Rules', href: '/dashboard/alerts', icon: Bell },
 ];
 
-export function Sidebar() {
+export const Sidebar = React.memo(function Sidebar() {
   const pathname = usePathname();
   const { isAuthenticated, user } = useAuth();
+
+  // Memoize filtered navigation to prevent recalculation on every render
+  const filteredNavigation = useMemo(() => {
+    return navigation.filter((item) => {
+      // Permission checks
+      if (user?.role === 'super_admin') {
+        return item.name === 'Tenants';
+      }
+      // Hide Tenants from non-super-admins
+      if (item.name === 'Tenants') return false;
+
+      // Hide RBAC/Users from non-admins (support both 'admin' and 'tenant_admin' roles)
+      const adminRoles = ['admin', 'tenant_admin'];
+      if ((item.name === 'Users & Roles' || item.name === 'RBAC Management') &&
+        !adminRoles.includes(user?.role || '')) return false;
+
+      return true;
+    });
+  }, [user?.role]);
 
   return (
     <div className="hidden border-r bg-background md:block h-full">
@@ -64,20 +84,7 @@ export function Sidebar() {
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-2">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-            {navigation.map((item) => {
-              // Permission checks
-              if (user?.role === 'super_admin') {
-                if (item.name !== 'Tenants') return null;
-              } else {
-                // Hide Tenants from non-super-admins
-                if (item.name === 'Tenants') return null;
-
-                // Hide RBAC/Users from non-admins (support both 'admin' and 'tenant_admin' roles)
-                const adminRoles = ['admin', 'tenant_admin'];
-                if ((item.name === 'Users & Roles' || item.name === 'RBAC Management') &&
-                  !adminRoles.includes(user?.role || '')) return null;
-              }
-
+            {filteredNavigation.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -107,4 +114,5 @@ export function Sidebar() {
       </div>
     </div>
   );
-}
+});
+

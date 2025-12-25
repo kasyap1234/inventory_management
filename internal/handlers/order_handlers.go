@@ -31,14 +31,6 @@ func NewOrderHandlers(orderService services.OrderServiceInterface, rbacMiddlewar
 	}
 }
 
-// validateOrderType validates order type
-func (h *OrderHandlers) validateOrderType(orderType string) error {
-	if orderType != "purchase" && orderType != "sales" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid order type")
-	}
-	return nil
-}
-
 // validateUUID validates UUID string
 func (h *OrderHandlers) validateUUID(idStr string) (uuid.UUID, error) {
 	id, err := uuid.Parse(idStr)
@@ -183,7 +175,10 @@ func (h *OrderHandlers) CreateOrder(c echo.Context) error {
 			if err := common.ValidateDateFormat(expectedDate, "expected_delivery"); err != nil {
 				return common.SendValidationError(c, "expected_delivery", err.Error())
 			}
-			deliveryDate, _ := time.Parse("2006-01-02", expectedDate)
+			deliveryDate, err := time.Parse("2006-01-02", expectedDate)
+			if err != nil {
+				return common.SendValidationError(c, "expected_delivery", "Invalid date format. Use YYYY-MM-DD")
+			}
 			order.ExpectedDelivery = &deliveryDate
 		}
 	}
@@ -323,7 +318,10 @@ func (h *OrderHandlers) UpdateOrder(c echo.Context) error {
 			if err := common.ValidateDateFormat(*req.ExpectedDelivery, "expected_delivery"); err != nil {
 				return common.SendValidationError(c, "expected_delivery", err.Error())
 			}
-			deliveryDate, _ := time.Parse("2006-01-02", *req.ExpectedDelivery)
+			deliveryDate, err := time.Parse("2006-01-02", *req.ExpectedDelivery)
+			if err != nil {
+				return common.SendValidationError(c, "expected_delivery", "Invalid date format. Use YYYY-MM-DD")
+			}
 			order.ExpectedDelivery = &deliveryDate
 		}
 	}
@@ -425,6 +423,12 @@ func (h *OrderHandlers) SearchOrders(c echo.Context) error {
 			limit = l
 		}
 	}
+
+	const maxLimit = 1000
+	if limit > maxLimit {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Limit cannot exceed %d", maxLimit))
+	}
+
 	if offsetParam := c.QueryParam("offset"); offsetParam != "" {
 		if o, err := strconv.Atoi(offsetParam); err == nil && o >= 0 {
 			offset = o

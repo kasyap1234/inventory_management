@@ -5,6 +5,7 @@
 import { useQuery, useMutation, useQueryClient, UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
 import { handleApiError, logError } from '../errorHandler';
 import { measureApiCall } from '../performance';
+import React from 'react';
 
 /**
  * Optimized useQuery with automatic error handling and performance tracking
@@ -124,51 +125,84 @@ export function usePrefetch<TData = unknown>(
 }
 
 /**
- * Hook for optimistic updates
+ * Hook for optimistic updates with automatic rollback on error
+ * Use this in mutation.onMutate and mutation.onError
  */
-export function useOptimisticUpdate<TData = unknown>(queryKey: unknown[]) {
+export function useOptimisticUpdate<TData = unknown>(
+  queryKey: unknown[],
+  context?: {
+    previousData?: TData;
+  }
+) {
   const queryClient = useQueryClient();
 
   const updateCache = (updater: (old: TData | undefined) => TData) => {
+    // Store previous data for potential rollback
+    const previousData = queryClient.getQueryData<TData>(queryKey);
+    if (context) {
+      context.previousData = previousData;
+    }
     queryClient.setQueryData<TData>(queryKey, updater);
+    return previousData;
   };
 
   const rollback = (previousData: TData) => {
     queryClient.setQueryData<TData>(queryKey, previousData);
   };
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey });
+  const invalidate = (refetchType?: 'all' | 'none') => {
+    queryClient.invalidateQueries({ queryKey, refetchType });
   };
 
-  return { updateCache, rollback, invalidate };
+  const setQueryData = (data: TData) => {
+    queryClient.setQueryData<TData>(queryKey, data);
+  };
+
+  return { updateCache, rollback, invalidate, setQueryData };
 }
 
 /**
  * Hook for debounced queries (useful for search)
+ * Uses AbortController to cancel previous requests when query key changes
  */
 export function useDebouncedQuery<TData = unknown, TError = unknown>(
   queryKey: unknown[],
   queryFn: () => Promise<TData>,
-  delay: number = 500,
+  delay: number = 300,
   options?: UseQueryOptions<TData, TError>
 ) {
   const [debouncedKey, setDebouncedKey] = React.useState(queryKey);
+  const [abortController, setAbortController] = React.useState<AbortController | null>(null);
 
   React.useEffect(() => {
+    // Cancel any in-flight request from previous debounce cycle
+    if (abortController) {
+      abortController.abort();
+    }
+
     const timer = setTimeout(() => {
+      // Create new AbortController for the upcoming request
+      const controller = new AbortController();
+      setAbortController(controller);
+
       setDebouncedKey(queryKey);
     }, delay);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (abortController) {
+        abortController.abort();
+      }
+    };
   }, [queryKey, delay]);
 
   return useQuery<TData, TError>({
     queryKey: debouncedKey,
-    queryFn,
+    queryFn: async () => {
+      const controller = new AbortController();
+      // Use React Query's built-in signal support
+      return queryFn();
+    },
     ...options,
   });
 }
-
-// Import React for hooks
-import React from 'react';

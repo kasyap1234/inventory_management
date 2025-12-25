@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Plus, Search, Edit, Trash2, RefreshCcw, ShieldCheck, AlertCircle, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,9 @@ export default function TenantsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
 
+  // Debounce search query to reduce API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   const { data, isLoading, isFetching } = useQuery<{ tenants: Tenant[] }>({
     queryKey: ['tenants'],
     queryFn: async () => {
@@ -39,16 +43,16 @@ export default function TenantsPage() {
   const tenants = data?.tenants ?? [];
 
   const filteredTenants = useMemo(() => {
-    if (!searchQuery) {
+    if (!debouncedSearchQuery) {
       return tenants;
     }
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearchQuery.toLowerCase();
     return tenants.filter((tenant) =>
       tenant.name.toLowerCase().includes(query) ||
       tenant.subdomain.toLowerCase().includes(query) ||
       tenant.license_number?.toLowerCase().includes(query)
     );
-  }, [tenants, searchQuery]);
+  }, [tenants, debouncedSearchQuery]);
 
   const createTenant = useMutation({
     mutationFn: async (payload: { name: string; subdomain: string; license: string; admin_email: string }) => {

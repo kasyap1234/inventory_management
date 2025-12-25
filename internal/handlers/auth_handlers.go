@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -25,8 +27,10 @@ import (
 
 // twoFAAttemptTracker tracks 2FA verification attempts per user/IP for rate limiting
 type twoFAAttemptTracker struct {
-	mu       sync.RWMutex
-	attempts map[string]*attemptInfo
+	mu          sync.RWMutex
+	attempts    map[string]*attemptInfo
+	cancel      context.CancelFunc
+	cleanupOnce sync.Once
 }
 
 type attemptInfo struct {
@@ -50,7 +54,9 @@ var globalTwoFATracker = &twoFAAttemptTracker{
 
 // init starts the cleanup goroutine for the global 2FA tracker
 func init() {
-	go globalTwoFATracker.startCleanup()
+	ctx, cancel := context.WithCancel(context.Background())
+	globalTwoFATracker.cancel = cancel
+	go globalTwoFATracker.startCleanup(ctx)
 }
 
 func (t *twoFAAttemptTracker) checkAndIncrement(key string) (allowed bool, remainingAttempts int, lockoutRemaining time.Duration) {
@@ -104,12 +110,27 @@ func (t *twoFAAttemptTracker) clearAttempts(key string) {
 }
 
 // startCleanup runs a periodic cleanup of expired 2FA attempt entries
-func (t *twoFAAttemptTracker) startCleanup() {
+func (t *twoFAAttemptTracker) startCleanup(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		t.cleanup()
+
+	for {
+		select {
+		case <-ticker.C:
+			t.cleanup()
+		case <-ctx.Done():
+			return
+		}
 	}
+}
+
+// Stop stops the cleanup goroutine
+func (t *twoFAAttemptTracker) Stop() {
+	t.cleanupOnce.Do(func() {
+		if t.cancel != nil {
+			t.cancel()
+		}
+	})
 }
 
 // cleanup removes expired entries from the 2FA attempt tracker
@@ -403,10 +424,14 @@ func (h *AuthHandlers) TestEmailSending(c echo.Context) error {
 		return err
 	}
 
-	// Generate a test token for demonstration
-	testToken := "test-token-12345"
+	// Generate a secure random token for email verification
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return common.SendServerError(c, "Failed to generate verification token")
+	}
+	token := base64.URLEncoding.EncodeToString(tokenBytes)
 
-	errCh := services.SendVerificationEmailAsync(ctx, req.Email, testToken, h.frontendBaseURL)
+	errCh := services.SendVerificationEmailAsync(ctx, req.Email, token, h.frontendBaseURL)
 	go func(recipient string) {
 		if err := <-errCh; err != nil {
 			log.Printf("Test email failed for %s: %v", recipient, err)
@@ -857,9 +882,10 @@ func (h *AuthHandlers) VerifyEmail(c echo.Context) error {
 		} else if isFirstUser {
 			isAdmin = true
 			log.Printf("First user in tenant %s - granting admin access on email verification", tenantID.String())
-			// Also try to assign admin role if not already assigned
 			go func() {
-				adminRole, err := h.roleRepo.GetByName(context.Background(), tenantID, "admin")
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				adminRole, err := h.roleRepo.GetByName(ctx, tenantID, "admin")
 				if err != nil {
 					log.Printf("Failed to get admin role for tenant %s: %v", tenantID.String(), err)
 					return
@@ -868,7 +894,7 @@ func (h *AuthHandlers) VerifyEmail(c echo.Context) error {
 					UserID: userID,
 					RoleID: adminRole.ID,
 				}
-				if err := h.userRoleRepo.Create(context.Background(), tenantID, newUserRole); err != nil {
+				if err := h.userRoleRepo.Create(ctx, tenantID, newUserRole); err != nil {
 					log.Printf("Failed to assign admin role to first user %s: %v (may already exist)", userID.String(), err)
 				}
 			}()

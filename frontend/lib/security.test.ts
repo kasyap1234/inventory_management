@@ -37,7 +37,7 @@ describe('tokenStorage', () => {
     });
 
     it('should have setTokens method for backward compatibility', () => {
-        expect(() => tokenStorage.setTokens('access', 'refresh')).not.toThrow();
+        expect(() => tokenStorage.setTokens()).not.toThrow();
     });
 
     it('should return false for hasAccessToken (HttpOnly cookies not accessible)', () => {
