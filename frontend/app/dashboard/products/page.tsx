@@ -335,6 +335,7 @@ export default function ProductsPage() {
               rowHeight={68}
               overscan={8}
               height={560}
+              minWidth="1000px"
             />
           )}
         </CardContent>

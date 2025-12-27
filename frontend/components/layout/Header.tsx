@@ -1,18 +1,21 @@
 'use client';
 
-import { Bell, ChevronDown, Settings, User, LogOut, Moon, Sun } from 'lucide-react';
+import { Bell, ChevronDown, Settings, User, LogOut, Moon, Sun, Menu } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sidebar } from '@/components/layout/SidebarNew';
 
 export const Header = React.memo(function Header() {
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -33,6 +36,19 @@ export const Header = React.memo(function Header() {
       <div className="w-full flex items-center justify-between">
         {/* Left side - can add breadcrumbs or page title here */}
         <div className="flex items-center gap-4">
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 text-left">
+              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+              <SheetDescription className="sr-only">Main navigation menu</SheetDescription>
+              <Sidebar onNavigate={() => setIsMobileMenuOpen(false)} className="flex w-full border-r-0" />
+            </SheetContent>
+          </Sheet>
           <h2 className="text-lg font-semibold text-foreground tracking-tight">Dashboard</h2>
         </div>
 

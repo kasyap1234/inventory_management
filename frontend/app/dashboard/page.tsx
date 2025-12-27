@@ -163,7 +163,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between border-b border-border pb-4">
-        <h1 className="text-4xl font-bold tracking-tighter text-foreground">DASHBOARD</h1>
+        <h1 className="text-2xl md:text-4xl font-bold tracking-tighter text-foreground">DASHBOARD</h1>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">
             SYNCED: {format(new Date(), 'HH:mm:ss')}

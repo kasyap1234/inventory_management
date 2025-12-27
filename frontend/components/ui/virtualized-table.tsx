@@ -18,6 +18,7 @@ interface VirtualizedTableProps<T> {
   onRowClick?: (item: T) => void;
   className?: string;
   height?: number | string;
+  minWidth?: number | string;
 }
 
 // Memoized row component to prevent re-renders during scroll
@@ -77,6 +78,7 @@ export function VirtualizedTable<T extends Record<string, any>>({
   onRowClick,
   className = '',
   height,
+  minWidth,
 }: VirtualizedTableProps<T>) {
   const parentRef = React.useRef<HTMLDivElement>(null);
 
@@ -101,7 +103,7 @@ export function VirtualizedTable<T extends Record<string, any>>({
       ref={parentRef}
       style={{ height: height ?? '600px' }}
     >
-      <div className="min-w-full">
+      <div className="min-w-full" style={{ minWidth }}>
         <div className="grid grid-cols-1 bg-muted text-muted-foreground border-b border-border sticky top-0 z-10" style={{
           gridTemplateColumns,
         }}>
