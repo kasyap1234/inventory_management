@@ -42,18 +42,16 @@ export default function InvoicesPage() {
 
   const generatePDF = useMutation({
     mutationFn: async (invoiceId: string) => {
-      const response = await api.post(`/invoices/${invoiceId}/generate-pdf`, {}, {
-        responseType: 'blob',
-      });
+      // Backend returns JSON with presigned URL, not raw PDF bytes
+      const response = await api.post(`/invoices/${invoiceId}/generate-pdf`);
+      const { pdf_url } = response.data;
 
-      // Create blob and download
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `invoice-${invoiceId}.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
+      if (!pdf_url) {
+        throw new Error('PDF URL not returned from server');
+      }
+
+      // Open the presigned URL to download the PDF
+      window.open(pdf_url, '_blank');
     },
   });
 
@@ -110,16 +108,13 @@ export default function InvoicesPage() {
   const bulkDownloadPDFs = useMutation({
     mutationFn: async (invoiceIds: string[]) => {
       for (const id of invoiceIds) {
-        const response = await api.post(`/invoices/${id}/generate-pdf`, {}, {
-          responseType: 'blob',
-        });
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `invoice-${id}.pdf`;
-        link.click();
-        window.URL.revokeObjectURL(url);
+        // Backend returns JSON with presigned URL
+        const response = await api.post(`/invoices/${id}/generate-pdf`);
+        const { pdf_url } = response.data;
+
+        if (pdf_url) {
+          window.open(pdf_url, '_blank');
+        }
         // Small delay between downloads
         await new Promise(resolve => setTimeout(resolve, 500));
       }

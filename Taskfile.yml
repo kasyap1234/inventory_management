@@ -53,7 +53,7 @@ tasks:
   db:migrate:
     desc: Run database migrations
     cmds:
-      - ./run_migrations.sh
+      - ./scripts/run_migrations.sh
 
   db:psql:
     desc: Open PostgreSQL shell

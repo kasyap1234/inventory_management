@@ -209,8 +209,8 @@ func (r *roleRepo) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID)
 
 	// Check if role has any users assigned
 	var userCount int
-	countQuery := `SELECT COUNT(*) FROM user_roles WHERE role_id = $1`
-	err = r.db.QueryRow(ctx, countQuery, id).Scan(&userCount)
+	countQuery := `SELECT COUNT(*) FROM user_roles WHERE role_id = $1 AND tenant_id = $2`
+	err = r.db.QueryRow(ctx, countQuery, id, tenantID).Scan(&userCount)
 	if err != nil {
 		return fmt.Errorf("failed to check role usage: %w", err)
 	}
@@ -219,8 +219,8 @@ func (r *roleRepo) Delete(ctx context.Context, tenantID uuid.UUID, id uuid.UUID)
 		return fmt.Errorf("cannot delete role: %d users are assigned to this role", userCount)
 	}
 
-	// Delete role permissions first
-	_, err = r.db.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1`, id)
+	// Delete role permissions first (verify role belongs to tenant)
+	_, err = r.db.Exec(ctx, `DELETE FROM role_permissions WHERE role_id = $1 AND EXISTS (SELECT 1 FROM roles WHERE id = $1 AND tenant_id = $2)`, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to delete role permissions: %w", err)
 	}

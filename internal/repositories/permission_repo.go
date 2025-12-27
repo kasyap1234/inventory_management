@@ -254,15 +254,21 @@ func (r *permissionRepo) AssignPermissionToRole(ctx context.Context, tenantID uu
 		return fmt.Errorf("failed to marshal conditions: %w", err)
 	}
 
+	// Verify role belongs to tenant before assigning permission
 	query := `
 		INSERT INTO role_permissions (role_id, permission_id, conditions, granted_at)
-		VALUES ($1, $2, $3, NOW())
+		SELECT $1, $2, $3, NOW()
+		WHERE EXISTS (SELECT 1 FROM roles WHERE id = $1 AND tenant_id = $4)
 		ON CONFLICT (role_id, permission_id) 
 		DO UPDATE SET conditions = $3, granted_at = NOW()`
 
-	_, err = r.db.Exec(ctx, query, roleID, permissionID, conditionsJSON)
+	result, err := r.db.Exec(ctx, query, roleID, permissionID, conditionsJSON, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to assign permission to role: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("role not found or does not belong to tenant")
 	}
 
 	return nil
@@ -270,15 +276,19 @@ func (r *permissionRepo) AssignPermissionToRole(ctx context.Context, tenantID uu
 
 // RemovePermissionFromRole removes a permission from a role
 func (r *permissionRepo) RemovePermissionFromRole(ctx context.Context, tenantID uuid.UUID, roleID, permissionID uuid.UUID) error {
-	query := `DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2`
+	// Verify role belongs to tenant before removing permission
+	query := `
+		DELETE FROM role_permissions 
+		WHERE role_id = $1 AND permission_id = $2
+		AND EXISTS (SELECT 1 FROM roles WHERE id = $1 AND tenant_id = $3)`
 
-	result, err := r.db.Exec(ctx, query, roleID, permissionID)
+	result, err := r.db.Exec(ctx, query, roleID, permissionID, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to remove permission from role: %w", err)
 	}
 
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("permission assignment not found")
+		return fmt.Errorf("permission assignment not found or role does not belong to tenant")
 	}
 
 	return nil

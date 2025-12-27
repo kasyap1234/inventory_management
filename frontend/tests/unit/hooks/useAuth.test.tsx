@@ -66,8 +66,8 @@ describe('useAuth Hook - Login', () => {
 
   it('should be importable', async () => {
     // This tests that the hook module structure is valid
-    const module = await import('@/hooks/useAuth');
-    expect(module.useAuth).toBeDefined();
+    const authModule = await import('@/hooks/useAuth');
+    expect(authModule.useAuth).toBeDefined();
   });
 });
 

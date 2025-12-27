@@ -10,7 +10,7 @@ import { login, ensureLoggedOut } from '../fixtures/auth-helpers';
 
 test.describe('API-UI Integration Tests', () => {
   let authToken: string;
-  let testProductIds: string[] = [];
+  const testProductIds: string[] = [];
 
   test.beforeAll(async ({ request }) => {
     // Get auth token for API calls
