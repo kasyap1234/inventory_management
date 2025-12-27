@@ -174,11 +174,13 @@ func main() {
 		log.Fatalf("Failed to initialize MinIO service: %v", err)
 	}
 	ctx := context.Background()
-	if err := minioSvc.EnsureBucketExists(ctx, "product-images"); err != nil {
-		log.Fatalf("Failed to ensure product-images bucket: %v", err)
+	// Setup buckets (product-images, invoices) with CORS for browser direct uploads
+	allowedOrigins := []string{frontendURL}
+	if frontendURL != "http://localhost:3000" {
+		allowedOrigins = append(allowedOrigins, "http://localhost:3000", "http://localhost:3001")
 	}
-	if err := minioSvc.EnsureBucketExists(ctx, "invoices"); err != nil {
-		log.Fatalf("Failed to ensure invoices bucket: %v", err)
+	if err := minioSvc.SetupBucketsWithCORS(ctx, allowedOrigins); err != nil {
+		log.Printf("Warning: Failed to setup MinIO buckets with CORS: %v", err)
 	}
 
 	// Create repositories

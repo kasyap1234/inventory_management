@@ -32,6 +32,7 @@ export interface Product {
   barcode?: string;
   unit_of_measure?: string;
   description?: string;
+  thumbnail_url?: string;
   created_at: string;
   updated_at: string;
 }

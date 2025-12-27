@@ -544,6 +544,11 @@ func (h *InvoiceHandlers) GenerateInvoicePDF(c echo.Context) error {
 	bucketName := "invoices"
 	objectName := fmt.Sprintf("%s-%s.pdf", tenantID.String(), invoiceID.String())
 
+	// Ensure bucket exists before upload
+	if err := h.minioSvc.EnsureBucketExists(ctx, bucketName); err != nil {
+		return common.SendServerError(c, "Failed to create/verify storage bucket: "+err.Error())
+	}
+
 	err = h.minioSvc.UploadImage(ctx, bucketName, objectName, bytes.NewReader(pdfBytes), int64(len(pdfBytes)))
 	if err != nil {
 		return common.SendServerError(c, "Failed to upload PDF to storage: "+err.Error())

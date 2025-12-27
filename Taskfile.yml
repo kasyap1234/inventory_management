@@ -145,6 +145,9 @@ tasks:
       - echo "============================================"
       - echo ""
       - go build -ldflags="-s -w" -o {{.BACKEND_BINARY}} cmd/main.go
+      # Kill any existing processes on backend and frontend ports
+      - lsof -ti :{{.BACKEND_PORT}} | xargs kill -9 2>/dev/null || true
+      - lsof -ti :{{.FRONTEND_PORT}} | xargs kill -9 2>/dev/null || true
       - ./{{.BACKEND_BINARY}} & sleep 3 && cd {{.FRONTEND_DIR}} && exec bun dev
 
   run:backend:

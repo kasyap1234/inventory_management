@@ -56,7 +56,7 @@ export default function AlertRulesPage() {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground">Alert Rules</h1>
-                    <p className="text-gray-500 mt-1">Configure automated alerts and notifications</p>
+                    <p className="text-muted-foreground mt-1">Configure automated alerts and notifications</p>
                 </div>
                 <Button onClick={() => setIsCreateDialogOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -70,7 +70,7 @@ export default function AlertRulesPage() {
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {rules.map((rule) => (
                         <Card key={rule.id} className="relative overflow-hidden">
-                            <div className={`absolute top-0 left-0 w-1 h-full ${rule.is_active ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            <div className={`absolute top-0 left-0 w-1 h-full ${rule.is_active ? 'bg-green-500' : 'bg-muted'}`} />
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
                                     <CardTitle className="text-lg">{rule.name}</CardTitle>
@@ -102,18 +102,18 @@ export default function AlertRulesPage() {
                             <CardContent>
                                 <div className="space-y-2 text-sm">
                                     <div className="flex justify-between">
-                                        <span className="text-gray-500">Event Type:</span>
+                                        <span className="text-muted-foreground">Event Type:</span>
                                         <span className="font-medium">{rule.event_type}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-gray-500">Status:</span>
-                                        <span className={`font-medium ${rule.is_active ? 'text-green-600' : 'text-gray-500'}`}>
+                                        <span className="text-muted-foreground">Status:</span>
+                                        <span className={`font-medium ${rule.is_active ? 'text-green-600' : 'text-muted-foreground'}`}>
                                             {rule.is_active ? 'Active' : 'Inactive'}
                                         </span>
                                     </div>
                                     <div className="pt-2">
-                                        <span className="text-gray-500 block mb-1">Conditions:</span>
-                                        <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                        <span className="text-muted-foreground block mb-1">Conditions:</span>
+                                        <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
                                             {JSON.stringify(rule.conditions, null, 2)}
                                         </pre>
                                     </div>
@@ -123,10 +123,10 @@ export default function AlertRulesPage() {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                    <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
+                <div className="text-center py-12 bg-muted/10 rounded-lg border border-dashed border-border">
+                    <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground/50" />
                     <h3 className="mt-2 text-sm font-semibold text-foreground">No alert rules</h3>
-                    <p className="mt-1 text-sm text-gray-500">Get started by creating a new alert rule.</p>
+                    <p className="mt-1 text-sm text-muted-foreground bg-transparent">Get started by creating a new alert rule.</p>
                     <div className="mt-6">
                         <Button onClick={() => setIsCreateDialogOpen(true)}>
                             <Plus className="mr-2 h-4 w-4" />

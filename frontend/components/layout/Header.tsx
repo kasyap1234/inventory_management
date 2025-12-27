@@ -43,7 +43,7 @@ export const Header = React.memo(function Header() {
                 <span className="sr-only">Toggle menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 text-left">
+            <SheetContent side="left" className="p-0 text-left w-[250px] sm:w-[300px]">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
               <SheetDescription className="sr-only">Main navigation menu</SheetDescription>
               <Sidebar onNavigate={() => setIsMobileMenuOpen(false)} className="flex w-full border-r-0" />

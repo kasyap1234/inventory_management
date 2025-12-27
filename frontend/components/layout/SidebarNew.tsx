@@ -79,7 +79,7 @@ export const Sidebar = React.memo(function Sidebar({ onNavigate, className }: Si
     <div className={cn("border-r bg-background h-full", className)}>
       <div className="flex h-full max-h-screen flex-col gap-2">
         {/* Logo section */}
-        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+        <div className="flex h-12 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-2 font-semibold" onClick={onNavigate}>
             <Package className="h-6 w-6 text-primary" />
             <span className="text-lg font-bold tracking-tight">AgroMart</span>
@@ -87,7 +87,7 @@ export const Sidebar = React.memo(function Sidebar({ onNavigate, className }: Si
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-2">
+        <div className="flex-1 overflow-y-auto py-1 md:py-2">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
             {filteredNavigation.map((item) => {
               const isActive = pathname === item.href;
@@ -96,7 +96,7 @@ export const Sidebar = React.memo(function Sidebar({ onNavigate, className }: Si
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary",
+                    "flex items-center gap-2 md:gap-3 rounded-lg px-3 py-1.5 md:py-2 transition-all hover:text-primary",
                     isActive
                       ? "bg-muted text-primary"
                       : "text-muted-foreground"

@@ -37,6 +37,37 @@ export default function ProductsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // State to store product thumbnails
+  const [productThumbnails, setProductThumbnails] = useState<Record<string, string>>({});
+
+  // Fetch thumbnails for all products
+  useEffect(() => {
+    const fetchThumbnails = async () => {
+      if (!products?.products) return;
+
+      const thumbnails: Record<string, string> = {};
+
+      await Promise.all(
+        products.products.map(async (product) => {
+          try {
+            const response = await api.get(`/products/${product.id}/images`);
+            const images = response.data?.images || [];
+            if (images.length > 0 && images[0].image_url) {
+              thumbnails[product.id] = images[0].image_url;
+            }
+          } catch {
+            // Ignore errors for individual products
+          }
+        })
+      );
+
+      setProductThumbnails(thumbnails);
+    };
+
+    fetchThumbnails();
+  }, [products?.products]);
+
+
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/products/${id}`);
@@ -144,18 +175,34 @@ export default function ProductsPage() {
         ),
       },
       {
-        key: 'name',
-        header: 'Name',
-        width: '1.2fr',
-        render: (product: Product) => (
-          <div className="font-medium">{product.name}</div>
-        ),
-      },
-      {
-        key: 'barcode',
-        header: 'Barcode',
-        width: '1fr',
-        render: (product: Product) => product.barcode || '-',
+        key: 'product',
+        header: 'Product',
+        width: '2fr',
+        render: (product: Product) => {
+          const thumbnailUrl = productThumbnails[product.id];
+          return (
+            <div className="flex items-center gap-3">
+              {thumbnailUrl ? (
+                <img
+                  src={thumbnailUrl}
+                  alt={product.name}
+                  className="h-11 w-11 rounded-lg object-cover shadow-sm border border-border flex-shrink-0"
+                />
+              ) : (
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gradient-to-br from-muted to-muted/50 border border-border flex-shrink-0">
+                  <Package className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-foreground truncate">{product.name}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {product.barcode ? `SKU: ${product.barcode}` : 'No SKU'}
+                  {product.unit_of_measure && ` • ${product.unit_of_measure}`}
+                </div>
+              </div>
+            </div>
+          );
+        },
       },
       {
         key: 'quantity',
@@ -220,7 +267,7 @@ export default function ProductsPage() {
         ),
       },
     ];
-  }, [deleteProduct, filteredProducts.length, handleSelectAll, handleSelectProduct, selectedProducts, setEditingProduct, setImagesProduct]);
+  }, [deleteProduct, filteredProducts.length, handleSelectAll, handleSelectProduct, productThumbnails, selectedProducts, setEditingProduct, setImagesProduct]);
 
   return (
     <div className="space-y-6 p-6">
@@ -659,7 +706,6 @@ interface ProductImage {
   product_id: string;
   image_url: string;
   alt_text?: string;
-  is_primary: boolean;
   created_at: string;
 }
 
@@ -683,29 +729,17 @@ function ProductImagesDialog({ open, onOpenChange, product }: {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const presignResp = await api.post(`/products/${product!.id}/images/presign`, {
-        filename: file.name,
-        size: file.size,
-        content_type: file.type,
-      });
-      const presign = presignResp.data as { upload_url: string; object_key: string };
+      // Use direct upload to backend instead of presigned URL to avoid MinIO CORS issues
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('alt_text', product?.name || '');
 
-      const putResp = await fetch(presign.upload_url, {
-        method: 'PUT',
+      const response = await api.post(`/products/${product!.id}/images`, formData, {
         headers: {
-          'Content-Type': file.type,
+          'Content-Type': 'multipart/form-data',
         },
-        body: file,
       });
-      if (!putResp.ok) {
-        throw new Error('Failed to upload to storage');
-      }
-
-      const finalizeResp = await api.post(`/products/${product!.id}/images/finalize`, {
-        object_key: presign.object_key,
-        alt_text: product?.name || '',
-      });
-      return finalizeResp.data;
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-images', product?.id] });
@@ -805,11 +839,6 @@ function ProductImagesDialog({ open, onOpenChange, product }: {
                     alt={image.alt_text || product?.name}
                     className="w-full h-48 object-cover"
                   />
-                  {image.is_primary && (
-                    <Badge className="absolute top-2 left-2" variant="default">
-                      Primary
-                    </Badge>
-                  )}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Button
                       variant="destructive"

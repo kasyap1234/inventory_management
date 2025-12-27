@@ -455,6 +455,11 @@ func (m *MockMinioService) HealthCheck(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *MockMinioService) SetupBucketsWithCORS(ctx context.Context, allowedOrigins []string) error {
+	args := m.Called(ctx, allowedOrigins)
+	return args.Error(0)
+}
+
 // ProductServiceTestSuite defines the test suite
 type ProductServiceTestSuite struct {
 	suite.Suite
