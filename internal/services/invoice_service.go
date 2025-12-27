@@ -555,9 +555,15 @@ func (s *invoiceService) GenerateInvoicePDF(ctx context.Context, invoice *models
 	}
 
 	// Get product details for the order
+	// Get product details for the order
 	product, err := s.productService.GetByID(ctx, tenantID, order.ProductID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get product details: %w", err)
+		// Log error but continue with fallback product data
+		log.Printf("Warning: Failed to get product details for invoice PDF: %v. Using fallback.", err)
+		product = &models.Product{
+			ID:   order.ProductID,
+			Name: "Product Description Not Available",
+		}
 	}
 
 	// Create new PDF

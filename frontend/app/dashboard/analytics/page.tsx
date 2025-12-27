@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-2">
           <DropdownMenu
             trigger={
-              <Button variant="outline" className="rounded-none font-mono uppercase tracking-wider">
+              <Button variant="default" className="rounded-none font-mono uppercase tracking-wider">
                 <Download className="h-4 w-4 mr-2" />
                 EXPORT
               </Button>

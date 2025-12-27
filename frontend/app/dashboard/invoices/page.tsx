@@ -13,6 +13,7 @@ import AdvancedFilters, { ActiveFilterBadges } from '@/components/filters/Advanc
 import api from '@/lib/api';
 import { Invoice, Order } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,16 +43,69 @@ export default function InvoicesPage() {
 
   const generatePDF = useMutation({
     mutationFn: async (invoiceId: string) => {
-      // Backend returns JSON with presigned URL, not raw PDF bytes
-      const response = await api.post(`/invoices/${invoiceId}/generate-pdf`);
-      const { pdf_url } = response.data;
+      // Open window immediately to bypass popup blocker
+      const newWindow = window.open('', '_blank');
 
-      if (!pdf_url) {
-        throw new Error('PDF URL not returned from server');
+      try {
+        // Backend returns JSON with presigned URL
+        const response = await api.post(`/invoices/${invoiceId}/generate-pdf`);
+        const { pdf_url } = response.data;
+
+        if (!pdf_url) {
+          throw new Error('PDF URL not returned from server');
+        }
+
+        console.log('PDF URL:', pdf_url);
+
+        if (newWindow) {
+          // Write a user-friendly success page with manual download link
+          newWindow.document.write(`
+            <html>
+              <head>
+                <style>
+                  body { font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0fdf4; color: #166534; }
+                  .btn { background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 16px; display: inline-block; }
+                  .btn:hover { background: #15803d; }
+                </style>
+              </head>
+              <body>
+                <h1>Invoice Generated Successfully!</h1>
+                <p>If the download didn't start automatically, please click the button below:</p>
+                <a href="${pdf_url}" class="btn">Download Invoice PDF</a>
+                <p style="margin-top: 24px; color: #666; font-size: 12px; max-width: 600px; word-break: break-all;">Direct Link: ${pdf_url}</p>
+              </body>
+            </html>
+          `);
+          // Auto-redirect removed to debug "popup closes immediately" issue
+          // newWindow.location.href = pdf_url;
+        } else {
+          window.location.href = pdf_url;
+        }
+
+        toast.success('PDF generated successfully');
+      } catch (error: any) {
+        // Debugging: Write error to the popup window so user can see it
+        if (newWindow) {
+          newWindow.document.write(`
+                <html><body>
+                <h1>Error Generating PDF</h1>
+                <pre style="color: red; white-space: pre-wrap;">${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}</pre>
+                <p>Status: ${error.response?.status}</p>
+                <p>Message: ${error.message}</p>
+                <p>Backend Error: ${JSON.stringify(error.response?.data)}</p>
+                </body></html>
+            `);
+        }
+
+        console.error('Detailed PDF Gen Error:', error);
+        throw error;
       }
-
-      // Open the presigned URL to download the PDF
-      window.open(pdf_url, '_blank');
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string };
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to generate PDF';
+      toast.error(errorMessage);
+      console.error('PDF generation error:', error);
     },
   });
 
@@ -113,14 +167,28 @@ export default function InvoicesPage() {
         const { pdf_url } = response.data;
 
         if (pdf_url) {
-          window.open(pdf_url, '_blank');
+          // Use anchor click instead of window.open to avoid popup blocker
+          const link = document.createElement('a');
+          link.href = pdf_url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
         }
         // Small delay between downloads
         await new Promise(resolve => setTimeout(resolve, 500));
       }
+      toast.success('PDFs generated successfully');
     },
     onSuccess: () => {
       setSelectedInvoices([]);
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string };
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to generate PDFs';
+      toast.error(errorMessage);
+      console.error('Bulk PDF generation error:', error);
     },
   });
 
@@ -641,10 +709,17 @@ function BulkInvoiceGenerateDialog({
       await api.post('/invoices/bulk-create', { invoices });
     },
     onSuccess: () => {
+      toast.success('Invoices created successfully');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       onOpenChange(false);
       setSelectedOrders([]);
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string; error?: string } }; message?: string };
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create invoices';
+      toast.error(errorMessage);
+      console.error('Bulk invoice creation error:', error);
     },
   });
 

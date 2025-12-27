@@ -91,11 +91,14 @@ export function BarcodeScanner({ isOpen, onClose, onScan }: BarcodeScannerProps)
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader>
+                <DialogHeader className="flex flex-row items-center justify-between">
                     <DialogTitle className="flex items-center gap-2">
                         <Camera className="h-5 w-5" />
                         Scan Barcode
                     </DialogTitle>
+                    <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+                        <X className="h-4 w-4" />
+                    </Button>
                 </DialogHeader>
 
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden">

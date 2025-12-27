@@ -5,6 +5,7 @@ import (
 	"agromart2/internal/middleware"
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -530,13 +531,16 @@ func (h *InvoiceHandlers) GenerateInvoicePDF(c echo.Context) error {
 	}
 
 	// Generate PDF bytes with comprehensive error handling
+	log.Printf("Generating PDF for invoice %s", invoiceID)
 	pdfBytes, err := h.invoiceService.GenerateInvoicePDF(ctx, invoice, order, tenantID)
 	if err != nil {
+		log.Printf("Error generating PDF: %v", err)
 		return common.SendServerError(c, fmt.Sprintf("Failed to generate PDF: %v", err))
 	}
 
 	// Validate PDF was generated successfully
 	if len(pdfBytes) == 0 {
+		log.Printf("Generated PDF is empty")
 		return common.SendServerError(c, "Generated PDF is empty")
 	}
 
@@ -546,19 +550,25 @@ func (h *InvoiceHandlers) GenerateInvoicePDF(c echo.Context) error {
 
 	// Ensure bucket exists before upload
 	if err := h.minioSvc.EnsureBucketExists(ctx, bucketName); err != nil {
+		log.Printf("Error ensuring bucket exists: %v", err)
 		return common.SendServerError(c, "Failed to create/verify storage bucket: "+err.Error())
 	}
 
+	log.Printf("Uploading PDF to MinIO: %s/%s", bucketName, objectName)
 	err = h.minioSvc.UploadImage(ctx, bucketName, objectName, bytes.NewReader(pdfBytes), int64(len(pdfBytes)))
 	if err != nil {
+		log.Printf("Error uploading to MinIO: %v", err)
 		return common.SendServerError(c, "Failed to upload PDF to storage: "+err.Error())
 	}
 
 	// Generate presigned URL for download with error handling
 	pdfURL, err := h.minioSvc.GetPresignedURL(bucketName, objectName, 24*time.Hour)
 	if err != nil {
+		log.Printf("Error getting presigned URL: %v", err)
 		return common.SendServerError(c, "Failed to generate download URL: "+err.Error())
 	}
+
+	log.Printf("Presigned URL generated: %s", pdfURL)
 
 	// Validate the URL was generated
 	if pdfURL == "" {

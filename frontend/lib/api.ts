@@ -74,7 +74,8 @@ api.interceptors.response.use(
 
     // Handle 4xx errors that didn't throw
     if (response.status >= 400 && response.status < 500) {
-      const error = new Error(response.data?.message || 'Request failed') as Error & { response: typeof response; code: string; status: number };
+      const message = response.data?.message || response.data?.error?.message || 'Request failed';
+      const error = new Error(message) as Error & { response: typeof response; code: string; status: number };
       error.response = response;
       error.code = `HTTP_${response.status}`;
       error.name = 'HttpError';
