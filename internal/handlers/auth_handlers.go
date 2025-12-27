@@ -306,7 +306,11 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	cookie.Value = tokenResponse.AccessToken
 	cookie.HttpOnly = true
 	cookie.Secure = isSecure
-	cookie.SameSite = http.SameSiteStrictMode
+	if isSecure {
+		cookie.SameSite = http.SameSiteStrictMode
+	} else {
+		cookie.SameSite = http.SameSiteLaxMode
+	}
 	cookie.Path = "/"
 	cookie.MaxAge = tokenResponse.ExpiresIn // Match JWT token expiration
 	c.SetCookie(cookie)
@@ -317,7 +321,11 @@ func (h *AuthHandlers) Login(c echo.Context) error {
 	refreshCookie.Value = tokenResponse.RefreshToken
 	refreshCookie.HttpOnly = true
 	refreshCookie.Secure = isSecure
-	refreshCookie.SameSite = http.SameSiteStrictMode
+	if isSecure {
+		refreshCookie.SameSite = http.SameSiteStrictMode
+	} else {
+		refreshCookie.SameSite = http.SameSiteLaxMode
+	}
 	refreshCookie.Path = "/"
 	refreshCookie.MaxAge = 604800 // 7 days
 	c.SetCookie(refreshCookie)
@@ -556,8 +564,13 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 				cookie.Name = "auth_token"
 				cookie.Value = tokenResponse.AccessToken
 				cookie.HttpOnly = true
-				cookie.Secure = os.Getenv("ENV") != "development"
-				cookie.SameSite = http.SameSiteStrictMode
+				isSecure := os.Getenv("ENV") != "development"
+				cookie.Secure = isSecure
+				if isSecure {
+					cookie.SameSite = http.SameSiteStrictMode
+				} else {
+					cookie.SameSite = http.SameSiteLaxMode
+				}
 				cookie.Path = "/"
 				cookie.MaxAge = tokenResponse.ExpiresIn
 				c.SetCookie(cookie)
@@ -567,8 +580,12 @@ func (h *AuthHandlers) Signup(c echo.Context) error {
 				refreshCookie.Name = "refresh_token"
 				refreshCookie.Value = tokenResponse.RefreshToken
 				refreshCookie.HttpOnly = true
-				refreshCookie.Secure = os.Getenv("ENV") != "development"
-				refreshCookie.SameSite = http.SameSiteStrictMode
+				refreshCookie.Secure = isSecure
+				if isSecure {
+					refreshCookie.SameSite = http.SameSiteStrictMode
+				} else {
+					refreshCookie.SameSite = http.SameSiteLaxMode
+				}
 				refreshCookie.Path = "/"
 				refreshCookie.MaxAge = 604800 // 7 days
 				c.SetCookie(refreshCookie)
@@ -631,8 +648,13 @@ func (h *AuthHandlers) Logout(c echo.Context) error {
 	authCookie.Name = "auth_token"
 	authCookie.Value = ""
 	authCookie.HttpOnly = true
-	authCookie.Secure = os.Getenv("ENV") != "development"
-	authCookie.SameSite = http.SameSiteStrictMode
+	isSecure := os.Getenv("ENV") != "development"
+	authCookie.Secure = isSecure
+	if isSecure {
+		authCookie.SameSite = http.SameSiteStrictMode
+	} else {
+		authCookie.SameSite = http.SameSiteLaxMode
+	}
 	authCookie.Path = "/"
 	authCookie.MaxAge = -1 // Delete cookie
 	c.SetCookie(authCookie)
@@ -642,8 +664,12 @@ func (h *AuthHandlers) Logout(c echo.Context) error {
 	refreshCookie.Name = "refresh_token"
 	refreshCookie.Value = ""
 	refreshCookie.HttpOnly = true
-	refreshCookie.Secure = os.Getenv("ENV") != "development"
-	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Secure = isSecure
+	if isSecure {
+		refreshCookie.SameSite = http.SameSiteStrictMode
+	} else {
+		refreshCookie.SameSite = http.SameSiteLaxMode
+	}
 	refreshCookie.Path = "/"
 	refreshCookie.MaxAge = -1 // Delete cookie
 	c.SetCookie(refreshCookie)
@@ -707,8 +733,13 @@ func (h *AuthHandlers) Refresh(c echo.Context) error {
 	cookie.Name = "auth_token"
 	cookie.Value = tokenResponse.AccessToken
 	cookie.HttpOnly = true
-	cookie.Secure = os.Getenv("ENV") != "development"
-	cookie.SameSite = http.SameSiteStrictMode
+	isSecure := os.Getenv("ENV") != "development"
+	cookie.Secure = isSecure
+	if isSecure {
+		cookie.SameSite = http.SameSiteStrictMode
+	} else {
+		cookie.SameSite = http.SameSiteLaxMode
+	}
 	cookie.Path = "/"
 	cookie.MaxAge = tokenResponse.ExpiresIn
 	c.SetCookie(cookie)
@@ -718,8 +749,12 @@ func (h *AuthHandlers) Refresh(c echo.Context) error {
 	refreshCookie.Name = "refresh_token"
 	refreshCookie.Value = tokenResponse.RefreshToken
 	refreshCookie.HttpOnly = true
-	refreshCookie.Secure = os.Getenv("ENV") != "development"
-	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Secure = isSecure
+	if isSecure {
+		refreshCookie.SameSite = http.SameSiteStrictMode
+	} else {
+		refreshCookie.SameSite = http.SameSiteLaxMode
+	}
 	refreshCookie.Path = "/"
 	refreshCookie.MaxAge = 604800 // 7 days
 	c.SetCookie(refreshCookie)
@@ -1156,8 +1191,13 @@ func (h *AuthHandlers) Verify2FA(c echo.Context) error {
 	cookie.Name = "auth_token"
 	cookie.Value = tokenResponse.AccessToken
 	cookie.HttpOnly = true
-	cookie.Secure = os.Getenv("ENV") != "development"
-	cookie.SameSite = http.SameSiteStrictMode
+	isSecure := os.Getenv("ENV") != "development"
+	cookie.Secure = isSecure
+	if isSecure {
+		cookie.SameSite = http.SameSiteStrictMode
+	} else {
+		cookie.SameSite = http.SameSiteLaxMode
+	}
 	cookie.Path = "/"
 	cookie.MaxAge = tokenResponse.ExpiresIn
 	c.SetCookie(cookie)
@@ -1167,8 +1207,12 @@ func (h *AuthHandlers) Verify2FA(c echo.Context) error {
 	refreshCookie.Name = "refresh_token"
 	refreshCookie.Value = tokenResponse.RefreshToken
 	refreshCookie.HttpOnly = true
-	refreshCookie.Secure = os.Getenv("ENV") != "development"
-	refreshCookie.SameSite = http.SameSiteStrictMode
+	refreshCookie.Secure = isSecure
+	if isSecure {
+		refreshCookie.SameSite = http.SameSiteStrictMode
+	} else {
+		refreshCookie.SameSite = http.SameSiteLaxMode
+	}
 	refreshCookie.Path = "/"
 	refreshCookie.MaxAge = 604800 // 7 days
 	c.SetCookie(refreshCookie)

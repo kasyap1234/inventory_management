@@ -2,8 +2,9 @@
 
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CreditCard, Pause, Play, X, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CreditCard, Pause, Play, X, Trash2, Calendar, Wallet } from 'lucide-react';
 import {
   subscriptionService,
   type SubscriptionDto,
@@ -81,36 +82,35 @@ export default function SubscriptionsPage() {
     return map;
   }, [availablePlans]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'default'; // dark/primary
       case 'paused':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'secondary'; // yellow-ish usually, but secondary fits "paused" state
       case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200';
       case 'expired':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'destructive'; // red
       default:
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'outline';
     }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-7xl mx-auto py-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Subscriptions
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
-            Manage your subscription plans and billing
+          <p className="text-muted-foreground mt-1">
+            Manage your subscription plans and billing history
           </p>
         </div>
-        <Button 
-          onClick={() => window.location.href = '/dashboard/subscriptions/plans'}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg transition-all"
+        <Button
+          onClick={() => router.push('/dashboard/subscriptions/plans')}
+          className="shadow-sm"
         >
           <CreditCard className="h-4 w-4 mr-2" />
           View Plans
@@ -127,98 +127,93 @@ export default function SubscriptionsPage() {
       )}
 
       {/* Subscriptions List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {isLoading ? (
-          <>
-            {[1, 2].map((i) => (
-              <div key={i} className="h-64 bg-gray-200 rounded-lg animate-pulse"></div>
-            ))}
-          </>
-        ) : subscriptions.length > 0 ? (
-          subscriptions.map((subscription) => {
-            const intervalLabel = planIntervalMap.get(subscription.plan_name) ?? 'monthly';
-            const amountDisplay = formatCurrency(subscription.amount || 0, subscription.currency || 'INR');
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold tracking-tight">Active Subscriptions</h2>
+        <div className="grid grid-cols-1 gap-4">
+          {isLoading ? (
+            <>
+              {[1].map((i) => (
+                <div key={i} className="h-48 bg-muted/20 rounded-lg animate-pulse border border-border"></div>
+              ))}
+            </>
+          ) : subscriptions.length > 0 ? (
+            subscriptions.map((subscription) => {
+              const intervalLabel = planIntervalMap.get(subscription.plan_name) ?? 'monthly';
+              const amountDisplay = formatCurrency(subscription.amount || 0, subscription.currency || 'INR');
 
-            return (
-            <Card key={subscription.id} className="border-0 shadow-md hover:shadow-lg transition-all">
-              <CardHeader className="border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-bold text-foreground">
-                    {subscription.plan_name || 'Subscription'}
-                  </CardTitle>
-                  <span
-                    className={`px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(
-                      subscription.status
-                    )}`}
-                  >
-                    {subscription.status}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  {/* Price */}
-                  <div>
-                    <div className="text-3xl font-bold text-foreground">
-                      {amountDisplay}
-                      <span className="text-lg font-normal text-gray-500">
-                        /{intervalLabel}
-                      </span>
+              return (
+                <Card key={subscription.id} className="transition-all hover:border-primary/50">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <CardTitle className="text-xl">
+                            {subscription.plan_name || 'Subscription'}
+                          </CardTitle>
+                          <Badge variant={getStatusVariant(subscription.status)} className="capitalize">
+                            {subscription.status}
+                          </Badge>
+                        </div>
+                        <CardDescription className="flex items-center gap-2">
+                          <span className="font-semibold text-foreground text-lg">{amountDisplay}</span>
+                          <span>/ {intervalLabel}</span>
+                        </CardDescription>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Details */}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Start Date:</span>
-                      <span className="font-medium text-foreground">
+                  </CardHeader>
+                  <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 pb-6">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>Start Date</span>
+                      </div>
+                      <p className="font-medium">
                         {format(new Date(subscription.start_date), 'MMM dd, yyyy')}
-                      </span>
+                      </p>
                     </div>
-                    {subscription.end_date && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">End Date:</span>
-                        <span className="font-medium text-foreground">
-                          {format(new Date(subscription.end_date), 'MMM dd, yyyy')}
-                        </span>
-                      </div>
-                    )}
-                    {subscription.currency && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Currency:</span>
-                        <span className="font-medium text-foreground">{subscription.currency}</span>
-                      </div>
-                    )}
-                    {subscription.razorpay_subscription_id && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Gateway ID:</span>
-                        <span className="font-medium text-foreground">
-                          {subscription.razorpay_subscription_id}
-                        </span>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Actions */}
-                  <div className="pt-4 border-t border-gray-200 flex gap-2">
+                    {subscription.end_date && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="h-4 w-4" />
+                          <span>End Date</span>
+                        </div>
+                        <p className="font-medium">
+                          {format(new Date(subscription.end_date), 'MMM dd, yyyy')}
+                        </p>
+                      </div>
+                    )}
+
+                    {subscription.razorpay_subscription_id && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Wallet className="h-4 w-4" />
+                          <span>Reference ID</span>
+                        </div>
+                        <p className="font-medium font-mono text-xs truncate" title={subscription.razorpay_subscription_id}>
+                          {subscription.razorpay_subscription_id}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+
+                  <CardFooter className="bg-muted/30 border-t flex gap-2 justify-end py-3">
                     {subscription.status === 'active' && (
                       <>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => pauseMutation.mutate(subscription.id)}
-                          className="flex-1"
                         >
-                          <Pause className="h-4 w-4 mr-1" />
+                          <Pause className="h-4 w-4 mr-2" />
                           Pause
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="destructive"
                           onClick={() => cancelMutation.mutate(subscription.id)}
-                          className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
-                          <X className="h-4 w-4 mr-1" />
+                          <X className="h-4 w-4 mr-2" />
                           Cancel
                         </Button>
                       </>
@@ -229,18 +224,16 @@ export default function SubscriptionsPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => resumeMutation.mutate(subscription.id)}
-                          className="flex-1"
                         >
-                          <Play className="h-4 w-4 mr-1" />
+                          <Play className="h-4 w-4 mr-2" />
                           Resume
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="destructive"
                           onClick={() => cancelMutation.mutate(subscription.id)}
-                          className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
-                          <X className="h-4 w-4 mr-1" />
+                          <X className="h-4 w-4 mr-2" />
                           Cancel
                         </Button>
                       </>
@@ -249,40 +242,42 @@ export default function SubscriptionsPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="text-destructive hover:text-destructive"
                         onClick={() => deleteMutation.mutate(subscription.id)}
-                        className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
+                        <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                       </Button>
                     )}
+                  </CardFooter>
+                </Card>
+              );
+            })
+          ) : (
+            <Card className="border-dashed shadow-none">
+              <CardContent className="py-16">
+                <div className="text-center space-y-4">
+                  <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <CreditCard className="h-6 w-6 text-muted-foreground" />
                   </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      No active subscriptions
+                    </h3>
+                    <p className="text-muted-foreground max-w-sm mx-auto mt-1">
+                      You don't have any active subscriptions. Choose a plan to unlock full features.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => router.push('/dashboard/subscriptions/plans')}
+                  >
+                    View Plans
+                  </Button>
                 </div>
               </CardContent>
             </Card>
-            );
-          })
-        ) : (
-          <Card className="border-0 shadow-md col-span-2">
-            <CardContent className="py-16">
-              <div className="text-center">
-                <CreditCard className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  No active subscriptions
-                </h3>
-                <p className="text-gray-500 mb-6">
-                  Get started by subscribing to a plan
-                </p>
-                <Button 
-                  onClick={() => window.location.href = '/dashboard/subscriptions/plans'}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                >
-                  View Plans
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

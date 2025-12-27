@@ -3,7 +3,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { AlertCircle, CheckCircle, Warehouse, Users, Package, ShoppingCart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, CheckCircle, Warehouse, Users, Package, ShoppingCart, CreditCard } from 'lucide-react';
 
 interface UsageData {
   warehouses_count: number;
@@ -51,17 +53,22 @@ export default function SubscriptionUsageCard({ usage, limits, onUpgrade }: Subs
   };
 
   const getStatusIcon = (current: number, max: number) => {
-    if (max === -1) return <CheckCircle className="h-5 w-5 text-green-500" />;
-    if (isAtLimit(current, max)) return <AlertCircle className="h-5 w-5 text-red-500" />;
+    if (max === -1) return <CheckCircle className="h-5 w-5 text-primary" />;
+    if (isAtLimit(current, max)) return <AlertCircle className="h-5 w-5 text-destructive" />;
     if (isNearLimit(current, max)) return <AlertCircle className="h-5 w-5 text-yellow-500" />;
-    return <CheckCircle className="h-5 w-5 text-green-500" />;
+    return <CheckCircle className="h-5 w-5 text-primary" />;
   };
 
-  const getProgressColor = (current: number, max: number) => {
-    if (max === -1) return 'bg-green-500';
-    if (isAtLimit(current, max)) return 'bg-red-500';
-    if (isNearLimit(current, max)) return 'bg-yellow-500';
-    return 'bg-blue-500';
+  // Progress component handles basic color, but we can assume default is primary.
+  // We can use indicatorClassName prop if Shadcn supports it or custom class logic if needed.
+  // For standard Shadcn, indicator is typically primary. We might need a custom class wrapper for red/yellow states if strict color matching is required,
+  // but for now, let's stick to simple layout updates. To change color, we often use `[&>div]:bg-red-500` utility on Progress.
+
+  const getProgressClass = (current: number, max: number) => {
+    if (max === -1) return '[&>div]:bg-primary';
+    if (isAtLimit(current, max)) return '[&>div]:bg-destructive';
+    if (isNearLimit(current, max)) return '[&>div]:bg-yellow-500';
+    return '[&>div]:bg-primary';
   };
 
   const usageItems = [
@@ -92,46 +99,56 @@ export default function SubscriptionUsageCard({ usage, limits, onUpgrade }: Subs
   ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Subscription Usage</span>
-          <span className="text-sm font-normal text-muted-foreground">{limits.plan_name}</span>
+    <Card className="shadow-sm">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center justify-between text-lg font-semibold">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <span>Subscription Usage</span>
+          </div>
+          <Badge variant="secondary" className="text-sm font-normal">
+            {limits.plan_name} Plan
+          </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {usageItems.map((item, index) => {
           const percentage = calculatePercentage(item.current, item.max);
           const Icon = item.icon;
-          
+
           return (
-            <div key={index} className="space-y-2">
+            <div key={index} className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <div className="p-1.5 rounded-md bg-muted">
+                    <Icon className="h-4 w-4 text-foreground" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground">{item.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {getStatusIcon(item.current, item.max)}
-                  <span className="text-sm font-medium">
-                    {item.current} / {formatLimit(item.max)}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {item.current} <span className="text-muted-foreground/50">/</span> {formatLimit(item.max)}
                   </span>
+                  {getStatusIcon(item.current, item.max)}
                 </div>
               </div>
-              
+
               {item.max !== -1 && (
                 <>
-                  <Progress value={percentage} className="h-2" />
+                  <Progress
+                    value={percentage}
+                    className={`h-2 bg-muted ${getProgressClass(item.current, item.max)}`}
+                  />
                   {isAtLimit(item.current, item.max) && (
-                    <p className="text-xs text-red-600 flex items-center gap-1">
+                    <p className="text-xs text-destructive flex items-center gap-1 font-medium">
                       <AlertCircle className="h-3 w-3" />
-                      Limit reached. Please upgrade to add more {item.label.toLowerCase()}.
+                      Limit reached. Upgrade to add more.
                     </p>
                   )}
                   {isNearLimit(item.current, item.max) && !isAtLimit(item.current, item.max) && (
                     <p className="text-xs text-yellow-600 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      Approaching limit ({Math.round(percentage)}% used)
+                      Approaching limit ({Math.round(percentage)}%)
                     </p>
                   )}
                 </>
@@ -142,13 +159,14 @@ export default function SubscriptionUsageCard({ usage, limits, onUpgrade }: Subs
 
         {/* Upgrade CTA if any limit is reached */}
         {usageItems.some(item => isAtLimit(item.current, item.max)) && onUpgrade && (
-          <div className="pt-4 border-t">
-            <button
+          <div className="pt-4 mt-2">
+            <Button
               onClick={onUpgrade}
-              className="w-full py-2 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all"
+              className="w-full"
+              variant="default"
             >
               Upgrade Plan
-            </button>
+            </Button>
           </div>
         )}
       </CardContent>

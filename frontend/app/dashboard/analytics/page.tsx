@@ -299,35 +299,42 @@ export default function AnalyticsPage() {
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : (
-              <div className="h-[350px] w-full">
+              <div className="h-[350px] w-full text-muted-foreground">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={salesTrendChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                     <XAxis
                       dataKey="label"
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       fontFamily="var(--font-mono)"
+                      tick={{ fill: 'currentColor' }}
                     />
                     <YAxis
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(value) => `$${value}`}
                       fontFamily="var(--font-mono)"
+                      tick={{ fill: 'currentColor' }}
                     />
                     <ChartTooltip
-                      content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />}
+                      cursor={{ stroke: 'var(--muted-foreground)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      content={
+                        <ChartTooltipContent
+                          className="rounded-lg border-border bg-popover/95 backdrop-blur-sm text-popover-foreground shadow-xl font-mono uppercase"
+                        />
+                      }
                     />
                     <Line
                       type="monotone"
                       dataKey="revenue"
-                      stroke="hsl(var(--primary))"
+                      stroke="var(--primary)"
                       strokeWidth={2}
-                      dot={{ r: 4, fill: "hsl(var(--primary))" }}
+                      dot={{ r: 4, fill: "var(--primary)" }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
                     />
                     <Line
@@ -345,7 +352,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-3 rounded-none border border-border">
+        <Card className="col-span-3 rounded-none border border-border bg-card">
           <CardHeader className="border-b border-border bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-sm font-mono uppercase tracking-wider">
               <PieChartIcon className="h-4 w-4 text-purple-500" />
@@ -353,7 +360,7 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="h-[350px] w-full">
+            <div className="h-[350px] w-full text-muted-foreground">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -370,19 +377,23 @@ export default function AnalyticsPage() {
                       <Cell
                         key={`cell-${index}`}
                         fill={
-                          index === 0 ? 'hsl(var(--primary))' :
+                          index === 0 ? 'var(--primary)' :
                             index === 1 ? '#a855f7' :
                               index === 2 ? '#10b981' :
                                 index === 3 ? '#f59e0b' :
                                   '#ef4444'
                         }
-                        stroke="hsl(var(--background))"
+                        stroke="var(--background)"
                         strokeWidth={2}
                       />
                     ))}
                   </Pie>
                   <ChartTooltip
-                    content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />}
+                    content={
+                      <ChartTooltipContent
+                        className="rounded-lg border-border bg-popover/95 backdrop-blur-sm text-popover-foreground shadow-xl font-mono uppercase"
+                      />
+                    }
                   />
                   <ChartLegend
                     content={<ChartLegendContent className="font-mono text-xs uppercase" />}
@@ -397,7 +408,7 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="rounded-none border border-border">
+        <Card className="rounded-none border border-border bg-card">
           <CardHeader className="border-b border-border bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-sm font-mono uppercase tracking-wider">
               <BarChart3 className="h-4 w-4 text-emerald-500" />
@@ -405,24 +416,29 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="h-[350px] w-full">
+            <div className="h-[350px] w-full text-muted-foreground">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={topProducts} layout="vertical" margin={{ left: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis type="number" hide />
                   <YAxis
                     dataKey="productName"
                     type="category"
                     width={100}
-                    tick={{ fontSize: 10, fontFamily: 'var(--font-mono)', fill: 'hsl(var(--muted-foreground))' }}
+                    tick={{ fontSize: 10, fontFamily: 'var(--font-mono)', fill: 'currentColor' }}
                     interval={0}
                   />
                   <ChartTooltip
-                    content={<ChartTooltipContent className="rounded-none border-border font-mono uppercase" />}
+                    cursor={{ fill: 'var(--muted)', opacity: 0.2, radius: 4 }}
+                    content={
+                      <ChartTooltipContent
+                        className="rounded-lg border-border bg-popover/95 backdrop-blur-sm text-popover-foreground shadow-xl font-mono uppercase"
+                      />
+                    }
                   />
                   <Bar
                     dataKey="unitsSold"
-                    fill="hsl(var(--primary))"
+                    fill="var(--primary)"
                     radius={[0, 4, 4, 0]}
                     barSize={20}
                   />

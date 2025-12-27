@@ -57,9 +57,13 @@ func (r *userRepo) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*models
 		FROM users
 		WHERE tenant_id = $1 AND id = $2
 	`
-	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(&user.ID, &user.TenantID, &user.Email, &user.GoogleID, &user.FirstName, &user.LastName, &user.Status, &user.TwoFactorSecret, &user.TwoFactorEnabled, &user.CreatedAt, &user.UpdatedAt)
+	var twoFactorSecret sql.NullString
+	err := r.db.QueryRow(ctx, query, tenantID, id).Scan(&user.ID, &user.TenantID, &user.Email, &user.GoogleID, &user.FirstName, &user.LastName, &user.Status, &twoFactorSecret, &user.TwoFactorEnabled, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
+	}
+	if twoFactorSecret.Valid {
+		user.TwoFactorSecret = twoFactorSecret.String
 	}
 	return user, nil
 }
