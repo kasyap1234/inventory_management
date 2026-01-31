@@ -220,14 +220,14 @@ jobs:
               --name agromart-backend \
               --resource-group ${{ env.AZURE_RG }} \
               --secrets \
-                "database-url=${DATABASE_URL}" \
-                "jwt-secret=${{ secrets.JWT_SECRET }}" \
-                "csrf-secret=${{ secrets.CSRF_SECRET }}" \
-                "resend-api-key=${{ secrets.RESEND_API_KEY }}" \
-                "minio-access-key=${{ secrets.MINIO_ROOT_USER }}" \
-                "minio-secret-key=${{ secrets.MINIO_ROOT_PASSWORD }}" \
-                "super-admin-email=${{ secrets.SUPER_ADMIN_EMAIL }}" \
-                "super-admin-password=${{ secrets.SUPER_ADMIN_PASSWORD }}"
+                database-url="$DATABASE_URL" \
+                jwt-secret="${{ secrets.JWT_SECRET }}" \
+                csrf-secret="${{ secrets.CSRF_SECRET }}" \
+                resend-api-key="${{ secrets.RESEND_API_KEY }}" \
+                minio-access-key="${{ secrets.MINIO_ROOT_USER }}" \
+                minio-secret-key="${{ secrets.MINIO_ROOT_PASSWORD }}" \
+                super-admin-email="${{ secrets.SUPER_ADMIN_EMAIL }}" \
+                super-admin-password="${{ secrets.SUPER_ADMIN_PASSWORD }}"
 
             # Update container
             az containerapp update \
@@ -267,14 +267,14 @@ jobs:
               --target-port 8080 \
               --ingress external \
               --secrets \
-                "database-url=${DATABASE_URL}" \
-                "jwt-secret=${{ secrets.JWT_SECRET }}" \
-                "csrf-secret=${{ secrets.CSRF_SECRET }}" \
-                "resend-api-key=${{ secrets.RESEND_API_KEY }}" \
-                "minio-access-key=${{ secrets.MINIO_ROOT_USER }}" \
-                "minio-secret-key=${{ secrets.MINIO_ROOT_PASSWORD }}" \
-                "super-admin-email=${{ secrets.SUPER_ADMIN_EMAIL }}" \
-                "super-admin-password=${{ secrets.SUPER_ADMIN_PASSWORD }}" \
+                database-url="$DATABASE_URL" \
+                jwt-secret="${{ secrets.JWT_SECRET }}" \
+                csrf-secret="${{ secrets.CSRF_SECRET }}" \
+                resend-api-key="${{ secrets.RESEND_API_KEY }}" \
+                minio-access-key="${{ secrets.MINIO_ROOT_USER }}" \
+                minio-secret-key="${{ secrets.MINIO_ROOT_PASSWORD }}" \
+                super-admin-email="${{ secrets.SUPER_ADMIN_EMAIL }}" \
+                super-admin-password="${{ secrets.SUPER_ADMIN_PASSWORD }}" \
               --env-vars \
                 "PORT=8080" \
                 "DATABASE_URL=secretref:database-url" \
