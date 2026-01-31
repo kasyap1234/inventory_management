@@ -414,26 +414,14 @@ jobs:
   # DEPLOYMENT
   # ============================================================================
   deploy:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
+    name: Deploy to Azure
     needs: docker
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
-    steps:
-      - name: Trigger deployment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'deploy.yml',
-              ref: 'main',
-              inputs: {
-                image_tag: '${{ github.sha }}',
-                environment: 'production'
-              }
-            })
+    uses: ./.github/workflows/deploy-azure.yml
+    with:
+      environment: production
+      image_tag: ${{ github.sha }}
+    secrets: inherit
 
   # ============================================================================
   # SUMMARY

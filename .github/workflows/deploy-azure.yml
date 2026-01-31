@@ -16,9 +16,18 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    branches:
-      - deploy-vm
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'production'
+        type: string
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: false
+        default: 'latest'
+        type: string
 
 env:
   AZURE_RG: agromart-demo-rg
@@ -63,7 +72,7 @@ jobs:
             --name ${{ env.VM_NAME }} \
             --image Ubuntu2204 \
             --admin-username ${{ env.ADMIN_USERNAME }} \
-            --generate-ssh-keys \
+            --ssh-key-values "${{ secrets.AZURE_SSH_PUBLIC_KEY }}" \
             --size ${{ env.VM_SIZE }} \
             --public-ip-sku Standard \
             --public-ip-address-dns-name ${{ steps.dns.outputs.dns_label }} \
@@ -109,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [provision-vm]
     if: always() && (needs.provision-vm.result == 'success' || needs.provision-vm.result == 'skipped')
-    environment: ${{ github.event.inputs.environment || 'demo' }}
+    environment: ${{ inputs.environment || github.event.inputs.environment || 'demo' }}
     
     steps:
       - name: Checkout code
@@ -152,19 +161,6 @@ jobs:
             StrictHostKeyChecking no
             UserKnownHostsFile /dev/null
           EOF
-
-      - name: Install SSH Key from Azure
-        run: |
-          # Download the SSH key generated during VM creation
-          az vm run-command invoke \
-            --resource-group ${{ env.AZURE_RG }} \
-            --name ${{ env.VM_NAME }} \
-            --command-id RunShellScript \
-            --scripts "cat ~/.ssh/id_rsa" \
-            --query value[0].message -o tsv | grep -A 100 'BEGIN OPENSSH PRIVATE KEY' | head -n 30 > ~/.ssh/azure_vm || true
-          
-          # If that didn't work, we'll use password auth for first setup
-          echo "SSH key setup attempted"
 
       - name: Wait for VM
         run: |
