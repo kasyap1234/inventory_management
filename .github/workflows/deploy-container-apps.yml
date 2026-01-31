@@ -85,10 +85,7 @@ jobs:
             az containerapp update \
               --name agromart-postgres \
               --resource-group ${{ env.AZURE_RG }} \
-              --set-env-vars \
-                "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" \
-                "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" \
-                "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" \
+              --set-env-vars "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" \
               --cpu 0.5 --memory 1Gi \
               --output none
           else
@@ -100,10 +97,7 @@ jobs:
               --image postgres:17-alpine \
               --target-port 5432 \
               --ingress internal \
-              --env-vars \
-                "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" \
-                "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" \
-                "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" \
+              --env-vars "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" \
               --cpu 0.5 --memory 1Gi \
               --min-replicas 1 --max-replicas 1 \
               --output none
@@ -142,9 +136,7 @@ jobs:
             az containerapp update \
               --name agromart-minio \
               --resource-group ${{ env.AZURE_RG }} \
-              --set-env-vars \
-                "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" \
-                "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+              --set-env-vars "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
               --cpu 0.25 --memory 0.5Gi \
               --output none
           else
@@ -156,9 +148,7 @@ jobs:
               --image minio/minio:latest \
               --target-port 9000 \
               --ingress internal \
-              --env-vars \
-                "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" \
-                "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+              --env-vars "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
               --args "server /data --console-address :9001" \
               --cpu 0.25 --memory 0.5Gi \
               --min-replicas 1 --max-replicas 1 \
@@ -222,26 +212,7 @@ jobs:
               --name agromart-backend \
               --resource-group ${{ env.AZURE_RG }} \
               --image "$DOCKER_IMAGE" \
-              --set-env-vars \
-                "PORT=8080" \
-                "DATABASE_URL=$DATABASE_URL" \
-                "REDIS_URL=$REDIS_URL" \
-                "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
-                "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" \
-                "ENFORCE_HTTPS=true" \
-                "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
-                "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
-                "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" \
-                "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" \
-                "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" \
-                "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" \
-                "MINIO_ENDPOINT=$MINIO_ENDPOINT" \
-                "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" \
-                "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" \
-                "MINIO_USE_SSL=false" \
-                "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" \
-                "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" \
-                "GO_ENV=production" \
+              --set-env-vars "PORT=8080" "DATABASE_URL=$DATABASE_URL" "REDIS_URL=$REDIS_URL" "JWT_SECRET=${{ secrets.JWT_SECRET }}" "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" "ENFORCE_HTTPS=true" "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" "MINIO_ENDPOINT=$MINIO_ENDPOINT" "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" "MINIO_USE_SSL=false" "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" "GO_ENV=production" \
               --cpu 0.5 --memory 1Gi \
               --output none
           else
@@ -253,26 +224,7 @@ jobs:
               --image "$DOCKER_IMAGE" \
               --target-port 8080 \
               --ingress external \
-              --env-vars \
-                "PORT=8080" \
-                "DATABASE_URL=$DATABASE_URL" \
-                "REDIS_URL=$REDIS_URL" \
-                "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
-                "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" \
-                "ENFORCE_HTTPS=true" \
-                "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
-                "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
-                "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" \
-                "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" \
-                "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" \
-                "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" \
-                "MINIO_ENDPOINT=$MINIO_ENDPOINT" \
-                "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" \
-                "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" \
-                "MINIO_USE_SSL=false" \
-                "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" \
-                "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" \
-                "GO_ENV=production" \
+              --env-vars "PORT=8080" "DATABASE_URL=$DATABASE_URL" "REDIS_URL=$REDIS_URL" "JWT_SECRET=${{ secrets.JWT_SECRET }}" "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" "ENFORCE_HTTPS=true" "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" "MINIO_ENDPOINT=$MINIO_ENDPOINT" "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" "MINIO_USE_SSL=false" "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" "GO_ENV=production" \
               --cpu 0.5 --memory 1Gi \
               --min-replicas 1 --max-replicas 3 \
               --output none
@@ -305,10 +257,7 @@ jobs:
               --name agromart-frontend \
               --resource-group ${{ env.AZURE_RG }} \
               --image "$DOCKER_IMAGE" \
-              --set-env-vars \
-                "NODE_ENV=production" \
-                "NEXT_PUBLIC_API_URL=$BACKEND_URL" \
-                "PORT=3000" \
+              --set-env-vars "NODE_ENV=production" "NEXT_PUBLIC_API_URL=$BACKEND_URL" "PORT=3000" \
               --cpu 0.25 --memory 0.5Gi \
               --output none
           else
@@ -320,10 +269,7 @@ jobs:
               --image "$DOCKER_IMAGE" \
               --target-port 3000 \
               --ingress external \
-              --env-vars \
-                "NODE_ENV=production" \
-                "NEXT_PUBLIC_API_URL=$BACKEND_URL" \
-                "PORT=3000" \
+              --env-vars "NODE_ENV=production" "NEXT_PUBLIC_API_URL=$BACKEND_URL" "PORT=3000" \
               --cpu 0.25 --memory 0.5Gi \
               --min-replicas 1 --max-replicas 3 \
               --output none
