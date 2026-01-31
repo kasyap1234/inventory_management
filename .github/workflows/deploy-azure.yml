@@ -131,6 +131,11 @@ jobs:
           name: vm-details
           path: deploy/
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Get VM FQDN
         id: get-fqdn
         run: |
@@ -144,11 +149,6 @@ jobs:
           fi
           echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
           echo "VM_FQDN=$FQDN" >> $GITHUB_ENV
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup SSH Key
         run: |
