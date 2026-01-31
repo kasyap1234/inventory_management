@@ -134,10 +134,12 @@ jobs:
       - name: Get VM FQDN
         id: get-fqdn
         run: |
-          if [ -f deploy/current_fqdn.txt ]; then
+          # If provision job succeeded, use the artifact file
+          # Otherwise, query Azure directly for current VM details
+          if [ -f deploy/current_fqdn.txt ] && [ "${{ needs.provision-vm.result }}" == "success" ]; then
             FQDN=$(cat deploy/current_fqdn.txt)
           else
-            # Try to get from Azure
+            # Query Azure for existing VM
             FQDN=$(az vm show --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} -d --query fqdns -o tsv)
           fi
           echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
