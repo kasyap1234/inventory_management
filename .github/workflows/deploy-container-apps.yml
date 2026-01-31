@@ -198,25 +198,67 @@ jobs:
           IMAGE_TAG="${{ inputs.image_tag || github.sha }}"
           DOCKER_IMAGE="${{ secrets.DOCKER_USERNAME }}/agromart:$IMAGE_TAG"
 
-          # Build DATABASE_URL with internal FQDN
-          DATABASE_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@${{ steps.urls.outputs.postgres_fqdn }}:5432/${{ secrets.POSTGRES_DB }}?sslmode=disable"
-          REDIS_URL="redis://${{ steps.urls.outputs.redis_fqdn }}:6379"
-          MINIO_ENDPOINT="${{ steps.urls.outputs.minio_fqdn }}:9000"
+          POSTGRES_FQDN="${{ steps.urls.outputs.postgres_fqdn }}"
+          REDIS_FQDN="${{ steps.urls.outputs.redis_fqdn }}"
+          MINIO_FQDN="${{ steps.urls.outputs.minio_fqdn }}"
+
+          # Construct URLs - these will be stored as secrets to handle special chars
+          DATABASE_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@${POSTGRES_FQDN}:5432/${{ secrets.POSTGRES_DB }}?sslmode=disable"
+          REDIS_URL="redis://${REDIS_FQDN}:6379"
+          MINIO_ENDPOINT="${MINIO_FQDN}:9000"
+          FRONTEND_URL="https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io"
+          BACKEND_URL="https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io"
 
           if az containerapp show \
             --name agromart-backend \
             --resource-group ${{ env.AZURE_RG }} \
             --output none 2>/dev/null; then
-            echo "Updating backend container app with image: $DOCKER_IMAGE"
+            echo "Updating backend container app..."
+
+            # Set secrets first (handles special characters safely)
+            az containerapp secret set \
+              --name agromart-backend \
+              --resource-group ${{ env.AZURE_RG }} \
+              --secrets \
+                "database-url=${DATABASE_URL}" \
+                "jwt-secret=${{ secrets.JWT_SECRET }}" \
+                "csrf-secret=${{ secrets.CSRF_SECRET }}" \
+                "resend-api-key=${{ secrets.RESEND_API_KEY }}" \
+                "minio-access-key=${{ secrets.MINIO_ROOT_USER }}" \
+                "minio-secret-key=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+                "super-admin-email=${{ secrets.SUPER_ADMIN_EMAIL }}" \
+                "super-admin-password=${{ secrets.SUPER_ADMIN_PASSWORD }}"
+
+            # Update container
             az containerapp update \
               --name agromart-backend \
               --resource-group ${{ env.AZURE_RG }} \
               --image "$DOCKER_IMAGE" \
-              --set-env-vars "PORT=8080" "DATABASE_URL=$DATABASE_URL" "REDIS_URL=$REDIS_URL" "JWT_SECRET=${{ secrets.JWT_SECRET }}" "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" "ENFORCE_HTTPS=true" "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" "MINIO_ENDPOINT=$MINIO_ENDPOINT" "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" "MINIO_USE_SSL=false" "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" "GO_ENV=production" \
-              --cpu 0.5 --memory 1Gi \
-              --output none
+              --set-env-vars \
+                "PORT=8080" \
+                "DATABASE_URL=secretref:database-url" \
+                "REDIS_URL=${REDIS_URL}" \
+                "JWT_SECRET=secretref:jwt-secret" \
+                "CSRF_SECRET=secretref:csrf-secret" \
+                "ENFORCE_HTTPS=true" \
+                "FRONTEND_URL=${FRONTEND_URL}" \
+                "BACKEND_URL=${BACKEND_URL}" \
+                "RESEND_API_KEY=secretref:resend-api-key" \
+                "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" \
+                "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" \
+                "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" \
+                "MINIO_ENDPOINT=${MINIO_ENDPOINT}" \
+                "MINIO_ACCESS_KEY=secretref:minio-access-key" \
+                "MINIO_SECRET_KEY=secretref:minio-secret-key" \
+                "MINIO_USE_SSL=false" \
+                "SUPER_ADMIN_EMAIL=secretref:super-admin-email" \
+                "SUPER_ADMIN_PASSWORD=secretref:super-admin-password" \
+                "GO_ENV=production" \
+              --cpu 0.5 --memory 1Gi
+
           else
-            echo "Creating backend container app with image: $DOCKER_IMAGE"
+            echo "Creating backend container app..."
+
             az containerapp create \
               --name agromart-backend \
               --resource-group ${{ env.AZURE_RG }} \
@@ -224,10 +266,37 @@ jobs:
               --image "$DOCKER_IMAGE" \
               --target-port 8080 \
               --ingress external \
-              --env-vars "PORT=8080" "DATABASE_URL=$DATABASE_URL" "REDIS_URL=$REDIS_URL" "JWT_SECRET=${{ secrets.JWT_SECRET }}" "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" "ENFORCE_HTTPS=true" "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" "MINIO_ENDPOINT=$MINIO_ENDPOINT" "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" "MINIO_USE_SSL=false" "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" "GO_ENV=production" \
+              --secrets \
+                "database-url=${DATABASE_URL}" \
+                "jwt-secret=${{ secrets.JWT_SECRET }}" \
+                "csrf-secret=${{ secrets.CSRF_SECRET }}" \
+                "resend-api-key=${{ secrets.RESEND_API_KEY }}" \
+                "minio-access-key=${{ secrets.MINIO_ROOT_USER }}" \
+                "minio-secret-key=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+                "super-admin-email=${{ secrets.SUPER_ADMIN_EMAIL }}" \
+                "super-admin-password=${{ secrets.SUPER_ADMIN_PASSWORD }}" \
+              --env-vars \
+                "PORT=8080" \
+                "DATABASE_URL=secretref:database-url" \
+                "REDIS_URL=${REDIS_URL}" \
+                "JWT_SECRET=secretref:jwt-secret" \
+                "CSRF_SECRET=secretref:csrf-secret" \
+                "ENFORCE_HTTPS=true" \
+                "FRONTEND_URL=${FRONTEND_URL}" \
+                "BACKEND_URL=${BACKEND_URL}" \
+                "RESEND_API_KEY=secretref:resend-api-key" \
+                "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" \
+                "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" \
+                "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" \
+                "MINIO_ENDPOINT=${MINIO_ENDPOINT}" \
+                "MINIO_ACCESS_KEY=secretref:minio-access-key" \
+                "MINIO_SECRET_KEY=secretref:minio-secret-key" \
+                "MINIO_USE_SSL=false" \
+                "SUPER_ADMIN_EMAIL=secretref:super-admin-email" \
+                "SUPER_ADMIN_PASSWORD=secretref:super-admin-password" \
+                "GO_ENV=production" \
               --cpu 0.5 --memory 1Gi \
-              --min-replicas 1 --max-replicas 3 \
-              --output none
+              --min-replicas 1 --max-replicas 3
           fi
           echo "✅ Backend deployed"
 
