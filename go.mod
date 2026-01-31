@@ -1,6 +1,6 @@
 module agromart2
 
-go 1.25.5
+go 1.25.6
 
 require (
 	firebase.google.com/go/v4 v4.18.0
