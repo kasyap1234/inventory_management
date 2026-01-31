@@ -3,6 +3,7 @@ import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   // Performance optimizations
+  output: "standalone",
   reactStrictMode: true,
   compress: true,
   generateEtags: true,

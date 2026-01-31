@@ -637,7 +637,7 @@ func main() {
 	e.Use(perfMiddleware.BodyLimit("10M"))          // Limit request body size
 	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001", "https://app.agromart.com"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001", "https://app.agromart.com", "https://agromart-demo-ce5baa7c.centralindia.cloudapp.azure.com"},
 		AllowMethods:     []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS, echo.PATCH},
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-CSRF-Token"},
 		AllowCredentials: true,

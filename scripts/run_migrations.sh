@@ -9,9 +9,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-POSTGRES_CONTAINER="inventory_management-postgres-1"
-POSTGRES_USER="testuser"
-POSTGRES_DB="testdb"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-inventory_management-postgres-1}"
+POSTGRES_USER="${POSTGRES_USER:-testuser}"
+POSTGRES_DB="${POSTGRES_DB:-testdb}"
 MIGRATIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/migrations"
 
 echo -e "${BLUE}========================================${NC}"

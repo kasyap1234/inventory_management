@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Agromart2 SaaS Platform
 
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata postgresql-client redis curl
@@ -40,6 +40,7 @@ COPY --from=builder /app/agromart2 .
 # Copy migrations, docs, and config files
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/config ./config
 
 # Create directory for temporary files
 RUN mkdir -p /tmp && chown -R appuser:appuser /tmp

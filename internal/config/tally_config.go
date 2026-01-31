@@ -52,6 +52,19 @@ func LoadTallyConfig(filename string) (*TallyConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config file: %w", err)
 	}
+
+	// Override with environment variables
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		// Simple parsing: remove scheme if present
+		// NOTE: This assumes REDIS_URL is in format redis://host:port or just host:port
+		// Does not handle auth/db in URL strictly for this field, but adequate for current setup
+		addr := strings.TrimPrefix(redisURL, "redis://")
+		config.Queuing.RedisAddr = addr
+	}
+	if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
+		config.Queuing.RedisAddr = redisAddr
+	}
+
 	return config, nil
 }
 

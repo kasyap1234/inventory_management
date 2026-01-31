@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"context"
-	"net/http"
+	"os"
 	"strings"
 
 	"agromart2/internal/common"
@@ -27,29 +27,41 @@ func (m *SubdomainMiddleware) ResolveTenant(next echo.HandlerFunc) echo.HandlerF
 			host = strings.Split(host, ":")[0]
 		}
 
-		parts := strings.Split(host, ".")
-		var subdomain string
-
-		// Logic to extract subdomain.
-		// Assuming format: subdomain.domain.com (3 parts)
-		// Localhost logic: subdomain.localhost (2 parts)
-		// Adjust based on environment/config if needed.
-		if len(parts) >= 3 {
-			subdomain = parts[0]
-		} else if len(parts) == 2 && parts[1] == "localhost" {
-			subdomain = parts[0]
+		// Skip tenant resolution for health checks and metrics
+		path := c.Request().URL.Path
+		if strings.HasPrefix(path, "/health") || strings.HasPrefix(path, "/metrics") || path == "/v1/security/csrf" {
+			return next(c)
 		}
 
-		// Skip for main domain or www
-		if subdomain == "" || subdomain == "www" || subdomain == "api" {
+		// Get the configured main domain
+		mainDomain := strings.ToLower(os.Getenv("DOMAIN_NAME"))
+		hostLower := strings.ToLower(host)
+
+		// If the host is exactly the main domain, there is no tenant subdomain
+		if hostLower == mainDomain || mainDomain == "" {
+			return next(c)
+		}
+
+		// Check if the host ends with .mainDomain (indicating a subdomain)
+		if !strings.HasSuffix(hostLower, "."+mainDomain) {
+			// Not a subdomain of our main domain, skip resolution
+			return next(c)
+		}
+
+		// Extract the subdomain part
+		subdomain := strings.TrimSuffix(hostLower, "."+mainDomain)
+
+		// Skip for common non-tenant subdomains
+		if subdomain == "" || subdomain == "www" || subdomain == "api" || subdomain == "app" {
 			return next(c)
 		}
 
 		ctx := c.Request().Context()
 		tenant, err := m.tenantService.GetBySubdomain(ctx, subdomain)
 		if err != nil {
-			// If subdomain exists but tenant not found, return 404 or redirect to signup
-			return echo.NewHTTPError(http.StatusNotFound, "Tenant not found")
+			// If subdomain exists but tenant not found, we don't set the tenant context.
+			// Handlers that require a tenant will fail later with a clear error.
+			return next(c)
 		}
 
 		// Set tenant in context

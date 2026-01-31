@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/v1';
 
 // TokenStorage is no longer needed for HttpOnly cookie authentication
 // Tokens are stored in HttpOnly cookies and sent automatically with credentials: 'include'
@@ -47,6 +47,7 @@ class CSRFTokenManager {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true,
     });
   }
 

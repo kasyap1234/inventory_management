@@ -1,10 +1,10 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { csrfTokenManager, tokenStorage } from '@/lib/security';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/v1';
 
 if (!process.env.NEXT_PUBLIC_API_URL && typeof window !== 'undefined') {
-  console.warn('NEXT_PUBLIC_API_URL is not defined, falling back to relative path /api/v1');
+  console.warn('NEXT_PUBLIC_API_URL is not defined, falling back to relative path /v1');
 }
 
 // Request deduplication: Track in-flight requests

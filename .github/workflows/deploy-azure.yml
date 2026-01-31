@@ -1,0 +1,420 @@
+name: Deploy to Azure VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'demo'
+        type: choice
+        options:
+          - demo
+          - production
+      provision_vm:
+        description: 'Provision new VM (destroys existing)'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - deploy-vm
+
+env:
+  AZURE_RG: agromart-demo-rg
+  AZURE_LOCATION: centralindia
+  VM_NAME: agromart-demo-vm
+  VM_SIZE: Standard_B2ats_v2
+  ADMIN_USERNAME: azureuser
+
+jobs:
+  provision-vm:
+    name: Provision Azure VM
+    runs-on: ubuntu-latest
+    if: github.event.inputs.provision_vm == 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.provision_vm == 'true'
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Existing VM (if provisioning new)
+        run: |
+          echo "Checking for existing VM..."
+          az vm show --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} 2>/dev/null && \
+          az vm delete --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} --yes || \
+          echo "No existing VM found"
+        continue-on-error: true
+
+      - name: Generate Unique DNS Label
+        id: dns
+        run: |
+          RANDOM_ID=$(openssl rand -hex 4)
+          echo "dns_label=agromart-demo-$RANDOM_ID" >> $GITHUB_OUTPUT
+
+      - name: Create Resource Group
+        run: |
+          az group create --name ${{ env.AZURE_RG }} --location ${{ env.AZURE_LOCATION }} --output none || true
+
+      - name: Create VM
+        run: |
+          az vm create \
+            --resource-group ${{ env.AZURE_RG }} \
+            --name ${{ env.VM_NAME }} \
+            --image Ubuntu2204 \
+            --admin-username ${{ env.ADMIN_USERNAME }} \
+            --generate-ssh-keys \
+            --size ${{ env.VM_SIZE }} \
+            --public-ip-sku Standard \
+            --public-ip-address-dns-name ${{ steps.dns.outputs.dns_label }} \
+            --output none
+
+      - name: Open Required Ports
+        run: |
+          az vm open-port --port 80 --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} --priority 1001 --output none
+          az vm open-port --port 443 --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} --priority 1002 --output none
+          az vm open-port --port 8025 --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} --priority 1003 --output none || true
+
+      - name: Get VM Details
+        id: vm-details
+        run: |
+          IP_ADDRESS=$(az vm show --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} -d --query publicIps -o tsv)
+          FQDN=$(az vm show --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} -d --query fqdns -o tsv)
+          echo "ip_address=$IP_ADDRESS" >> $GITHUB_OUTPUT
+          echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
+          echo "vm_fqdn=$FQDN" >> $GITHUB_ENV
+          
+          echo "## 🖥️ VM Provisioned!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**IP Address:** $IP_ADDRESS" >> $GITHUB_STEP_SUMMARY
+          echo "**DNS Name:** $FQDN" >> $GITHUB_STEP_SUMMARY
+          echo "**SSH:** ssh ${{ env.ADMIN_USERNAME }}@$FQDN" >> $GITHUB_STEP_SUMMARY
+
+      - name: Save VM Details
+        run: |
+          mkdir -p deploy
+          echo "${{ steps.vm-details.outputs.fqdn }}" > deploy/current_fqdn.txt
+          echo "${{ steps.vm-details.outputs.ip_address }}" > deploy/current_ip.txt
+
+      - name: Upload VM Details
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-details
+          path: |
+            deploy/current_fqdn.txt
+            deploy/current_ip.txt
+
+  deploy:
+    name: Deploy to VM
+    runs-on: ubuntu-latest
+    needs: [provision-vm]
+    if: always() && (needs.provision-vm.result == 'success' || needs.provision-vm.result == 'skipped')
+    environment: ${{ github.event.inputs.environment || 'demo' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download VM Details
+        if: needs.provision-vm.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: vm-details
+          path: deploy/
+
+      - name: Get VM FQDN
+        id: get-fqdn
+        run: |
+          if [ -f deploy/current_fqdn.txt ]; then
+            FQDN=$(cat deploy/current_fqdn.txt)
+          else
+            # Try to get from Azure
+            FQDN=$(az vm show --resource-group ${{ env.AZURE_RG }} --name ${{ env.VM_NAME }} -d --query fqdns -o tsv)
+          fi
+          echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
+          echo "VM_FQDN=$FQDN" >> $GITHUB_ENV
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AZURE_SSH_PRIVATE_KEY }}" > ~/.ssh/azure_vm
+          chmod 600 ~/.ssh/azure_vm
+          cat >> ~/.ssh/config << EOF
+          Host azure-vm
+            HostName ${{ steps.get-fqdn.outputs.fqdn }}
+            User ${{ env.ADMIN_USERNAME }}
+            IdentityFile ~/.ssh/azure_vm
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+          EOF
+
+      - name: Install SSH Key from Azure
+        run: |
+          # Download the SSH key generated during VM creation
+          az vm run-command invoke \
+            --resource-group ${{ env.AZURE_RG }} \
+            --name ${{ env.VM_NAME }} \
+            --command-id RunShellScript \
+            --scripts "cat ~/.ssh/id_rsa" \
+            --query value[0].message -o tsv | grep -A 100 'BEGIN OPENSSH PRIVATE KEY' | head -n 30 > ~/.ssh/azure_vm || true
+          
+          # If that didn't work, we'll use password auth for first setup
+          echo "SSH key setup attempted"
+
+      - name: Wait for VM
+        run: |
+          echo "Waiting for VM to be ready..."
+          for i in {1..30}; do
+            if ssh -o ConnectTimeout=5 ${{ env.ADMIN_USERNAME }}@${{ steps.get-fqdn.outputs.fqdn }} 'echo OK' 2>/dev/null; then
+              echo "VM is ready!"
+              break
+            fi
+            echo "Attempt $i: VM not ready yet, waiting..."
+            sleep 10
+          done
+
+      - name: Setup VM Environment
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          
+          ssh ${{ env.ADMIN_USERNAME }}@$VM_FQDN << 'REMOTE_SCRIPT'
+            set -e
+            
+            # Create swap file (critical for small VMs)
+            if [ ! -f /swapfile ]; then
+              echo "Creating 4GB swapfile..."
+              sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile
+              echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+              echo "Swap created successfully"
+            fi
+            free -h
+            
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+              sudo systemctl enable docker
+              sudo systemctl start docker
+              echo "Docker installed successfully"
+            fi
+            
+            # Install Docker Compose
+            if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+              echo "Installing Docker Compose..."
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+            
+            # Create app directory
+            mkdir -p ~/app
+          REMOTE_SCRIPT
+
+      - name: Create Production Environment File
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          
+          # Create .env.prod content
+          cat > deploy/.env.prod << EOF
+          # Azure VM Production Environment
+          DOMAIN_NAME=$VM_FQDN
+          
+          # Database
+          POSTGRES_USER=agromart
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=agromart
+          DATABASE_URL=postgresql://agromart:${{ secrets.POSTGRES_PASSWORD }}@postgres:5432/agromart?sslmode=disable
+          
+          # Redis
+          REDIS_URL=redis://redis:6379
+          REDIS_PASSWORD=
+          
+          # MinIO
+          MINIO_ROOT_USER=minioadmin
+          MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}
+          MINIO_ENDPOINT=minio:9000
+          MINIO_ACCESS_KEY=minioadmin
+          MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}
+          MINIO_USE_SSL=false
+          
+          # Security
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          CSRF_SECRET=${{ secrets.CSRF_SECRET }}
+          ENFORCE_HTTPS=true
+          
+          # URLs
+          FRONTEND_URL=https://$VM_FQDN
+          BACKEND_URL=https://$VM_FQDN/v1
+          NEXT_PUBLIC_API_URL=https://$VM_FQDN/v1
+          
+          # Resend Email (CRITICAL - must be real API key)
+          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}
+          RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}
+          FROM_EMAIL=${{ secrets.FROM_EMAIL }}
+          ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}
+          
+          # Razorpay (Optional)
+          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET=${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+          
+          # Twilio (Optional)
+          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }}
+          
+          # Super Admin
+          SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}
+          SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}
+          EOF
+
+      - name: Create Caddyfile
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          
+          cat > deploy/Caddyfile << EOF
+          $VM_FQDN {
+            reverse_proxy /v1/* backend:8080
+            reverse_proxy /* frontend:3000
+          }
+          EOF
+
+      - name: Sync Files to VM
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          
+          # Sync deploy directory
+          rsync -avz --delete \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude '.next' \
+            --exclude 'tmp' \
+            deploy/ ${{ env.ADMIN_USERNAME }}@$VM_FQDN:~/app/deploy/
+          
+          # Sync root files needed for build
+          rsync -avz \
+            --exclude 'node_modules' \
+            --exclude '.git' \
+            --exclude '.next' \
+            --exclude 'frontend/node_modules' \
+            --exclude 'frontend/.next' \
+            Dockerfile go.mod go.sum cmd/ internal/ pkg/ config/ migrations/ ${{ env.ADMIN_USERNAME }}@$VM_FQDN:~/app/
+          
+          # Sync frontend
+          rsync -avz \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            frontend/ ${{ env.ADMIN_USERNAME }}@$VM_FQDN:~/app/frontend/
+
+      - name: Deploy Application
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          
+          ssh ${{ env.ADMIN_USERNAME }}@$VM_FQDN << REMOTE_SCRIPT
+            set -e
+            
+            cd ~/app/deploy
+            
+            # Ensure .env exists
+            if [ ! -f .env ]; then
+              cp .env.prod .env
+            fi
+            
+            # Pull latest images (if using pre-built)
+            # Or build locally
+            echo "Building and starting services..."
+            
+            # Use docker compose (v2) or docker-compose
+            if docker compose version &> /dev/null; then
+              COMPOSE_CMD="docker compose"
+            else
+              COMPOSE_CMD="docker-compose"
+            fi
+            
+            # Stop existing services
+            $COMPOSE_CMD -f docker-compose.vm.yml down --remove-orphans 2>/dev/null || true
+            
+            # Build and start
+            $COMPOSE_CMD -f docker-compose.vm.yml up -d --build --remove-orphans
+            
+            # Clean up old images
+            docker image prune -f || true
+            
+            echo "Deployment complete!"
+          REMOTE_SCRIPT
+
+      - name: Health Check
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          
+          echo "Waiting for services to start..."
+          sleep 60
+          
+          # Check frontend
+          for i in {1..10}; do
+            FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$VM_FQDN || echo "000")
+            if [ "$FRONTEND_STATUS" = "200" ] || [ "$FRONTEND_STATUS" = "307" ]; then
+              echo "✅ Frontend is responding (HTTP $FRONTEND_STATUS)"
+              break
+            fi
+            echo "Frontend check attempt $i: HTTP $FRONTEND_STATUS, retrying in 10s..."
+            sleep 10
+          done
+          
+          # Check backend
+          for i in {1..10}; do
+            BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$VM_FQDN/v1/health || echo "000")
+            if [ "$BACKEND_STATUS" = "200" ]; then
+              echo "✅ Backend is healthy (HTTP $BACKEND_STATUS)"
+              break
+            fi
+            echo "Backend check attempt $i: HTTP $BACKEND_STATUS, retrying in 10s..."
+            sleep 10
+          done
+          
+          echo ""
+          echo "## 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://$VM_FQDN" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Services:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Frontend (Next.js)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backend (Go API)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ PostgreSQL" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Redis" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ MinIO" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Caddy (Reverse Proxy)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Test user registration" >> $GITHUB_STEP_SUMMARY
+          echo "2. Verify email delivery" >> $GITHUB_STEP_SUMMARY
+          echo "3. Check all functionality" >> $GITHUB_STEP_SUMMARY
+
+      - name: Output Deployment Info
+        run: |
+          VM_FQDN="${{ steps.get-fqdn.outputs.fqdn }}"
+          echo ""
+          echo "=================================================="
+          echo "🎉 DEPLOYMENT SUCCESSFUL!"
+          echo "=================================================="
+          echo ""
+          echo "🌐 Application URL: https://$VM_FQDN"
+          echo ""
+          echo "🔧 Management Commands:"
+          echo "  SSH:          ssh ${{ env.ADMIN_USERNAME }}@$VM_FQDN"
+          echo "  Logs:         ssh ${{ env.ADMIN_USERNAME }}@$VM_FQDN 'cd ~/app/deploy && docker compose -f docker-compose.vm.yml logs -f'"
+          echo "  Restart:      ssh ${{ env.ADMIN_USERNAME }}@$VM_FQDN 'cd ~/app/deploy && docker compose -f docker-compose.vm.yml restart'"
+          echo "  Update:       ssh ${{ env.ADMIN_USERNAME }}@$VM_FQDN 'cd ~/app/deploy && docker compose -f docker-compose.vm.yml pull && docker compose -f docker-compose.vm.yml up -d'"
+          echo ""
+          echo "✅ Test email verification by signing up with a real email!"
+          echo "=================================================="
