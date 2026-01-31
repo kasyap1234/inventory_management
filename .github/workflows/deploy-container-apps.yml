@@ -159,8 +159,7 @@ jobs:
               --env-vars \
                 "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" \
                 "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
-              --command "minio" \
-              --args "server" "/data" "--console-address" ":9001" \
+              --args "server /data --console-address :9001" \
               --cpu 0.25 --memory 0.5Gi \
               --min-replicas 1 --max-replicas 1 \
               --output none
