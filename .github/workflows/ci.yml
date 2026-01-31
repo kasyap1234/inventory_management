@@ -415,10 +415,10 @@ jobs:
   # DEPLOYMENT
   # ============================================================================
   deploy:
-    name: Deploy to Azure
+    name: Deploy to Azure Container Apps
     needs: docker
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: ./.github/workflows/deploy-azure.yml
+    uses: ./.github/workflows/deploy-container-apps.yml
     with:
       environment: production
       image_tag: ${{ github.sha }}

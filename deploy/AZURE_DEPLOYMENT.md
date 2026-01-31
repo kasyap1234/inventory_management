@@ -8,7 +8,7 @@ Complete guide for deploying the Agromart Inventory Management System to Azure C
 
 ### Infrastructure Components Created
 
-1. **GitHub Actions Workflow** (`.github/workflows/deploy-azure.yml`)
+1. **GitHub Actions Workflow** (`.github/workflows/deploy-container-apps.yml`)
    - Automated build and deployment pipeline
    - Builds Docker images for backend (Go) and frontend (Next.js)
    - Deploys 5 services to Azure Container Apps

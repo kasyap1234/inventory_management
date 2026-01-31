@@ -1,0 +1,461 @@
+name: Deploy to Azure Container Apps
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'production'
+        type: string
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: false
+        default: 'latest'
+        type: string
+
+env:
+  AZURE_RG: agromart-rg
+  AZURE_LOCATION: centralindia
+  CONTAINER_ENV: agromart-env
+  DOCKER_REGISTRY: docker.io
+
+jobs:
+  deploy:
+    name: Deploy to Container Apps
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Resource Group
+        run: |
+          az group create \
+            --name ${{ env.AZURE_RG }} \
+            --location ${{ env.AZURE_LOCATION }} \
+            --output none || true
+          echo "✅ Resource group ready"
+
+      - name: Create Container Apps Environment
+        id: env
+        run: |
+          # Check if environment exists
+          if az containerapp env show \
+            --name ${{ env.CONTAINER_ENV }} \
+            --resource-group ${{ env.AZURE_RG }} \
+            --output none 2>/dev/null; then
+            echo "Container Apps Environment already exists"
+          else
+            echo "Creating Container Apps Environment..."
+            az containerapp env create \
+              --name ${{ env.CONTAINER_ENV }} \
+              --resource-group ${{ env.AZURE_RG }} \
+              --location ${{ env.AZURE_LOCATION }} \
+              --output none
+          fi
+          echo "✅ Container Apps Environment ready"
+
+      - name: Deploy PostgreSQL
+        run: |
+          IMAGE_TAG="${{ inputs.image_tag || github.sha }}"
+
+          # Check if app exists
+          if az containerapp show \
+            --name agromart-postgres \
+            --resource-group ${{ env.AZURE_RG }} \
+            --output none 2>/dev/null; then
+            echo "Updating existing PostgreSQL container app..."
+            az containerapp update \
+              --name agromart-postgres \
+              --resource-group ${{ env.AZURE_RG }} \
+              --set-env-vars \
+                "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" \
+                "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" \
+                "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" \
+              --cpu 0.5 --memory 1Gi \
+              --output none
+          else
+            echo "Creating PostgreSQL container app..."
+            az containerapp create \
+              --name agromart-postgres \
+              --resource-group ${{ env.AZURE_RG }} \
+              --environment ${{ env.CONTAINER_ENV }} \
+              --image postgres:17-alpine \
+              --target-port 5432 \
+              --ingress internal \
+              --env-vars \
+                "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" \
+                "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" \
+                "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" \
+              --cpu 0.5 --memory 1Gi \
+              --min-replicas 1 --max-replicas 1 \
+              --output none
+          fi
+          echo "✅ PostgreSQL deployed"
+
+      - name: Deploy Redis
+        run: |
+          if az containerapp show \
+            --name agromart-redis \
+            --resource-group ${{ env.AZURE_RG }} \
+            --output none 2>/dev/null; then
+            echo "Redis container app already exists"
+          else
+            echo "Creating Redis container app..."
+            az containerapp create \
+              --name agromart-redis \
+              --resource-group ${{ env.AZURE_RG }} \
+              --environment ${{ env.CONTAINER_ENV }} \
+              --image redis:8-alpine \
+              --target-port 6379 \
+              --ingress internal \
+              --cpu 0.25 --memory 0.5Gi \
+              --min-replicas 1 --max-replicas 1 \
+              --output none
+          fi
+          echo "✅ Redis deployed"
+
+      - name: Deploy MinIO
+        run: |
+          if az containerapp show \
+            --name agromart-minio \
+            --resource-group ${{ env.AZURE_RG }} \
+            --output none 2>/dev/null; then
+            echo "Updating MinIO container app..."
+            az containerapp update \
+              --name agromart-minio \
+              --resource-group ${{ env.AZURE_RG }} \
+              --set-env-vars \
+                "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" \
+                "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+              --cpu 0.25 --memory 0.5Gi \
+              --output none
+          else
+            echo "Creating MinIO container app..."
+            az containerapp create \
+              --name agromart-minio \
+              --resource-group ${{ env.AZURE_RG }} \
+              --environment ${{ env.CONTAINER_ENV }} \
+              --image minio/minio:latest \
+              --target-port 9000 \
+              --ingress internal \
+              --env-vars \
+                "MINIO_ROOT_USER=${{ secrets.MINIO_ROOT_USER }}" \
+                "MINIO_ROOT_PASSWORD=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+              --command "minio" \
+              --args "server" "/data" "--console-address" ":9001" \
+              --cpu 0.25 --memory 0.5Gi \
+              --min-replicas 1 --max-replicas 1 \
+              --output none
+          fi
+          echo "✅ MinIO deployed"
+
+      - name: Wait for Infrastructure Services
+        run: |
+          echo "Waiting for infrastructure services to be ready..."
+          sleep 30
+          echo "✅ Infrastructure services ready"
+
+      - name: Get Service URLs
+        id: urls
+        run: |
+          # Get internal FQDNs for service-to-service communication
+          POSTGRES_FQDN=$(az containerapp show \
+            --name agromart-postgres \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+
+          REDIS_FQDN=$(az containerapp show \
+            --name agromart-redis \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+
+          MINIO_FQDN=$(az containerapp show \
+            --name agromart-minio \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+
+          echo "postgres_fqdn=$POSTGRES_FQDN" >> $GITHUB_OUTPUT
+          echo "redis_fqdn=$REDIS_FQDN" >> $GITHUB_OUTPUT
+          echo "minio_fqdn=$MINIO_FQDN" >> $GITHUB_OUTPUT
+
+          echo "Internal service URLs:"
+          echo "  PostgreSQL: $POSTGRES_FQDN"
+          echo "  Redis: $REDIS_FQDN"
+          echo "  MinIO: $MINIO_FQDN"
+
+      - name: Deploy Backend
+        run: |
+          IMAGE_TAG="${{ inputs.image_tag || github.sha }}"
+          DOCKER_IMAGE="${{ secrets.DOCKER_USERNAME }}/agromart:$IMAGE_TAG"
+
+          # Build DATABASE_URL with internal FQDN
+          DATABASE_URL="postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@${{ steps.urls.outputs.postgres_fqdn }}:5432/${{ secrets.POSTGRES_DB }}?sslmode=disable"
+          REDIS_URL="redis://${{ steps.urls.outputs.redis_fqdn }}:6379"
+          MINIO_ENDPOINT="${{ steps.urls.outputs.minio_fqdn }}:9000"
+
+          if az containerapp show \
+            --name agromart-backend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --output none 2>/dev/null; then
+            echo "Updating backend container app with image: $DOCKER_IMAGE"
+            az containerapp update \
+              --name agromart-backend \
+              --resource-group ${{ env.AZURE_RG }} \
+              --image "$DOCKER_IMAGE" \
+              --set-env-vars \
+                "PORT=8080" \
+                "DATABASE_URL=$DATABASE_URL" \
+                "REDIS_URL=$REDIS_URL" \
+                "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+                "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" \
+                "ENFORCE_HTTPS=true" \
+                "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
+                "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
+                "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" \
+                "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" \
+                "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" \
+                "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" \
+                "MINIO_ENDPOINT=$MINIO_ENDPOINT" \
+                "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" \
+                "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+                "MINIO_USE_SSL=false" \
+                "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" \
+                "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" \
+                "GO_ENV=production" \
+              --cpu 0.5 --memory 1Gi \
+              --output none
+          else
+            echo "Creating backend container app with image: $DOCKER_IMAGE"
+            az containerapp create \
+              --name agromart-backend \
+              --resource-group ${{ env.AZURE_RG }} \
+              --environment ${{ env.CONTAINER_ENV }} \
+              --image "$DOCKER_IMAGE" \
+              --target-port 8080 \
+              --ingress external \
+              --env-vars \
+                "PORT=8080" \
+                "DATABASE_URL=$DATABASE_URL" \
+                "REDIS_URL=$REDIS_URL" \
+                "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+                "CSRF_SECRET=${{ secrets.CSRF_SECRET }}" \
+                "ENFORCE_HTTPS=true" \
+                "FRONTEND_URL=https://agromart-frontend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
+                "BACKEND_URL=https://agromart-backend.${{ env.AZURE_LOCATION }}.azurecontainerapps.io" \
+                "RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" \
+                "RESEND_FROM_EMAIL=${{ secrets.RESEND_FROM_EMAIL }}" \
+                "RESEND_FROM_NAME=${{ secrets.RESEND_FROM_NAME }}" \
+                "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" \
+                "MINIO_ENDPOINT=$MINIO_ENDPOINT" \
+                "MINIO_ACCESS_KEY=${{ secrets.MINIO_ROOT_USER }}" \
+                "MINIO_SECRET_KEY=${{ secrets.MINIO_ROOT_PASSWORD }}" \
+                "MINIO_USE_SSL=false" \
+                "SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}" \
+                "SUPER_ADMIN_PASSWORD=${{ secrets.SUPER_ADMIN_PASSWORD }}" \
+                "GO_ENV=production" \
+              --cpu 0.5 --memory 1Gi \
+              --min-replicas 1 --max-replicas 3 \
+              --output none
+          fi
+          echo "✅ Backend deployed"
+
+      - name: Get Backend URL
+        id: backend-url
+        run: |
+          BACKEND_FQDN=$(az containerapp show \
+            --name agromart-backend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+          echo "backend_url=https://$BACKEND_FQDN" >> $GITHUB_OUTPUT
+          echo "Backend URL: https://$BACKEND_FQDN"
+
+      - name: Deploy Frontend
+        run: |
+          IMAGE_TAG="${{ inputs.image_tag || github.sha }}"
+          DOCKER_IMAGE="${{ secrets.DOCKER_USERNAME }}/agromart-frontend:$IMAGE_TAG"
+          BACKEND_URL="${{ steps.backend-url.outputs.backend_url }}"
+
+          if az containerapp show \
+            --name agromart-frontend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --output none 2>/dev/null; then
+            echo "Updating frontend container app with image: $DOCKER_IMAGE"
+            az containerapp update \
+              --name agromart-frontend \
+              --resource-group ${{ env.AZURE_RG }} \
+              --image "$DOCKER_IMAGE" \
+              --set-env-vars \
+                "NODE_ENV=production" \
+                "NEXT_PUBLIC_API_URL=$BACKEND_URL" \
+                "PORT=3000" \
+              --cpu 0.25 --memory 0.5Gi \
+              --output none
+          else
+            echo "Creating frontend container app with image: $DOCKER_IMAGE"
+            az containerapp create \
+              --name agromart-frontend \
+              --resource-group ${{ env.AZURE_RG }} \
+              --environment ${{ env.CONTAINER_ENV }} \
+              --image "$DOCKER_IMAGE" \
+              --target-port 3000 \
+              --ingress external \
+              --env-vars \
+                "NODE_ENV=production" \
+                "NEXT_PUBLIC_API_URL=$BACKEND_URL" \
+                "PORT=3000" \
+              --cpu 0.25 --memory 0.5Gi \
+              --min-replicas 1 --max-replicas 3 \
+              --output none
+          fi
+          echo "✅ Frontend deployed"
+
+      - name: Get Application URLs
+        id: app-urls
+        run: |
+          FRONTEND_FQDN=$(az containerapp show \
+            --name agromart-frontend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+
+          BACKEND_FQDN=$(az containerapp show \
+            --name agromart-backend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+
+          echo "frontend_url=https://$FRONTEND_FQDN" >> $GITHUB_OUTPUT
+          echo "backend_url=https://$BACKEND_FQDN" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "📱 Application URLs:"
+          echo "  Frontend: https://$FRONTEND_FQDN"
+          echo "  Backend:  https://$BACKEND_FQDN"
+
+      - name: Health Checks
+        run: |
+          FRONTEND_URL="${{ steps.app-urls.outputs.frontend_url }}"
+          BACKEND_URL="${{ steps.app-urls.outputs.backend_url }}"
+
+          echo "Waiting for services to fully start..."
+          sleep 60
+
+          echo ""
+          echo "🔍 Running health checks..."
+
+          # Check backend health
+          for i in {1..10}; do
+            BACKEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health" || echo "000")
+            if [ "$BACKEND_STATUS" = "200" ]; then
+              echo "✅ Backend is healthy (HTTP $BACKEND_STATUS)"
+              break
+            fi
+            echo "Backend check attempt $i: HTTP $BACKEND_STATUS, retrying in 10s..."
+            sleep 10
+          done
+
+          # Check frontend
+          for i in {1..10}; do
+            FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || echo "000")
+            if [ "$FRONTEND_STATUS" = "200" ] || [ "$FRONTEND_STATUS" = "307" ] || [ "$FRONTEND_STATUS" = "308" ]; then
+              echo "✅ Frontend is responding (HTTP $FRONTEND_STATUS)"
+              break
+            fi
+            echo "Frontend check attempt $i: HTTP $FRONTEND_STATUS, retrying in 10s..."
+            sleep 10
+          done
+
+          echo ""
+          echo "✅ Health checks complete!"
+
+      - name: Generate Deployment Summary
+        run: |
+          FRONTEND_URL="${{ steps.app-urls.outputs.frontend_url }}"
+          BACKEND_URL="${{ steps.app-urls.outputs.backend_url }}"
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🚀 Deployment Complete!
+
+          ### Application URLs
+          - **Frontend**: [$FRONTEND_URL]($FRONTEND_URL)
+          - **Backend**: [$BACKEND_URL]($BACKEND_URL)
+          - **Health Check**: [$BACKEND_URL/health]($BACKEND_URL/health)
+
+          ### Services Deployed
+          - ✅ Frontend (Next.js) - 0.25 vCPU, 0.5GB RAM
+          - ✅ Backend (Go API) - 0.5 vCPU, 1GB RAM
+          - ✅ PostgreSQL 17 - 0.5 vCPU, 1GB RAM
+          - ✅ Redis 8 - 0.25 vCPU, 0.5GB RAM
+          - ✅ MinIO - 0.25 vCPU, 0.5GB RAM
+
+          ### Resource Group
+          - **Name**: ${{ env.AZURE_RG }}
+          - **Location**: ${{ env.AZURE_LOCATION }}
+          - **Environment**: ${{ env.CONTAINER_ENV }}
+
+          ### Next Steps
+          1. Visit the frontend URL to test the application
+          2. Register a new user with a real email address
+          3. Verify email delivery through Resend
+          4. Test complete user flow (login, products, orders)
+
+          ### Management Commands
+          \`\`\`bash
+          # View all container apps
+          az containerapp list --resource-group ${{ env.AZURE_RG }} --output table
+
+          # View backend logs
+          az containerapp logs show --name agromart-backend --resource-group ${{ env.AZURE_RG }} --follow
+
+          # View frontend logs
+          az containerapp logs show --name agromart-frontend --resource-group ${{ env.AZURE_RG }} --follow
+
+          # Restart backend
+          az containerapp restart --name agromart-backend --resource-group ${{ env.AZURE_RG }}
+
+          # Delete all resources (cleanup)
+          az group delete --name ${{ env.AZURE_RG }} --yes
+          \`\`\`
+          EOF
+
+      - name: Output Deployment Info
+        run: |
+          FRONTEND_URL="${{ steps.app-urls.outputs.frontend_url }}"
+          BACKEND_URL="${{ steps.app-urls.outputs.backend_url }}"
+
+          echo ""
+          echo "=========================================================="
+          echo "🎉 DEPLOYMENT SUCCESSFUL!"
+          echo "=========================================================="
+          echo ""
+          echo "🌐 Application URL: $FRONTEND_URL"
+          echo "🔌 Backend API:     $BACKEND_URL"
+          echo "💚 Health Check:    $BACKEND_URL/health"
+          echo ""
+          echo "📊 Azure Portal:"
+          echo "  https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.App%2FcontainerApps"
+          echo ""
+          echo "✅ Test email verification by signing up with a real email!"
+          echo "=========================================================="
