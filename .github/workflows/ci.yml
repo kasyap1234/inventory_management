@@ -399,7 +399,7 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
-      - name: Build and push
+      - name: Build and push backend
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -411,6 +411,28 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ github.sha }}
             BUILD_TIME=${{ github.event.head_commit.timestamp }}
+
+      - name: Extract frontend metadata
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/agromart-frontend
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://agromart-backend.centralindia.azurecontainerapps.io
 
   # ============================================================================
   # DEPLOYMENT
