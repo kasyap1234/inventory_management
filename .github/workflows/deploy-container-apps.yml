@@ -234,6 +234,9 @@ jobs:
               --name agromart-backend \
               --resource-group ${{ env.AZURE_RG }} \
               --image "$DOCKER_IMAGE" \
+              --registry-server docker.io \
+              --registry-username "${{ secrets.DOCKER_USERNAME }}" \
+              --registry-password "${{ secrets.DOCKER_PASSWORD }}" \
               --set-env-vars \
                 "PORT=8080" \
                 "DATABASE_URL=secretref:database-url" \
@@ -264,6 +267,9 @@ jobs:
               --resource-group ${{ env.AZURE_RG }} \
               --environment ${{ env.CONTAINER_ENV }} \
               --image "$DOCKER_IMAGE" \
+              --registry-server docker.io \
+              --registry-username "${{ secrets.DOCKER_USERNAME }}" \
+              --registry-password "${{ secrets.DOCKER_PASSWORD }}" \
               --target-port 8080 \
               --ingress external \
               --secrets \
@@ -326,6 +332,9 @@ jobs:
               --name agromart-frontend \
               --resource-group ${{ env.AZURE_RG }} \
               --image "$DOCKER_IMAGE" \
+              --registry-server docker.io \
+              --registry-username "${{ secrets.DOCKER_USERNAME }}" \
+              --registry-password "${{ secrets.DOCKER_PASSWORD }}" \
               --set-env-vars "NODE_ENV=production" "NEXT_PUBLIC_API_URL=$BACKEND_URL" "PORT=3000" \
               --cpu 0.25 --memory 0.5Gi \
               --output none
@@ -336,6 +345,9 @@ jobs:
               --resource-group ${{ env.AZURE_RG }} \
               --environment ${{ env.CONTAINER_ENV }} \
               --image "$DOCKER_IMAGE" \
+              --registry-server docker.io \
+              --registry-username "${{ secrets.DOCKER_USERNAME }}" \
+              --registry-password "${{ secrets.DOCKER_PASSWORD }}" \
               --target-port 3000 \
               --ingress external \
               --env-vars "NODE_ENV=production" "NEXT_PUBLIC_API_URL=$BACKEND_URL" "PORT=3000" \
