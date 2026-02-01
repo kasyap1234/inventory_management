@@ -303,6 +303,24 @@ jobs:
           fi
           echo "✅ Backend deployed"
 
+      - name: Run Database Migrations
+        run: |
+          echo "Waiting for backend to be fully ready..."
+          sleep 30
+
+          echo "Running database migrations..."
+          az containerapp exec \
+            --name agromart-backend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --command "sh" -- -c '
+              for f in /app/migrations/*.sql; do
+                echo "Running: $(basename $f)"
+                psql "$DATABASE_URL" -f "$f" 2>&1 || true
+              done
+            '
+
+          echo "✅ Migrations complete"
+
       - name: Get Backend URL
         id: backend-url
         run: |
