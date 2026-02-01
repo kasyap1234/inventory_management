@@ -421,7 +421,7 @@ jobs:
     uses: ./.github/workflows/deploy-container-apps.yml
     with:
       environment: production
-      image_tag: ${{ github.sha }}
+      image_tag: latest
     secrets: inherit
 
   # ============================================================================
