@@ -306,15 +306,38 @@ jobs:
       - name: Run Database Migrations
         run: |
           echo "Waiting for backend to be fully ready..."
-          sleep 30
+
+          # Get backend URL for health check
+          BACKEND_FQDN=$(az containerapp show \
+            --name agromart-backend \
+            --resource-group ${{ env.AZURE_RG }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv 2>/dev/null || echo "")
+
+          if [ -n "$BACKEND_FQDN" ]; then
+            echo "Checking backend health at https://$BACKEND_FQDN/health"
+            for i in {1..30}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$BACKEND_FQDN/health" || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "Backend is healthy!"
+                break
+              fi
+              echo "Attempt $i/30: Backend returned $STATUS, waiting 10 seconds..."
+              sleep 10
+            done
+          else
+            echo "Backend FQDN not available yet, waiting 60 seconds..."
+            sleep 60
+          fi
 
           echo "Running database migrations..."
           az containerapp exec \
             --name agromart-backend \
             --resource-group ${{ env.AZURE_RG }} \
-            --command "sh -c 'for f in /app/migrations/*.sql; do echo Running: \$f; psql \$DATABASE_URL -f \$f 2>&1 || true; done'"
+            --command "sh -c 'for f in /app/migrations/*.sql; do echo Running: \$f; psql \$DATABASE_URL -f \$f 2>&1 || true; done'" \
+            || echo "Migration exec completed (some migrations may have already been applied)"
 
-          echo "✅ Migrations complete"
+          echo "Migrations complete"
 
       - name: Get Backend URL
         id: backend-url

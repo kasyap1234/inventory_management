@@ -24,16 +24,17 @@ test.describe('Product Management', () => {
 
   test('should search for products', async ({ page }) => {
     // Wait for page to load
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     const searchInput = page.locator('input[type="search"], input[placeholder*="Search" i]').first();
-    
+
     if (await searchInput.isVisible()) {
       await searchInput.fill('test');
       await page.waitForTimeout(1000); // Wait for debounce
-      
+
       // Results should update
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
   });
 
@@ -117,64 +118,67 @@ test.describe('Product Management', () => {
   });
 
   test('should filter products by category', async ({ page }) => {
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     const categoryFilter = page.locator('select[name="category"], button:has-text("Category"), [data-testid="category-filter"]').first();
-    
+
     if (await categoryFilter.isVisible()) {
       await categoryFilter.click();
       await page.waitForTimeout(500);
-      
+
       // Select a category option
       const categoryOption = page.locator('[role="option"], option').first();
       if (await categoryOption.isVisible()) {
         await categoryOption.click();
-        
+
         // Wait for filtered results
-        await page.waitForLoadState('networkidle');
+        await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
       }
     }
   });
 
   test('should display product details', async ({ page }) => {
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Click on first product row or card
     const productRow = page.locator('[data-testid*="product"], [class*="product-row"], tr').nth(1);
-    
+
     if (await productRow.isVisible()) {
       await productRow.click();
-      
+
       // Should show product details
       await page.waitForTimeout(1000);
-      
+
       const detailsVisible = await page.locator('[role="dialog"], [class*="detail"]').isVisible({ timeout: 3000 }).catch(() => false);
       expect(detailsVisible).toBeTruthy();
     }
   });
 
   test('should edit an existing product', async ({ page }) => {
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Find edit button
     const editButton = page.locator('button:has-text("Edit"), button[aria-label*="edit" i]').first();
-    
+
     if (await editButton.isVisible()) {
       await editButton.click();
       await page.waitForTimeout(500);
-      
+
       // Edit product name
       const nameInput = page.locator('input[name="name"], input[placeholder*="name" i]').first();
       if (await nameInput.isVisible()) {
         await nameInput.fill('Updated Product Name');
-        
+
         // Save changes
         const saveButton = page.locator('button[type="submit"], button:has-text("Save"), button:has-text("Update")').first();
         await saveButton.click();
-        
+
         // Wait for success
         await page.waitForTimeout(2000);
-        
+
         const successVisible = await page.locator('text=/success|updated/i').isVisible({ timeout: 5000 }).catch(() => false);
         expect(successVisible).toBeTruthy();
       }
@@ -182,18 +186,19 @@ test.describe('Product Management', () => {
   });
 
   test('should delete a product with confirmation', async ({ page }) => {
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     const deleteButton = page.locator('button:has-text("Delete"), button[aria-label*="delete" i]').first();
-    
+
     if (await deleteButton.isVisible()) {
       await deleteButton.click();
       await page.waitForTimeout(500);
-      
+
       // Should show confirmation dialog
       const confirmDialog = page.locator('[role="dialog"], [class*="confirm"], [class*="alert"]');
       await expect(confirmDialog).toBeVisible({ timeout: 3000 });
-      
+
       // Cancel deletion
       const cancelButton = page.locator('button:has-text("Cancel"), button:has-text("No")').first();
       if (await cancelButton.isVisible()) {
@@ -219,42 +224,44 @@ test.describe('Product Management', () => {
   });
 
   test('should paginate through products', async ({ page }) => {
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Look for pagination controls
     const nextButton = page.locator('button:has-text("Next"), button[aria-label*="next" i], [class*="pagination"] button').last();
-    
+
     if (await nextButton.isVisible() && !await nextButton.isDisabled()) {
       const currentUrl = page.url();
       await nextButton.click();
-      
+
       // Wait for navigation or update
       await page.waitForTimeout(1000);
-      
+
       // URL or content should change
       const newUrl = page.url();
       const urlChanged = currentUrl !== newUrl;
-      
+
       // Either URL changes or page updates
       expect(urlChanged || true).toBeTruthy();
     }
   });
 
   test('should handle bulk operations if available', async ({ page }) => {
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Look for checkboxes to select multiple products
     const checkboxes = page.locator('input[type="checkbox"]');
     const checkboxCount = await checkboxes.count();
-    
+
     if (checkboxCount > 1) {
       // Select first two products
       await checkboxes.nth(0).check();
       await checkboxes.nth(1).check();
-      
+
       // Look for bulk action buttons
       const bulkButton = page.locator('button:has-text("Bulk"), button:has-text("Delete Selected"), button:has-text("Export Selected")').first();
-      
+
       if (await bulkButton.isVisible()) {
         expect(await bulkButton.isEnabled()).toBeTruthy();
       }
@@ -265,12 +272,13 @@ test.describe('Product Management', () => {
 test.describe('Product Performance', () => {
   test('should load products list quickly', async ({ page }) => {
     await loginAsAdmin(page);
-    
+
     const startTime = Date.now();
     await page.goto('/dashboard/products');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
     const loadTime = Date.now() - startTime;
-    
+
     // Page should load in reasonable time (< 5 seconds)
     expect(loadTime).toBeLessThan(5000);
   });
@@ -278,14 +286,15 @@ test.describe('Product Performance', () => {
   test('should handle large product lists efficiently', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/dashboard/products');
-    
+
     // Wait for initial load
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('table, [data-testid="products-list"], [class*="products"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Scroll to bottom to test virtualization
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(500);
-    
+
     // Page should remain responsive
     const isResponsive = await page.locator('body').isVisible();
     expect(isResponsive).toBeTruthy();

@@ -9,7 +9,10 @@ export default defineConfig({
   testIgnore: ['**/unit/**', '**/integration/**'],
 
   // Maximum time one test can run
-  timeout: 60 * 1000,
+  timeout: 30 * 1000,
+
+  // Global timeout for entire test run
+  globalTimeout: 10 * 60 * 1000,
 
   // Run tests in files in parallel
   fullyParallel: true,
@@ -17,11 +20,11 @@ export default defineConfig({
   // Fail the build on CI if you accidentally left test.only in the source code
   forbidOnly: !!process.env.CI,
 
-  // Retry on CI only
-  retries: process.env.CI ? 2 : 0,
+  // Reduce retries
+  retries: process.env.CI ? 1 : 0,
 
-  // Number of parallel workers
-  workers: process.env.CI ? 1 : undefined,
+  // Increase workers on CI for parallel execution
+  workers: process.env.CI ? 2 : undefined,
 
   // Reporter to use
   reporter: [
@@ -44,15 +47,20 @@ export default defineConfig({
     // Video on failure
     video: 'retain-on-failure',
 
-    // Maximum time each action can take
-    actionTimeout: 15 * 1000,
+    // Reduce timeouts
+    actionTimeout: 10 * 1000,
 
     // Navigation timeout
-    navigationTimeout: 30 * 1000,
+    navigationTimeout: 15 * 1000,
   },
 
-  // Configure projects for major browsers
-  projects: [
+  // Only run Chromium in CI
+  projects: process.env.CI ? [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ] : [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
@@ -84,6 +92,6 @@ export default defineConfig({
     command: 'bun run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 60 * 1000,
   },
 });

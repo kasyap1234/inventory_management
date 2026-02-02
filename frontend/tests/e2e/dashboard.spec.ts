@@ -25,16 +25,17 @@ test.describe('Dashboard', () => {
 
   test('should display analytics cards/widgets', async ({ page }) => {
     await page.goto('/dashboard');
-    
+
     // Wait for content to load
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('[data-testid="metrics"], [class*="metric"], [class*="card"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Look for common metric cards (sales, inventory, orders, etc.)
     const metricsText = await page.textContent('body');
-    const hasMetrics = metricsText?.toLowerCase().includes('total') || 
+    const hasMetrics = metricsText?.toLowerCase().includes('total') ||
                       metricsText?.toLowerCase().includes('sales') ||
                       metricsText?.toLowerCase().includes('stock');
-    
+
     expect(hasMetrics).toBeTruthy();
   });
 
@@ -163,18 +164,19 @@ test.describe('Dashboard', () => {
     await page.route('**/*', route => {
       setTimeout(() => route.continue(), 100);
     });
-    
+
     await page.goto('/dashboard');
-    
+
     // Look for loading indicators
     const loader = page.locator('[class*="loading"], [class*="spinner"], svg[class*="animate-spin"]').first();
-    
+
     // Loading state should appear briefly
     const hadLoader = await loader.isVisible().catch(() => false);
-    
+
     // Wait for page to fully load
-    await page.waitForLoadState('networkidle');
-    
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('[data-testid="metrics"], [class*="metric"], [class*="card"]').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+
     // Loading should be gone
     const hasLoaderNow = await loader.isVisible({ timeout: 1000 }).catch(() => false);
     expect(hasLoaderNow).toBeFalsy();
