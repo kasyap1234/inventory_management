@@ -352,11 +352,12 @@ jobs:
           fi
 
           echo "Running database migrations..."
-          timeout 300 az containerapp exec \
+          MIGRATION_CMD='for f in /app/migrations/*.sql; do echo Running: $f; psql "$DATABASE_URL" -f "$f" 2>&1 || true; done; exit'
+          timeout 300 sh -c 'printf "%s\n" "$MIGRATION_CMD" | az containerapp exec \
             --name agromart-backend \
             --resource-group ${{ env.AZURE_RG }} \
             --container agromart-backend \
-            --command "sh -c 'for f in /app/migrations/*.sql; do echo Running: \$f; psql \$DATABASE_URL -f \$f 2>&1 || true; done'" \
+            --command sh' \
             || echo "Migration exec completed (some migrations may have already been applied or timed out)"
 
           echo "Migrations complete"
