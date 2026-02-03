@@ -322,8 +322,6 @@ jobs:
               --cpu 0.5 --memory 1Gi \
               --min-replicas 1 --max-replicas 3
           fi
-          echo "Restarting backend to apply secrets..."
-          az containerapp restart --name agromart-backend --resource-group ${{ env.AZURE_RG }}
           echo "✅ Backend deployed"
 
       - name: Run Database Migrations
