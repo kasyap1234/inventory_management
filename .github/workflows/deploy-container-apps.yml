@@ -322,6 +322,8 @@ jobs:
               --cpu 0.5 --memory 1Gi \
               --min-replicas 1 --max-replicas 3
           fi
+          echo "Restarting backend to apply secrets..."
+          az containerapp restart --name agromart-backend --resource-group ${{ env.AZURE_RG }}
           echo "✅ Backend deployed"
 
       - name: Run Database Migrations
@@ -352,11 +354,12 @@ jobs:
           fi
 
           echo "Running database migrations..."
-          az containerapp exec \
+          timeout 300 az containerapp exec \
             --name agromart-backend \
             --resource-group ${{ env.AZURE_RG }} \
+            --container agromart-backend \
             --command "sh -c 'for f in /app/migrations/*.sql; do echo Running: \$f; psql \$DATABASE_URL -f \$f 2>&1 || true; done'" \
-            || echo "Migration exec completed (some migrations may have already been applied)"
+            || echo "Migration exec completed (some migrations may have already been applied or timed out)"
 
           echo "Migrations complete"
 
